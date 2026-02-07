@@ -18,11 +18,14 @@
  *  4: Advertising start error
  * @details This function initializes the BLE hardware, creates a server, service, and characteristic.
  * @todo More complex error handling, security, and support for multiple characteristics and services.
- */
+*/
 int setupBLE(const char* name);
 
-
-/*
-* Notify function and other BLE-related functions will be added here in the future.
+/**
+ * @brief Pushes a message to all connected BLE clients.
+ * @param message The message to be sent.
+ * @details This function sets the value of the characteristic and sends a notification to all connected clients.
+ * @todo Implement message queuing and support for larger messages that may require fragmentation.
 */
+void pushMessage(const char* message);
 #endif

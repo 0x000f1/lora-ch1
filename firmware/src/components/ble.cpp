@@ -37,7 +37,9 @@ int setupBLE(const char* name) {
 
     characteristic = service->createCharacteristic(
         CHARACTERISTIC_UUID,
-        NIMBLE_PROPERTY::READ | NIMBLE_PROPERTY::WRITE | NIMBLE_PROPERTY::NOTIFY
+        NIMBLE_PROPERTY::READ | 
+        NIMBLE_PROPERTY::WRITE | 
+        NIMBLE_PROPERTY::NOTIFY
     );
     if (characteristic == nullptr) return 3; // Characteristic creation error
     
@@ -53,4 +55,14 @@ int setupBLE(const char* name) {
     if (!advertising->start()) return 4; // Advertising start error
     Serial.printf("[%s] BLE setup completed!\n", TAG);
     return 0;
+}
+
+void pushMessage(const char* message) {
+    if (server->getConnectedCount() > 0) {
+        characteristic->setValue(message);
+        characteristic->notify(); // Notify all connected clients
+        Serial.printf("[%s] Sent notify: %s\n", TAG, message);
+    } else {
+        Serial.printf("[%s] No clients connected. Message not sent: %s\n", TAG, message);
+    }
 }

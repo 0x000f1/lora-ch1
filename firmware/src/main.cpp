@@ -9,5 +9,6 @@ void setup() {
 }
 
 void loop() {
-    // Empty loop
+    pushMessage("Hello from ESP32!");
+    delay(5000);
 }
