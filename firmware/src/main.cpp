@@ -2,6 +2,7 @@
 #include "utils/log_helper.h"
 #include "components/ble.h"
 #include "components/system_manager.h"
+#include "components/lora.h"
 
 #define TAG "MAIN"
 
@@ -13,17 +14,10 @@ void setup() {
     } else {
         LOG_I(TAG, "BLE initialized successfully.");
     }
+    LoRaManager::setupLoRa();
 }
 
 void loop() {
-    if (Serial.available() > 0) {
-        String input = Serial.readStringUntil('\n');
-        input.trim();
-
-        if (input.length() > 0) {
-            BLEManager::pushMessage(input.c_str());
-        }
-    }
-
-    delay(20);
+    LoRaManager::handleFlags();
+    yield(); // Allow background tasks to run
 }

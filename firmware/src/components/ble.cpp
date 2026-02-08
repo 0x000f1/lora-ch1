@@ -2,6 +2,7 @@
 #include "system_manager.h"
 #include "utils/log_helper.h"
 #include <NimBLEDevice.h>
+#include "lora.h"
 
 #define TAG "BLE" 
 
@@ -10,10 +11,12 @@ static NimBLECharacteristic* characteristic = nullptr;
 
 // Callbacks
 class serverStatusCallback : public NimBLEServerCallbacks {
+    // Handle client connections and disconnections, and update connection parameters for better performance.
     void onConnect(NimBLEServer* nimBleServer, NimBLEConnInfo& connInfo) override {
         LOG_I(TAG, "Client connected: %s", connInfo.getAddress().toString().c_str());
         nimBleServer->updateConnParams(connInfo.getConnHandle(), 24, 48, 0, 180);
     }
+    // Handle client disconnections and restart advertising to allow new clients to connect.
     void onDisconnect(NimBLEServer* nimBleServer, NimBLEConnInfo& connInfo, int reason) override {
         LOG_I(TAG, "Client disconnected.");
         NimBLEDevice::startAdvertising();
@@ -21,8 +24,10 @@ class serverStatusCallback : public NimBLEServerCallbacks {
 };
 
 class charStatusCallbacks : public NimBLECharacteristicCallbacks {
+    // Handle characteristic write event, and log the new value when a client writes to the characteristic.
     void onWrite(NimBLECharacteristic* nimBleChar, NimBLEConnInfo& connInfo) override {
         LOG_I(TAG, "Characteristic written by client: %s", nimBleChar->getValue().c_str());
+        LoRaManager::sendMessage(nimBleChar->getValue().c_str()); // Forward the new value to the LoRa Manager to send it over LoRa.
     }
 };
 

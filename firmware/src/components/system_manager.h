@@ -11,15 +11,15 @@
 
 class SystemManager {
 public:
-    static void setupNVS();
-    static String getDeviceName();
-    static String getServiceUUID();
-    static String getCharUUID();
+    static void setupNVS();         // Initializes NVS and generates/checks device name and UUIDs. Should be called at startup.
+    static String getDeviceName();  // Retrieves the device name from NVS.
+    static String getServiceUUID(); // Retrieves the service UUID from NVS.
+    static String getCharUUID();    // Retrieves the characteristic UUID from NVS.
 
 private:
-    static String generateUUID();
-    static String generateDeviceName();
-    static void checkIfExists(const char* key, String (*generator)());
+    static String generateUUID();       // Helper function to generate a random UUID (version 4).
+    static String generateDeviceName(); // Helper function to generate a device name based on Prefix + MAC address.
+    static void checkIfExists(const char* key, String (*generator)()); // Checks if a key - value pair exists in NVS, if not generates and stores it.
 };
 
 #endif
