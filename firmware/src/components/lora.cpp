@@ -13,7 +13,7 @@
 #define LORA_MOSI 6
 #define LORA_NSS  7
 #define LORA_RST  3
-#define LORA_DIO0 2
+#define LORA_DIO0 10
 
 SPIClass loraSPI(FSPI); // FSPI = SPI2 | Use the FSPI for custom pin configuration.
 SX1278 loraModule = new Module(LORA_NSS, LORA_DIO0, LORA_RST, RADIOLIB_NC, loraSPI);
