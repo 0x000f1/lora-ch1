@@ -1,0 +1,6 @@
+(sym_lib_table
+  (version 7)
+  (lib (name "ESP32-C3_SUPERMINI_TH")(type "KiCad")(uri "${KIPRJMOD}/PCB_Modules/ESP32-C3_SUPERMINI_TH/ESP32-C3_SUPERMINI_TH.kicad_sym")(options "")(descr ""))
+  (lib (name "RFM98W-433S2")(type "KiCad")(uri "${KIPRJMOD}/PCB_Modules/RFM98W-433S2/RFM98W-433S2.kicad_sym")(options "")(descr ""))
+  (lib (name "FS8205A")(type "KiCad")(uri "${KIPRJMOD}/PCB_Modules/FS8205A/FS8205A.kicad_sym")(options "")(descr ""))
+)

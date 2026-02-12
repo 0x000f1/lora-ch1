@@ -1,2 +1,10 @@
 docs/pcb/lora_ch1-backups/
 docs/pcb/fp-info-cache
+docs/pcb/jlcpcb/
+docs/pcb/*.bak
+docs/pcb/*-backup
+docs/pcb/*-backups
+docs/pcb/*-cache
+docs/pcb/*-tmp
+docs/pcb/*-tmp.*
+docs/pcb/*~
