@@ -855,7 +855,7 @@
 			)
 			(embedded_fonts no)
 		)
-		(symbol "ESP32-C3_SUPERMINI_TH:ESP32-C3_SUPERMINI_TH"
+		(symbol "ESP32-C3_SUPERMINI_SMD:ESP32-C3_SUPERMINI_SMD"
 			(pin_names
 				(offset 1.016)
 			)
@@ -871,7 +871,7 @@
 					(justify left bottom)
 				)
 			)
-			(property "Value" "ESP32-C3_SUPERMINI_TH"
+			(property "Value" "ESP32-C3_SUPERMINI_SMD"
 				(at -12.7 -20.32 0)
 				(effects
 					(font
@@ -880,7 +880,7 @@
 					(justify left bottom)
 				)
 			)
-			(property "Footprint" "ESP32-C3_SUPERMINI_TH:MODULE_ESP32-C3_SUPERMINI_TH"
+			(property "Footprint" "ESP32-C3_SUPERMINI_SMD:MODULE_ESP32-C3_SUPERMINI"
 				(at 0 0 0)
 				(effects
 					(font
@@ -918,7 +918,7 @@
 					(hide yes)
 				)
 			)
-			(property "Description_1" "Super tiny ESP32-C3 board"
+			(property "MAXIMUM_PACKAGE_HEIGHT" "4.2mm"
 				(at 0 0 0)
 				(effects
 					(font
@@ -928,7 +928,7 @@
 					(hide yes)
 				)
 			)
-			(property "CREATOR" "DIZAR"
+			(property "Package" "None"
 				(at 0 0 0)
 				(effects
 					(font
@@ -948,7 +948,7 @@
 					(hide yes)
 				)
 			)
-			(property "Package" "Package"
+			(property "Check_prices" "https://www.snapeda.com/parts/ESP32-C3%20SuperMini_SMD/Espressif+Systems/view-part/?ref=eda"
 				(at 0 0 0)
 				(effects
 					(font
@@ -958,7 +958,7 @@
 					(hide yes)
 				)
 			)
-			(property "Check_prices" "https://www.snapeda.com/parts/ESP32-C3%20SuperMini_TH/Espressif+Systems/view-part/?ref=eda"
+			(property "STANDARD" "Manufacturer Recommendations"
 				(at 0 0 0)
 				(effects
 					(font
@@ -968,7 +968,7 @@
 					(hide yes)
 				)
 			)
-			(property "STANDARD" "IPC-7351B"
+			(property "PARTREV" ""
 				(at 0 0 0)
 				(effects
 					(font
@@ -978,7 +978,7 @@
 					(hide yes)
 				)
 			)
-			(property "VERIFIER" ""
+			(property "SnapEDA_Link" "https://www.snapeda.com/parts/ESP32-C3%20SuperMini_SMD/Espressif+Systems/view-part/?ref=snap"
 				(at 0 0 0)
 				(effects
 					(font
@@ -988,7 +988,7 @@
 					(hide yes)
 				)
 			)
-			(property "SnapEDA_Link" "https://www.snapeda.com/parts/ESP32-C3%20SuperMini_TH/Espressif+Systems/view-part/?ref=snap"
+			(property "MP" "ESP32-C3 SuperMini_SMD"
 				(at 0 0 0)
 				(effects
 					(font
@@ -998,7 +998,7 @@
 					(hide yes)
 				)
 			)
-			(property "MP" "ESP32-C3 SuperMini_TH"
+			(property "Description_1" "Super tiny ESP32-C3 board"
 				(at 0 0 0)
 				(effects
 					(font
@@ -1018,7 +1018,7 @@
 					(hide yes)
 				)
 			)
-			(property "MANUFACTURER" "Espressif Systems"
+			(property "MANUFACTURER" "Espressif"
 				(at 0 0 0)
 				(effects
 					(font
@@ -1028,7 +1028,7 @@
 					(hide yes)
 				)
 			)
-			(symbol "ESP32-C3_SUPERMINI_TH_0_0"
+			(symbol "ESP32-C3_SUPERMINI_SMD_0_0"
 				(rectangle
 					(start -12.7 -17.78)
 					(end 12.7 15.24)
@@ -8177,7 +8177,7 @@
 		(dnp no)
 		(fields_autoplaced yes)
 		(uuid "06b9320f-89cc-4430-8f34-4129e59a49f7")
-		(property "Reference" "LORA_MOD1"
+		(property "Reference" "LORA1"
 			(at 252.73 24.13 0)
 			(effects
 				(font
@@ -8331,6 +8331,15 @@
 				(hide yes)
 			)
 		)
+		(property "LCSC" "C19078268"
+			(at 252.73 24.13 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
 		(pin "7"
 			(uuid "e1500d26-f8e1-4162-8576-0838190d2dec")
 		)
@@ -8430,7 +8439,7 @@
 		(instances
 			(project ""
 				(path "/796b2641-703b-47b8-9b6b-c931056c1074"
-					(reference "LORA_MOD1")
+					(reference "LORA1")
 					(unit 1)
 				)
 			)
@@ -9284,238 +9293,6 @@
 		)
 	)
 	(symbol
-		(lib_id "ESP32-C3_SUPERMINI_TH:ESP32-C3_SUPERMINI_TH")
-		(at 168.91 40.64 0)
-		(unit 1)
-		(exclude_from_sim no)
-		(in_bom yes)
-		(on_board yes)
-		(dnp no)
-		(fields_autoplaced yes)
-		(uuid "323c9adb-ddda-4ef5-a0d4-f70977b8c7f8")
-		(property "Reference" "ESP32-C3-SUPERMINI1"
-			(at 168.91 22.86 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(property "Value" "ESP32-C3_SUPERMINI_TH"
-			(at 168.91 22.86 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(hide yes)
-			)
-		)
-		(property "Footprint" "ESP32-C3_SUPERMINI_TH:MODULE_ESP32-C3_SUPERMINI_TH"
-			(at 168.91 40.64 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(justify bottom)
-				(hide yes)
-			)
-		)
-		(property "Datasheet" ""
-			(at 168.91 40.64 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(hide yes)
-			)
-		)
-		(property "Description" ""
-			(at 168.91 40.64 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(hide yes)
-			)
-		)
-		(property "MF" "Espressif Systems"
-			(at 168.91 40.64 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(justify bottom)
-				(hide yes)
-			)
-		)
-		(property "Description_1" "Super tiny ESP32-C3 board"
-			(at 168.91 40.64 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(justify bottom)
-				(hide yes)
-			)
-		)
-		(property "CREATOR" "DIZAR"
-			(at 168.91 40.64 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(justify bottom)
-				(hide yes)
-			)
-		)
-		(property "Price" "None"
-			(at 168.91 40.64 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(justify bottom)
-				(hide yes)
-			)
-		)
-		(property "Package" "Package"
-			(at 168.91 40.64 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(justify bottom)
-				(hide yes)
-			)
-		)
-		(property "Check_prices" "https://www.snapeda.com/parts/ESP32-C3%20SuperMini_TH/Espressif+Systems/view-part/?ref=eda"
-			(at 168.91 40.64 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(justify bottom)
-				(hide yes)
-			)
-		)
-		(property "STANDARD" "IPC-7351B"
-			(at 168.91 40.64 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(justify bottom)
-				(hide yes)
-			)
-		)
-		(property "VERIFIER" ""
-			(at 168.91 40.64 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(justify bottom)
-				(hide yes)
-			)
-		)
-		(property "SnapEDA_Link" "https://www.snapeda.com/parts/ESP32-C3%20SuperMini_TH/Espressif+Systems/view-part/?ref=snap"
-			(at 168.91 40.64 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(justify bottom)
-				(hide yes)
-			)
-		)
-		(property "MP" "ESP32-C3 SuperMini_TH"
-			(at 168.91 40.64 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(justify bottom)
-				(hide yes)
-			)
-		)
-		(property "Availability" "Not in stock"
-			(at 168.91 40.64 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(justify bottom)
-				(hide yes)
-			)
-		)
-		(property "MANUFACTURER" "Espressif Systems"
-			(at 168.91 40.64 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(justify bottom)
-				(hide yes)
-			)
-		)
-		(pin "8"
-			(uuid "59acf2bf-a2bb-4d11-bc96-fbc13e41e467")
-		)
-		(pin "20"
-			(uuid "e4567121-90ce-402e-ac71-ae17f4ece7b4")
-		)
-		(pin "9"
-			(uuid "e5564cf7-90d8-484e-b99a-363e21d115aa")
-		)
-		(pin "21"
-			(uuid "230c01a5-f8e2-4312-9fbc-101aa48cfea8")
-		)
-		(pin "10"
-			(uuid "0d9e4c5b-59e4-4dfa-a6cd-ef4e2c06d1eb")
-		)
-		(pin "0"
-			(uuid "43efc708-70f2-45dd-9090-111f9f922855")
-		)
-		(pin "5"
-			(uuid "4a8c6fee-271f-482a-a7db-0811caa3404e")
-		)
-		(pin "4"
-			(uuid "6ed54385-89bb-4049-a138-0946534d6f67")
-		)
-		(pin "7"
-			(uuid "f027dc5b-bb7f-4529-8f19-523fceab9b98")
-		)
-		(pin "5V"
-			(uuid "68ab8667-1816-41f4-9af9-f9bf06031df2")
-		)
-		(pin "3"
-			(uuid "ea13aac4-1c9d-4725-9ca8-0f4d499e1fc3")
-		)
-		(pin "2"
-			(uuid "a8b9c189-c9dd-4097-affb-72a84d29411d")
-		)
-		(pin "1"
-			(uuid "8e7b08b6-814c-462f-901c-76b9c6ba43be")
-		)
-		(pin "3.3"
-			(uuid "29a28067-87af-4f93-b5ed-9a39545338a1")
-		)
-		(pin "G"
-			(uuid "d862b4eb-d8a5-4fe1-bf57-dd008a37071c")
-		)
-		(pin "6"
-			(uuid "67e872b5-acb2-4cf0-8313-bec8b180378f")
-		)
-		(instances
-			(project ""
-				(path "/796b2641-703b-47b8-9b6b-c931056c1074"
-					(reference "ESP32-C3-SUPERMINI1")
-					(unit 1)
-				)
-			)
-		)
-	)
-	(symbol
 		(lib_id "PCM_SparkFun-Capacitor:10uF_0603_10V_20%")
 		(at 269.24 24.13 0)
 		(unit 1)
@@ -10139,7 +9916,7 @@
 		(dnp no)
 		(fields_autoplaced yes)
 		(uuid "4db5a745-4551-4cd9-8966-b1ad79714cc1")
-		(property "Reference" "BATT_PROT1"
+		(property "Reference" "BATTP1"
 			(at 63.5 69.85 0)
 			(effects
 				(font
@@ -10212,7 +9989,7 @@
 		(instances
 			(project ""
 				(path "/796b2641-703b-47b8-9b6b-c931056c1074"
-					(reference "BATT_PROT1")
+					(reference "BATTP1")
 					(unit 1)
 				)
 			)
@@ -10535,7 +10312,7 @@
 		(dnp no)
 		(fields_autoplaced yes)
 		(uuid "66a43ae7-34d4-4a96-901e-a82d4ba04620")
-		(property "Reference" "3.3V_LDO1"
+		(property "Reference" "LDO1"
 			(at 40.64 113.03 0)
 			(effects
 				(font
@@ -10605,7 +10382,7 @@
 		(instances
 			(project ""
 				(path "/796b2641-703b-47b8-9b6b-c931056c1074"
-					(reference "3.3V_LDO1")
+					(reference "LDO1")
 					(unit 1)
 				)
 			)
@@ -11488,6 +11265,15 @@
 				(justify left)
 			)
 		)
+		(property "LCSC" "C14663"
+			(at 151.13 19.0562 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
 		(pin "1"
 			(uuid "9f90f82a-b1a4-429b-9655-cd0da647b9ea")
 		)
@@ -11731,7 +11517,7 @@
 		(dnp no)
 		(fields_autoplaced yes)
 		(uuid "a55d4f1a-6dfa-43af-a6e1-a8dc28b75b31")
-		(property "Reference" "LRA+1"
+		(property "Reference" "LRAP1"
 			(at 194.31 80.0099 0)
 			(effects
 				(font
@@ -11782,7 +11568,7 @@
 		(instances
 			(project "lora_ch1"
 				(path "/796b2641-703b-47b8-9b6b-c931056c1074"
-					(reference "LRA+1")
+					(reference "LRAP1")
 					(unit 1)
 				)
 			)
@@ -11966,7 +11752,7 @@
 		(dnp no)
 		(fields_autoplaced yes)
 		(uuid "ab7e8c6d-ae22-4f62-a714-d1aed4f67b49")
-		(property "Reference" "ANT_PAD1"
+		(property "Reference" "ANT1"
 			(at 194.31 71.1199 0)
 			(effects
 				(font
@@ -12017,7 +11803,7 @@
 		(instances
 			(project ""
 				(path "/796b2641-703b-47b8-9b6b-c931056c1074"
-					(reference "ANT_PAD1")
+					(reference "ANT1")
 					(unit 1)
 				)
 			)
@@ -12033,7 +11819,7 @@
 		(dnp no)
 		(fields_autoplaced yes)
 		(uuid "b0a540ff-0ffc-4b01-969f-2850a54ec3ef")
-		(property "Reference" "CHRG_MOD1"
+		(property "Reference" "CHRG1"
 			(at 35.1633 158.75 0)
 			(effects
 				(font
@@ -12117,7 +11903,7 @@
 		(instances
 			(project ""
 				(path "/796b2641-703b-47b8-9b6b-c931056c1074"
-					(reference "CHRG_MOD1")
+					(reference "CHRG1")
 					(unit 1)
 				)
 			)
@@ -12294,6 +12080,15 @@
 				(hide yes)
 			)
 		)
+		(property "LCSC" "C14663"
+			(at 45.212 78.232 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
 		(pin "2"
 			(uuid "0b3bc170-aec8-472b-83fb-38b748d1f057")
 		)
@@ -12425,7 +12220,7 @@
 		(dnp no)
 		(fields_autoplaced yes)
 		(uuid "bc45b456-da0f-4a7f-9dc5-d2989626afc9")
-		(property "Reference" "BATT_CON1"
+		(property "Reference" "BATTC1"
 			(at 83.82 182.8799 0)
 			(effects
 				(font
@@ -12494,7 +12289,7 @@
 		(instances
 			(project "lora_ch1"
 				(path "/796b2641-703b-47b8-9b6b-c931056c1074"
-					(reference "BATT_CON1")
+					(reference "BATTC1")
 					(unit 1)
 				)
 			)
@@ -12510,7 +12305,7 @@
 		(dnp no)
 		(fields_autoplaced yes)
 		(uuid "c2a06fa3-0dbd-4762-a12c-a6e58c798584")
-		(property "Reference" "LRA-1"
+		(property "Reference" "LRAM1"
 			(at 194.31 86.3599 0)
 			(effects
 				(font
@@ -12561,7 +12356,7 @@
 		(instances
 			(project "lora_ch1"
 				(path "/796b2641-703b-47b8-9b6b-c931056c1074"
-					(reference "LRA-1")
+					(reference "LRAM1")
 					(unit 1)
 				)
 			)
@@ -12841,6 +12636,15 @@
 				(font
 					(size 1.27 1.27)
 				)
+			)
+		)
+		(property "LCSC" "C14663"
+			(at 259.0863 82.55 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
 			)
 		)
 		(pin "1"
@@ -13276,6 +13080,237 @@
 		)
 	)
 	(symbol
+		(lib_id "ESP32-C3_SUPERMINI_SMD:ESP32-C3_SUPERMINI_SMD")
+		(at 168.91 40.64 0)
+		(unit 1)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(dnp no)
+		(fields_autoplaced yes)
+		(uuid "e043d3a8-0894-447b-8a89-753ca2fa3e47")
+		(property "Reference" "ESP1"
+			(at 168.91 20.32 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Value" "ESP32-C3_SUPERMINI_SMD"
+			(at 168.91 22.86 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Footprint" "ESP32-C3_SUPERMINI_SMD:MODULE_ESP32-C3_SUPERMINI"
+			(at 168.91 40.64 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify bottom)
+				(hide yes)
+			)
+		)
+		(property "Datasheet" ""
+			(at 168.91 40.64 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Description" ""
+			(at 168.91 40.64 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "MF" "Espressif Systems"
+			(at 168.91 40.64 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify bottom)
+				(hide yes)
+			)
+		)
+		(property "MAXIMUM_PACKAGE_HEIGHT" "4.2mm"
+			(at 168.91 40.64 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify bottom)
+				(hide yes)
+			)
+		)
+		(property "Package" "None"
+			(at 168.91 40.64 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify bottom)
+				(hide yes)
+			)
+		)
+		(property "Price" "None"
+			(at 168.91 40.64 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify bottom)
+				(hide yes)
+			)
+		)
+		(property "Check_prices" "https://www.snapeda.com/parts/ESP32-C3%20SuperMini_SMD/Espressif+Systems/view-part/?ref=eda"
+			(at 168.91 40.64 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify bottom)
+				(hide yes)
+			)
+		)
+		(property "STANDARD" "Manufacturer Recommendations"
+			(at 168.91 40.64 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify bottom)
+				(hide yes)
+			)
+		)
+		(property "PARTREV" ""
+			(at 168.91 40.64 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify bottom)
+				(hide yes)
+			)
+		)
+		(property "SnapEDA_Link" "https://www.snapeda.com/parts/ESP32-C3%20SuperMini_SMD/Espressif+Systems/view-part/?ref=snap"
+			(at 168.91 40.64 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify bottom)
+				(hide yes)
+			)
+		)
+		(property "MP" "ESP32-C3 SuperMini_SMD"
+			(at 168.91 40.64 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify bottom)
+				(hide yes)
+			)
+		)
+		(property "Description_1" "Super tiny ESP32-C3 board"
+			(at 168.91 40.64 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify bottom)
+				(hide yes)
+			)
+		)
+		(property "Availability" "Not in stock"
+			(at 168.91 40.64 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify bottom)
+				(hide yes)
+			)
+		)
+		(property "MANUFACTURER" "Espressif"
+			(at 168.91 40.64 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify bottom)
+				(hide yes)
+			)
+		)
+		(pin "G"
+			(uuid "f6de6f7d-fc4a-404b-9d2a-edaf97331db9")
+		)
+		(pin "21"
+			(uuid "8c8bd6d5-4a94-4853-88ad-31cabaa8210a")
+		)
+		(pin "20"
+			(uuid "b1bda7d7-e2e1-4621-be86-c9e672b6274d")
+		)
+		(pin "10"
+			(uuid "db133ed8-2b62-4b21-8ba5-f7e15f8495e5")
+		)
+		(pin "9"
+			(uuid "21ab722a-4311-4b31-8b32-57e0e051295a")
+		)
+		(pin "8"
+			(uuid "a8ca5e71-f684-49ad-9de0-e190bb5cd955")
+		)
+		(pin "7"
+			(uuid "cc1aeadb-8493-427f-b38a-8afc5f820924")
+		)
+		(pin "3.3"
+			(uuid "4bd6a3d0-5e0f-4881-9480-f3cc0dc8b577")
+		)
+		(pin "5V"
+			(uuid "2c3df3b3-1d63-4786-b4f4-2c523df45fe9")
+		)
+		(pin "6"
+			(uuid "079f1dd2-6b8e-4ad2-9118-0529566d1f51")
+		)
+		(pin "5"
+			(uuid "c6e13196-c790-4fd0-b0a8-d86def3ae38b")
+		)
+		(pin "4"
+			(uuid "1e1db09d-1b6c-4bfc-96f3-fec6e4bbd7e1")
+		)
+		(pin "3"
+			(uuid "3a37b159-f416-4a9b-91c2-b308e5743b45")
+		)
+		(pin "2"
+			(uuid "826e35f4-7867-4982-9f3e-5e9f64d9893c")
+		)
+		(pin "1"
+			(uuid "a0857baa-dc0f-4588-8f83-66c233044bd8")
+		)
+		(pin "0"
+			(uuid "e5e1e314-3f7f-4ade-9d92-6de80dec3cd0")
+		)
+		(instances
+			(project ""
+				(path "/796b2641-703b-47b8-9b6b-c931056c1074"
+					(reference "ESP1")
+					(unit 1)
+				)
+			)
+		)
+	)
+	(symbol
 		(lib_id "PCM_SparkFun-Capacitor:10uF_0603_10V_20%")
 		(at 30.48 158.75 90)
 		(unit 1)
@@ -13390,7 +13425,7 @@
 		(dnp no)
 		(fields_autoplaced yes)
 		(uuid "e8f0cc1c-57ee-4f92-aa3c-6d5f6aad44f9")
-		(property "Reference" "BMS_FET1"
+		(property "Reference" "BMS1"
 			(at 34.29 66.3192 0)
 			(effects
 				(font
@@ -13554,7 +13589,7 @@
 				(hide yes)
 			)
 		)
-		(property "LCSC" "C2830320"
+		(property "LCSC" "C5148694"
 			(at 34.29 66.3192 0)
 			(effects
 				(font
@@ -13590,7 +13625,7 @@
 		(instances
 			(project ""
 				(path "/796b2641-703b-47b8-9b6b-c931056c1074"
-					(reference "BMS_FET1")
+					(reference "BMS1")
 					(unit 1)
 				)
 			)
@@ -13824,7 +13859,7 @@
 		(dnp no)
 		(fields_autoplaced yes)
 		(uuid "ed667b8c-d77a-47af-a1f5-9cf08ea29c94")
-		(property "Reference" "LRA_DRV1"
+		(property "Reference" "HAPTIC1"
 			(at 254.8733 119.38 0)
 			(effects
 				(font
@@ -13912,7 +13947,7 @@
 		(instances
 			(project ""
 				(path "/796b2641-703b-47b8-9b6b-c931056c1074"
-					(reference "LRA_DRV1")
+					(reference "HAPTIC1")
 					(unit 1)
 				)
 			)
