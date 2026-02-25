@@ -1,6 +1,6 @@
 #include "lora.h"
 #include "utils/log_helper.h"
-#include "components/ble.h"
+#include "managers/ble/ble.h"
 #include <SPI.h>
 #include <RadioLib.h>
 

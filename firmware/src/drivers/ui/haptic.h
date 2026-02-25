@@ -8,7 +8,6 @@
 #define HAPTIC_H
 
 #include <Arduino.h>
-#include <Adafruit_DRV2605.h>
 
 class HapticManager {
     public:

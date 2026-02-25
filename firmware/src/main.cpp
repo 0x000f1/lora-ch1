@@ -9,11 +9,7 @@
 void setup() {
     Serial.begin(115200);
     SystemManager::setupNVS();
-    if (BLEManager::setupBLE() != 0) {
-        LOG_E(TAG, "Failed to initialize BLE.");
-    } else {
-        LOG_I(TAG, "BLE initialized successfully.");
-    }
+    BLEManager::setupBLE();
     LoRaManager::setupLoRa();
 }
 

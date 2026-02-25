@@ -1,8 +1,8 @@
 #include "ble.h"
-#include "system_manager.h"
+#include "managers/system/system_manager.h"
 #include "utils/log_helper.h"
 #include <NimBLEDevice.h>
-#include "lora.h"
+#include "managers/lora/lora.h"
 
 #define TAG "BLE" 
 
