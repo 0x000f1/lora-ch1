@@ -1,11 +1,12 @@
 #include "lora.h"
 #include "utils/log_helper.h"
 #include "managers/ble/ble.h"
+#include "managers/system/system_manager.h"
 #include <SPI.h>
 #include <RadioLib.h>
 
 #define TAG "LORA"
-
+#define PAYLOAD_SIZE 250 // SX1278 can handle 255 bytes, but keep a little below the limit
 #define BAND 433.0
 
 #define LORA_SCK  4
@@ -20,6 +21,8 @@ SX1278 loraModule = new Module(LORA_NSS, LORA_DIO0, LORA_RST, RADIOLIB_NC, loraS
 
 volatile bool actionFlag = false; // Interrupt flag to show receive/transmit events.
 bool isTransmitting = false;      // Current state: true = waiting for transmission to finish, false = waiting for package.
+
+uint8_t LoRaManager::currentSequenceNumber = 0; // Initialize sequence number.
 
 // Interrupt callback stored in RAM to ensure fast access.
 void ICACHE_RAM_ATTR LoRaManager::setFlag() {
@@ -54,13 +57,34 @@ void LoRaManager::startReceive() {
     }
 }
 
-void LoRaManager::sendMessage(String msg) {
-    LOG_I(TAG, "Preparing to send: %s", msg.c_str());
+void LoRaManager::sendMessage(uint8_t* data, size_t length, uint32_t targetAddress, PackageType packageType) {
+    LOG_I(TAG, "Preparing to send data of length %d", length);
     
     // There will be used a CAD (Channel Activity Detection) before transmission to avoid collisions. If the channel is busy, it will wait and retry.
     
+    if (length > (PAYLOAD_SIZE - sizeof(PackageHeader))) {
+        // @todo Here comes later the fragmentation logic
+        LOG_E(TAG, "Data length exceeds payload size...");
+        return;
+    }
+
+    PackageHeader header;
+    header.senderAddress = SystemManager::getLoRaID();
+    header.targetAddress = targetAddress;
+    header.packageType = packageType;
+    header.sequenceNumber = currentSequenceNumber++;
+    header.currentFragment = 0;
+    header.totalFragments = 1;
+
+    // Combine header into one message buffer
+    uint8_t txBuffer[PAYLOAD_SIZE];
+    memcpy(txBuffer, &header, sizeof(PackageHeader));
+    memcpy(txBuffer + sizeof(PackageHeader), data, length);
+
+    LOG_I(TAG, "Starting transmission to 0x%02X, Type: %d", targetAddress, packageType);
+
     isTransmitting = true;
-    int state = loraModule.startTransmit(msg);
+    int state = loraModule.startTransmit(txBuffer, sizeof(PackageHeader) + length);
     
     if (state != RADIOLIB_ERR_NONE) {
         LOG_E(TAG, "Transmit start failed: %d", state);
@@ -80,12 +104,29 @@ void LoRaManager::handleFlags() {
         startReceive(); // Jump back to receive mode.
     } else {
         // This means a new message just arrived.
-        String str;
-        int state = loraModule.readData(str);
+        size_t len = loraModule.getPacketLength();
+        uint8_t rxBuffer[PAYLOAD_SIZE];
 
-        if (state == RADIOLIB_ERR_NONE) {
-            LOG_I(TAG, "Received: %s [RSSI: %f]", str.c_str(), loraModule.getRSSI());
-            BLEManager::pushMessage(str.c_str()); // Forward the message to the BLE Manager to notify connected clients.
+        int state = loraModule.readData(rxBuffer, len);
+
+        if (state == RADIOLIB_ERR_NONE && len >= sizeof(PackageHeader)) {
+            PackageHeader* header = (PackageHeader*)rxBuffer;
+            uint8_t* payload = rxBuffer + sizeof(PackageHeader);
+            size_t payloadLength = len - sizeof(PackageHeader);
+
+            LOG_I(TAG, "RX from 0x%08X, RSSI: %f, Type: %d", header->senderAddress, loraModule.getRSSI(), header->packageType);
+            
+            // Convert to char array if it's a data package and forward to BLE Manager.
+            if (header->packageType == PKG_DATA && payloadLength > 0) {
+                char str[PAYLOAD_SIZE];
+                size_t copyLength = (payloadLength < PAYLOAD_SIZE) ? payloadLength : PAYLOAD_SIZE - 1; // Ensure null-termination
+                
+                memcpy(str, payload, copyLength);
+                str[copyLength] = '\0'; // Null-terminate the string
+                LOG_I(TAG, "Received DATA package: %s", str);
+
+                BLEManager::pushMessage(str); // Forward the message to the BLE Manager to notify connected clients.
+            }
         } else if (state == RADIOLIB_ERR_CRC_MISMATCH) {
             LOG_W(TAG, "CRC Error!");
         } else {

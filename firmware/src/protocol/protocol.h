@@ -1,9 +1,15 @@
+/** 
+ * @file protocol.h
+ * @brief Protocol definitions for LoRa communication.
+ * @details This file defines the structure of the messages that will be sent and received over LoRa.
+*/
+
 #ifndef PROTOCOL_H
 #define PROTOCOL_H
 
 #include <Arduino.h>
 
-const uint8_t BROADCAST_ADDRESS = 0xFF; // Address used for broadcasting
+const uint32_t BROADCAST_ADDRESS = 0xFFFFFFFF; // Address used for broadcasting
 
 // Define the type of messages (to identify the received package type)
 enum PackageType : uint8_t {
@@ -16,8 +22,8 @@ enum PackageType : uint8_t {
 
 // Header of the package (every package will have this header)
 struct PackageHeader {
-    uint8_t senderAddress; // Address of the sender @todo Implement addressing scheme
-    uint8_t targetAddress; // Address of the target (0xFFFF for broadcast)
+    uint32_t senderAddress; // Address of the sender @todo Implement addressing scheme
+    uint32_t targetAddress; // Address of the target (0xFFFF for broadcast)
     uint8_t packageType; // Type of the package (data, discovery, etc.)
     uint8_t sequenceNumber; // ID for the package (for tracking and acknowledgment)
     uint8_t currentFragment; // Number of the current fragment

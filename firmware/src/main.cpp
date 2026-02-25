@@ -1,8 +1,8 @@
 #include <Arduino.h>
 #include "utils/log_helper.h"
-#include "components/ble.h"
-#include "components/system_manager.h"
-#include "components/lora.h"
+#include "managers/ble/ble.h"
+#include "managers/system/system_manager.h"
+#include "managers/lora/lora.h"
 
 #define TAG "MAIN"
 

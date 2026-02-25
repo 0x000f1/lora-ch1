@@ -34,6 +34,14 @@ String SystemManager::generateDeviceName() {
     return String(buf);
 }
 
+uint32_t SystemManager::generateLoRaID() {
+    uint8_t mac[6];
+    esp_read_mac(mac, ESP_MAC_WIFI_STA);
+    // Last 4 bytes of the MAC are used to generate the LoRa ID
+    uint32_t id = (mac[2] << 24) | (mac[3] << 16) | (mac[4] << 8) | mac[5];
+    return id;
+}
+
 void SystemManager::checkIfExists(const char* key, String (*generator)()) {
     if (!prefs.isKey(key)) {
         String newVal = generator();
@@ -41,6 +49,16 @@ void SystemManager::checkIfExists(const char* key, String (*generator)()) {
         LOG_I(TAG, "%s generated: %s", key, newVal.c_str());
     } else {
         LOG_I(TAG, "%s loaded: %s", key, prefs.getString(key).c_str());
+    }
+}
+
+void SystemManager::checkIfExists(const char* key, uint32_t (*generator)()) {
+    if (!prefs.isKey(key)) {
+        uint32_t newVal = generator();
+        prefs.putUInt(key, newVal);
+        LOG_I(TAG, "%s generated: 0x%08X", key, newVal);
+    } else {
+        LOG_I(TAG, "%s loaded: 0x%08X", key, prefs.getUInt(key));
     }
 }
 
@@ -55,6 +73,7 @@ void SystemManager::setupNVS() {
     checkIfExists("device_name", generateDeviceName);
     checkIfExists("s_uuid", generateUUID);
     checkIfExists("c_uuid", generateUUID);
+    checkIfExists("lora_id", generateLoRaID);
 }
 
 String SystemManager::getDeviceName() {
@@ -70,4 +89,9 @@ String SystemManager::getServiceUUID() {
 String SystemManager::getCharUUID() {
     // Return the characteristic UUID stored in NVS
     return prefs.getString("c_uuid", "00000000-0000-0000-0000-000000000001");
+}
+
+uint32_t SystemManager::getLoRaID() {
+    // Return the LoRa ID stored in NVS
+    return prefs.getUInt("lora_id", 0);
 }

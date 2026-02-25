@@ -27,7 +27,9 @@ class charStatusCallbacks : public NimBLECharacteristicCallbacks {
     // Handle characteristic write event, and log the new value when a client writes to the characteristic.
     void onWrite(NimBLECharacteristic* nimBleChar, NimBLEConnInfo& connInfo) override {
         LOG_I(TAG, "Characteristic written by client: %s", nimBleChar->getValue().c_str());
-        LoRaManager::sendMessage(nimBleChar->getValue().c_str()); // Forward the new value to the LoRa Manager to send it over LoRa.
+        const uint8_t* data = nimBleChar->getValue().data();
+        size_t length = nimBleChar->getValue().length();
+        LoRaManager::sendMessage((uint8_t*)data, length); // Forward the new value to the LoRa Manager to send it over LoRa.
     }
 };
 
