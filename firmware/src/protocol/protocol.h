@@ -15,8 +15,7 @@ const uint32_t BROADCAST_ADDRESS = 0xFFFFFFFF; // Address used for broadcasting
 enum PackageType : uint8_t {
     PKG_UNKNOWN = 0x00, // Unknown package type
     PKG_DATA = 0x01, // Regular data message
-    PKG_DISCOVERY = 0x02, // Send out a discovery (who is here?) message
-    PKG_DISCOVERY_RES = 0x03, // Response to the discovery message (I'm here!)
+    PKG_HEARTBEAT = 0x02, // Send out a discovery (who is here?) message
     PKG_ACK = 0x04, // Acknowledgment for received messages
 };
 
