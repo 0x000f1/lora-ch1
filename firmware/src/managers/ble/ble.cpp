@@ -10,11 +10,6 @@ static NimBLEServer* server = nullptr;
 static NimBLECharacteristic* dataCharacteristic = nullptr;
 static NimBLECharacteristic* controlCharacteristic = nullptr;
 
-// Declare the callback entities statically
-static serverStatusCallback servCallbacks;
-static dataCharStatusCallbacks dataCallbacks;
-static controlCharStatusCallbacks ctrlCallbacks;
-
 // Callbacks
 class serverStatusCallback : public NimBLEServerCallbacks {
     // Handle client connections and disconnections, and update connection parameters for better performance.
@@ -62,12 +57,17 @@ class dataCharStatusCallbacks : public NimBLECharacteristicCallbacks {
     }
 };
 
+// Declare the callback entities statically
+static serverStatusCallback servCallbacks;
+static dataCharStatusCallbacks dataCallbacks;
+static controlCharStatusCallbacks ctrlCallbacks;
+
 int BLEManager::setupBLE() {
     NimBLEDevice::init(SystemManager::getDeviceName().c_str());
 
     server = NimBLEDevice::createServer();
     if (!server) return 1; // Server start error
-    server->setCallbacks(*servCallbacks);
+    server->setCallbacks(&servCallbacks);
 
     NimBLEService* service = server->createService(SystemManager::getServiceUUID().c_str());
     if (!service) return 2; // Service start error
