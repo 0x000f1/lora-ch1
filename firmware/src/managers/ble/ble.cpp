@@ -10,6 +10,11 @@ static NimBLEServer* server = nullptr;
 static NimBLECharacteristic* dataCharacteristic = nullptr;
 static NimBLECharacteristic* controlCharacteristic = nullptr;
 
+// Declare the callback entities statically
+static serverStatusCallback servCallbacks;
+static dataCharStatusCallbacks dataCallbacks;
+static controlCharStatusCallbacks ctrlCallbacks;
+
 // Callbacks
 class serverStatusCallback : public NimBLEServerCallbacks {
     // Handle client connections and disconnections, and update connection parameters for better performance.
@@ -61,17 +66,11 @@ int BLEManager::setupBLE() {
     NimBLEDevice::init(SystemManager::getDeviceName().c_str());
 
     server = NimBLEDevice::createServer();
-    if (server == nullptr) {
-        LOG_E(TAG, "Failed to create BLE server");
-        return 1; // Server start error
-    }
-    server->setCallbacks(new serverStatusCallback());
+    if (!server) return 1; // Server start error
+    server->setCallbacks(*servCallbacks);
 
     NimBLEService* service = server->createService(SystemManager::getServiceUUID().c_str());
-    if (service == nullptr) {
-        LOG_E(TAG, "Failed to create BLE service");
-        return 2; // Service start error
-    }
+    if (!service) return 2; // Service start error
     
     // DATA characteristic for sending/receiving messages
     dataCharacteristic = service->createCharacteristic(
@@ -80,7 +79,7 @@ int BLEManager::setupBLE() {
         NIMBLE_PROPERTY::WRITE | 
         NIMBLE_PROPERTY::NOTIFY
     );
-    dataCharacteristic->setCallbacks(new dataCharStatusCallbacks());
+    dataCharacteristic->setCallbacks(&dataCallbacks);
     
     // CONTROL characteristic for receiving control commands
     controlCharacteristic = service->createCharacteristic(
@@ -89,7 +88,7 @@ int BLEManager::setupBLE() {
         NIMBLE_PROPERTY::WRITE | 
         NIMBLE_PROPERTY::NOTIFY
     );
-    controlCharacteristic->setCallbacks(new controlCharStatusCallbacks);
+    controlCharacteristic->setCallbacks(&ctrlCallbacks);
 
     service->start();
 
@@ -97,10 +96,7 @@ int BLEManager::setupBLE() {
     advertising->setName(SystemManager::getDeviceName().c_str());
     advertising->addServiceUUID(SystemManager::getServiceUUID().c_str());
     advertising->enableScanResponse(true);
-    if (!advertising->start()) { 
-        LOG_E(TAG, "Failed to start BLE advertising");
-        return 3; // Advertising start error
-    }
+    if (!advertising->start()) return 3; // Advertising start error
     LOG_I(TAG, "BLE setup completed!");
     return 0;
 }
