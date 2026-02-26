@@ -13,6 +13,8 @@
 #include <freertos/timers.h>
 #include "protocol/protocol.h"
 
+#define MAX_NEIGHBORS 20
+
 class LoRaManager {
     public:
         /** 
@@ -43,6 +45,14 @@ class LoRaManager {
          */
         static void startHeartbeat(uint16_t intervalSeconds);
         static void stopHeartbeat();
+        /**
+         * @brief Return the list of known neighbors and their RSSI values.
+          * @details This function will return the list of known neighbors and their RSSI values.
+         */
+        static DiscoveryInfo* getNeighbors(uint8_t &count) {
+            count = neighborCount;
+            return neighbors;
+        };
     private:
         // Basic LoRa variables
         static void setFlag();
@@ -55,5 +65,9 @@ class LoRaManager {
         static uint32_t totalAirTimeMs;
         static unsigned long statsStartTime;
         static void updateDutyCycle(uint32_t currentAirTimeMs);
+        // Neighbors
+        static DiscoveryInfo neighbors[MAX_NEIGHBORS];
+        static uint8_t neighborCount;
+        static void updateNeighbor(uint32_t senderAddress, float rssi);
 };
 #endif

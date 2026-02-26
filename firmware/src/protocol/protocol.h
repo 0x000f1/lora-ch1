@@ -29,4 +29,10 @@ struct PackageHeader {
     uint8_t totalFragments; // Total number of fragments in this package
 } __attribute__((packed)); // The padding bits are removed
 
+// Structure for neighbor information
+struct DiscoveryInfo {
+    uint32_t senderAddress; // Address of the neighbor
+    unsigned long timestamp; // Last seen timestamp
+    float rssi; // RSSI value of the last received message
+};
 #endif

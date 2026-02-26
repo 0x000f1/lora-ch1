@@ -16,12 +16,15 @@
 #define LORA_RST  3
 #define LORA_DIO0 10
 
-// Heartbeat static variables
+// Static variables (Heartbeat, sequence number, duty cycle stats, neighbors)
 TimerHandle_t LoRaManager::heartbeatTimer = nullptr;
 volatile bool LoRaManager::heartbeatPending = false;
 uint8_t LoRaManager::currentSequenceNumber = 0; // Initialize sequence number
 uint32_t LoRaManager::totalAirTimeMs = 0;
 unsigned long LoRaManager::statsStartTime = 0;
+DiscoveryInfo LoRaManager::neighbors[MAX_NEIGHBORS];
+uint8_t LoRaManager::neighborCount = 0;
+
 
 SPIClass loraSPI(FSPI); // FSPI = SPI2 | Use the FSPI for custom pin configuration
 SX1278 loraModule = new Module(LORA_NSS, LORA_DIO0, LORA_RST, RADIOLIB_NC, loraSPI);
@@ -54,6 +57,7 @@ int LoRaManager::setupLoRa() {
 }
 
 void LoRaManager::startReceive() {
+    loraModule.standby();
     int state = loraModule.startReceive();
     if (state == RADIOLIB_ERR_NONE) {
         isTransmitting = false;
@@ -153,11 +157,35 @@ void LoRaManager::handleFlags() {
 
                 BLEManager::pushMessage(str); // Forward the message to the BLE Manager to notify connected clients.
             }
+            // Update neighbors list with the sender's address and RSSI
+            updateNeighbor(header->senderAddress, loraModule.getRSSI());
         } else if (state == RADIOLIB_ERR_CRC_MISMATCH) {
             LOG_W(TAG, "CRC Error!");
         } else {
             LOG_E(TAG, "Receive failed, code: %d", state);
         }
+    }
+}
+
+void LoRaManager::updateNeighbor(uint32_t senderAddress, float rssi) {
+    // Check if the sender is already in the neighbors list
+    for (uint8_t i = 0; i < neighborCount; i++) {
+        if (neighbors[i].senderAddress == senderAddress) {
+            neighbors[i].timestamp = millis(); // Update timestamp (last seen)
+            neighbors[i].rssi = rssi; // Update RSSI value (signal strength)
+            return;
+        }
+    }
+
+    // If not found, add the neighbor to the list, if there is space left
+    if (neighborCount < MAX_NEIGHBORS) {
+        neighbors[neighborCount].senderAddress = senderAddress;
+        neighbors[neighborCount].rssi = rssi;
+        neighbors[neighborCount].timestamp = millis();
+        neighborCount++;
+        LOG_I(TAG, "New neighbor added: 0x%08X with RSSI: %f", senderAddress, rssi);
+    } else {
+        LOG_W(TAG, "Neighbors list full. Cannot add new neighbor: 0x%08X", senderAddress);
     }
 }
 
@@ -169,6 +197,15 @@ void LoRaManager::startHeartbeat(uint16_t intervalSeconds) {
     heartbeatTimer = xTimerCreate("HeartbeatTimer", pdMS_TO_TICKS(intervalSeconds * 1000), pdTRUE, nullptr, heartbeatTimerCallback);
     xTimerStart(heartbeatTimer, 0);
     LOG_I(TAG, "Heartbeat started with interval: %d seconds", intervalSeconds);
+}
+
+void LoRaManager::stopHeartbeat() {
+    if (heartbeatTimer != nullptr) {
+        xTimerStop(heartbeatTimer, 0);
+        xTimerDelete(heartbeatTimer, 0);
+        heartbeatTimer = nullptr;
+        LOG_I(TAG, "Heartbeat stopped.");
+    }
 }
 
 void LoRaManager::heartbeatTimerCallback(TimerHandle_t xTimer) {
