@@ -88,7 +88,8 @@ void SystemManager::setupNVS() {
 
     checkIfExists("device_name", generateDeviceName);
     checkIfExists("s_uuid", generateUUID);
-    checkIfExists("c_uuid", generateUUID);
+    checkIfExists("c_data_uuid", generateUUID);
+    checkIfExists("c_control_uuid", generateUUID);
     checkIfExists("lora_id", generateLoRaID);
 }
 
@@ -102,9 +103,14 @@ String SystemManager::getServiceUUID() {
     return prefs.getString("s_uuid", "00000000-0000-0000-0000-000000000000");
 }
 
-String SystemManager::getCharUUID() {
+String SystemManager::getDataCharUUID() {
     // Return the characteristic UUID stored in NVS
-    return prefs.getString("c_uuid", "00000000-0000-0000-0000-000000000001");
+    return prefs.getString("c_data_uuid", "00000000-0000-0000-0000-000000000001");
+}
+
+String SystemManager::getControlCharUUID() {
+    // Return the control characteristic UUID stored in NVS
+    return prefs.getString("c_control_uuid", "00000000-0000-0000-0000-000000000002");
 }
 
 uint32_t SystemManager::getLoRaID() {

@@ -7,7 +7,8 @@
 #define TAG "BLE" 
 
 static NimBLEServer* server = nullptr;
-static NimBLECharacteristic* characteristic = nullptr;
+static NimBLECharacteristic* dataCharacteristic = nullptr;
+static NimBLECharacteristic* controlCharacteristic = nullptr;
 
 // Callbacks
 class serverStatusCallback : public NimBLEServerCallbacks {
@@ -23,7 +24,30 @@ class serverStatusCallback : public NimBLEServerCallbacks {
     }
 };
 
-class charStatusCallbacks : public NimBLECharacteristicCallbacks {
+class controlCharStatusCallbacks : public NimBLECharacteristicCallbacks {
+    // Handle control characteristic events (Batter, Neighbor, etc.)
+    void onWrite(NimBLECharacteristic* nimBleChar, NimBLEConnInfo& connInfo) override {
+        String cmd = nimBleChar->getValue().c_str();
+        LOG_I(TAG, "Control Characteristic written by client: %s", cmd);
+        if (cmd == "GET_NEI") {
+            uint8_t count = 0;
+            DiscoveryInfo* list = LoRaManager::getNeighbors(count);
+            if (count == 0) {
+                LOG_I(TAG, "No neighbors found.");
+                nimBleChar->setValue("NO_NEI");
+            } else {
+                String str = "";
+                for (uint8_t i = 0; i < count; i++) {
+                    str += String(list[i].senderAddress, HEX) + "," + String(list[i].rssi) + ";";
+                }
+                nimBleChar->setValue(str);
+            }
+            nimBleChar->notify();
+        }
+    }
+};
+
+class dataCharStatusCallbacks : public NimBLECharacteristicCallbacks {
     // Handle characteristic write event, and log the new value when a client writes to the characteristic.
     void onWrite(NimBLECharacteristic* nimBleChar, NimBLEConnInfo& connInfo) override {
         LOG_I(TAG, "Characteristic written by client: %s", nimBleChar->getValue().c_str());
@@ -48,19 +72,24 @@ int BLEManager::setupBLE() {
         LOG_E(TAG, "Failed to create BLE service");
         return 2; // Service start error
     }
-    characteristic = service->createCharacteristic(
-        SystemManager::getCharUUID().c_str(),
+    
+    // DATA characteristic for sending/receiving messages
+    dataCharacteristic = service->createCharacteristic(
+        SystemManager::getDataCharUUID().c_str(),
         NIMBLE_PROPERTY::READ | 
         NIMBLE_PROPERTY::WRITE | 
         NIMBLE_PROPERTY::NOTIFY
     );
-    if (characteristic == nullptr) {
-        LOG_E(TAG, "Failed to create BLE characteristic");
-        return 3; // Characteristic creation error
-    }
+    dataCharacteristic->setCallbacks(new dataCharStatusCallbacks());
     
-    characteristic->setCallbacks(new charStatusCallbacks());
-    characteristic->setValue("Sample value"); // Initial value for testing
+    // CONTROL characteristic for receiving control commands
+    controlCharacteristic = service->createCharacteristic(
+        SystemManager::getControlCharUUID().c_str(),
+        NIMBLE_PROPERTY::READ |
+        NIMBLE_PROPERTY::WRITE | 
+        NIMBLE_PROPERTY::NOTIFY
+    );
+    controlCharacteristic->setCallbacks(new controlCharStatusCallbacks);
 
     service->start();
 
@@ -70,7 +99,7 @@ int BLEManager::setupBLE() {
     advertising->enableScanResponse(true);
     if (!advertising->start()) { 
         LOG_E(TAG, "Failed to start BLE advertising");
-        return 4; // Advertising start error
+        return 3; // Advertising start error
     }
     LOG_I(TAG, "BLE setup completed!");
     return 0;
@@ -78,8 +107,8 @@ int BLEManager::setupBLE() {
 
 void BLEManager::pushMessage(const char* message) {
     if (server->getConnectedCount() > 0) {
-        characteristic->setValue(message);
-        characteristic->notify(); // Notify all connected clients
+        dataCharacteristic->setValue(message);
+        dataCharacteristic->notify(); // Notify all connected clients
         LOG_I(TAG, "Sent notify: %s", message);
     } else {
         LOG_W(TAG, "No clients connected. Message not sent: %s", message);

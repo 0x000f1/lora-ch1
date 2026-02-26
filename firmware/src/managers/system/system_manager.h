@@ -15,7 +15,8 @@ public:
     static void setupNVS();         // Initializes NVS and generates/checks device name and UUIDs. Should be called at startup.
     static String getDeviceName();  // Retrieves the device name from NVS.
     static String getServiceUUID(); // Retrieves the service UUID from NVS.
-    static String getCharUUID();    // Retrieves the characteristic UUID from NVS.
+    static String getDataCharUUID();    // Retrieves the Data characteristic UUID from NVS.
+    static String getControlCharUUID(); // Retrieves the Control characteristic UUID from NVS.
     static uint32_t getLoRaID();     // Retrieves the LoRa ID from NVS.
     static void setPowerProfile(PowerProfile profile); // Sets the power profile for the device (Battery Saver, Balanced, Performance).
 private:

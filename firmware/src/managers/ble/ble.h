@@ -16,8 +16,7 @@ public:
      *  0: Success
      *  1: Server start error
      *  2: Service start error
-     *  3: Characteristic creation error
-     *  4: Advertising start error
+     *  3: Advertising start error
      * @details This function initializes the BLE hardware, creates a server, service, and characteristic.
      * @todo Security, and support for multiple characteristics and services.
     */
