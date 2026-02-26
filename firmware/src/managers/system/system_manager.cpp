@@ -1,5 +1,7 @@
 #include "system_manager.h"
 #include "utils/log_helper.h"
+#include "drivers/power/battery.h"
+#include "managers/lora/lora.h"
 #include <Preferences.h>
 #include <esp_mac.h>
 #include <esp_random.h>
@@ -60,6 +62,20 @@ void SystemManager::checkIfExists(const char* key, uint32_t (*generator)()) {
     } else {
         LOG_I(TAG, "%s loaded: 0x%08X", key, prefs.getUInt(key));
     }
+}
+
+void SystemManager::setPowerProfile(PowerProfile profile) {
+    BatteryManager::setPowerProfile(profile);
+
+    // Heartbeat interval based on power profile
+    uint16_t heartbeatInterval = 30; // Default to 30 seconds for BALANCED
+    switch (profile) {
+        case PowerProfile::BATTERY_SAVER:   heartbeatInterval = 60; break;
+        case PowerProfile::BALANCED:        heartbeatInterval = 30; break;
+        case PowerProfile::PERFORMANCE:     heartbeatInterval = 15; break;
+    }
+    LoRaManager::startHeartbeat(heartbeatInterval);
+    LOG_I(TAG, "Heartbeat interval set to %d seconds", heartbeatInterval);
 }
 
 /** 

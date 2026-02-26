@@ -8,6 +8,7 @@
 #define SYSTEM_MANAGER_H
 
 #include <Arduino.h>
+#include "drivers/power/battery.h"
 
 class SystemManager {
 public:
@@ -16,6 +17,7 @@ public:
     static String getServiceUUID(); // Retrieves the service UUID from NVS.
     static String getCharUUID();    // Retrieves the characteristic UUID from NVS.
     static uint32_t getLoRaID();     // Retrieves the LoRa ID from NVS.
+    static void setPowerProfile(PowerProfile profile); // Sets the power profile for the device (Battery Saver, Balanced, Performance).
 private:
     static String generateUUID();       // Helper function to generate a random UUID (version 4).
     static String generateDeviceName(); // Helper function to generate a device name based on Prefix + MAC address.

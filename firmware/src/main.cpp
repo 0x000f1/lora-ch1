@@ -1,6 +1,5 @@
 #include <Arduino.h>
 #include "utils/log_helper.h"
-#include "drivers/power/battery.h"
 #include "managers/ble/ble.h"
 #include "managers/system/system_manager.h"
 #include "managers/lora/lora.h"
@@ -9,7 +8,7 @@
 
 void setup() {
     // Set the default power profile to BALANCED to able to use BLE (advertising and connection)
-    BatteryManager::setPowerProfile(PowerProfile::BALANCED);
+    SystemManager::setPowerProfile(PowerProfile::BALANCED);
     
     Serial.begin(115200);
     SystemManager::setupNVS();

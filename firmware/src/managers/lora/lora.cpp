@@ -16,13 +16,18 @@
 #define LORA_RST  3
 #define LORA_DIO0 10
 
-SPIClass loraSPI(FSPI); // FSPI = SPI2 | Use the FSPI for custom pin configuration.
+// Heartbeat static variables
+TimerHandle_t LoRaManager::heartbeatTimer = nullptr;
+volatile bool LoRaManager::heartbeatPending = false;
+uint8_t LoRaManager::currentSequenceNumber = 0; // Initialize sequence number
+uint32_t LoRaManager::totalAirTimeMs = 0;
+unsigned long LoRaManager::statsStartTime = 0;
+
+SPIClass loraSPI(FSPI); // FSPI = SPI2 | Use the FSPI for custom pin configuration
 SX1278 loraModule = new Module(LORA_NSS, LORA_DIO0, LORA_RST, RADIOLIB_NC, loraSPI);
 
 volatile bool actionFlag = false; // Interrupt flag to show receive/transmit events.
 bool isTransmitting = false;      // Current state: true = waiting for transmission to finish, false = waiting for package.
-
-uint8_t LoRaManager::currentSequenceNumber = 0; // Initialize sequence number.
 
 // Interrupt callback stored in RAM to ensure fast access.
 void ICACHE_RAM_ATTR LoRaManager::setFlag() {
@@ -31,6 +36,7 @@ void ICACHE_RAM_ATTR LoRaManager::setFlag() {
 
 int LoRaManager::setupLoRa() {
     loraSPI.begin(LORA_SCK, LORA_MISO, LORA_MOSI, LORA_NSS);
+    statsStartTime = millis(); // Start the timer for duty cycle statistics.
     
     LOG_I(TAG, "Initializing SX1278...");
     int state = loraModule.begin(BAND);
@@ -81,7 +87,10 @@ void LoRaManager::sendMessage(uint8_t* data, size_t length, uint32_t targetAddre
     memcpy(txBuffer, &header, sizeof(PackageHeader));
     memcpy(txBuffer + sizeof(PackageHeader), data, length);
 
-    LOG_I(TAG, "Starting transmission to 0x%02X, Type: %d", targetAddress, packageType);
+    // Air Time calculation for statistics and duty cycle measurement
+    float airTime = loraModule.getTimeOnAir(sizeof(PackageHeader) + length) / 1000.0f; // Convert to milliseconds
+
+    LOG_I(TAG, "TX to 0x%08X | Type: %d | Air Time: %.2f ms", targetAddress, packageType, airTime);
 
     isTransmitting = true;
     int state = loraModule.startTransmit(txBuffer, sizeof(PackageHeader) + length);
@@ -89,10 +98,27 @@ void LoRaManager::sendMessage(uint8_t* data, size_t length, uint32_t targetAddre
     if (state != RADIOLIB_ERR_NONE) {
         LOG_E(TAG, "Transmit start failed: %d", state);
         startReceive(); // Return to receive mode if transmission fails.
+    }else{
+        updateDutyCycle((uint32_t)airTime); // Update duty cycle stats with the current air time.
+    }
+}
+
+void LoRaManager::updateDutyCycle(uint32_t currentAirTimeMs) {
+    totalAirTimeMs += currentAirTimeMs;
+    unsigned long elapsedTime = millis() - statsStartTime;
+
+    if (elapsedTime > 0) {
+        float dutyCycle = (totalAirTimeMs / (float)elapsedTime) * 100.0f;
+        LOG_I(TAG, "Duty Cycle: %.2f%% | Total Air Time: %lu ms | Elapsed Time: %lu ms", dutyCycle, totalAirTimeMs, elapsedTime);
     }
 }
 
 void LoRaManager::handleFlags() {
+    if (heartbeatPending) {
+        heartbeatPending = false;
+        sendMessage(nullptr, 0, BROADCAST_ADDRESS, PKG_HEARTBEAT); // Sends a heartbeat message to broadcast
+    }
+
     if (!actionFlag) return;
 
     actionFlag = false; // Reset the flag to avoid missing future events.
@@ -133,4 +159,18 @@ void LoRaManager::handleFlags() {
             LOG_E(TAG, "Receive failed, code: %d", state);
         }
     }
+}
+
+void LoRaManager::startHeartbeat(uint16_t intervalSeconds) {
+    if (heartbeatTimer != nullptr) {
+        xTimerStop(heartbeatTimer, 0);
+        xTimerDelete(heartbeatTimer, 0);
+    }
+    heartbeatTimer = xTimerCreate("HeartbeatTimer", pdMS_TO_TICKS(intervalSeconds * 1000), pdTRUE, nullptr, heartbeatTimerCallback);
+    xTimerStart(heartbeatTimer, 0);
+    LOG_I(TAG, "Heartbeat started with interval: %d seconds", intervalSeconds);
+}
+
+void LoRaManager::heartbeatTimerCallback(TimerHandle_t xTimer) {
+    heartbeatPending = true; // Set the flag to send a heartbeat (time expired)
 }

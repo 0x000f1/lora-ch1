@@ -7,20 +7,15 @@ PowerProfile BatteryManager::currentProfile = PowerProfile::BALANCED; // Default
 
 void BatteryManager::setPowerProfile(PowerProfile profile) {
     currentProfile = profile;
+    uint32_t cpuFreq = 80; // Default to BALANCED
+
     switch (profile) {
-        case PowerProfile::BATTERY_SAVER:
-            setCpuFrequencyMhz(40);
-            LOG_I(TAG, "Power profile set to BATTERY_SAVER (40 MHz)");
-            break;
-        case PowerProfile::BALANCED:
-            setCpuFrequencyMhz(80);
-            LOG_I(TAG, "Power profile set to BALANCED (80 MHz)");
-            break;
-        case PowerProfile::PERFORMANCE:
-            setCpuFrequencyMhz(160);
-            LOG_I(TAG, "Power profile set to PERFORMANCE (160 MHz)");
-            break;
+        case PowerProfile::BATTERY_SAVER:   cpuFreq = 40; break;
+        case PowerProfile::BALANCED:        cpuFreq = 80; break;
+        case PowerProfile::PERFORMANCE:     cpuFreq = 160; break;
     }
+    setCpuFrequencyMhz(cpuFreq);
+    LOG_I(TAG, "Power profile: %s | CPU: %d MHz", getPowerProfile(), cpuFreq);
 }
 
 const char* BatteryManager::getPowerProfile() {

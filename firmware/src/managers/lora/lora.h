@@ -2,13 +2,15 @@
  * @file lora.h
  * @brief LoRa communication functions.
  * @details This component will handle LoRa communication, initialization and message sending.
- * @todo Implement addressing, message queuing.
+ * @todo Implement message queuing, finish heartbeat
  */
 
 #ifndef LORA_H
 #define LORA_H
 
 #include <Arduino.h>
+#include <freertos/FreeRTOS.h>
+#include <freertos/timers.h>
 #include "protocol/protocol.h"
 
 class LoRaManager {
@@ -35,8 +37,23 @@ class LoRaManager {
          */
         static void sendMessage(uint8_t* data, size_t length, uint32_t targetAddress = BROADCAST_ADDRESS, PackageType packageType = PKG_DATA);
         static void handleFlags();
+        /**
+         * @brief Start sending heartbeat messages at given intervals.
+         * @param intervalSeconds The interval in seconds between heartbeat messages.
+         */
+        static void startHeartbeat(uint16_t intervalSeconds);
+        static void stopHeartbeat();
     private:
+        // Basic LoRa variables
         static void setFlag();
         static uint8_t currentSequenceNumber; // Sequence number for messages
+        // Heartbeat
+        static TimerHandle_t heartbeatTimer; // FreeRTOS timer for heartbeat messages
+        static volatile bool heartbeatPending; // Flag to show that a heartbeat is pending
+        static void heartbeatTimerCallback(TimerHandle_t xTimer);
+        // Air Time and Duty Cycle
+        static uint32_t totalAirTimeMs;
+        static unsigned long statsStartTime;
+        static void updateDutyCycle(uint32_t currentAirTimeMs);
 };
 #endif
