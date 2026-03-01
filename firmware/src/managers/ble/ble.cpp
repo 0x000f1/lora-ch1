@@ -38,7 +38,7 @@ class controlCharStatusCallbacks : public NimBLECharacteristicCallbacks {
             } else {
                 String str = "";
                 for (uint8_t i = 0; i < count; i++) {
-                    str += String(list[i].senderAddress, HEX) + "," + String(list[i].rssi) + ";";
+                    str += String(list[i].senderAddress, HEX) + "," + String(list[i].rssi) + ";" + String(list[i].timestamp);
                 }
                 nimBleChar->setValue(str);
             }

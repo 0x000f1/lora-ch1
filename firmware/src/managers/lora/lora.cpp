@@ -122,6 +122,22 @@ void LoRaManager::handleFlags() {
         sendMessage(nullptr, 0, BROADCAST_ADDRESS, 1, 1, PKG_HEARTBEAT); // Sends a heartbeat message to broadcast
     }
 
+    // Delete the inactive neighbors (That device has been inactive for 120 sec).
+    unsigned long currentMillis = millis();
+    uint32_t timeoutMs = 120000; // 120 sec -> 120 000 ms
+
+    for (uint8_t i = 0; i < neighborCount;) {
+        if (currentMillis - neighbors[i].timestamp > timeoutMs){
+            LOG_I(TAG, "Neighbor timeout, removed: 0x%08X", neighbors[i].senderAddress);
+            for (uint8_t j = i; j < neighborCount - 1; j++){
+                neighbors[j] = neighbors[j + 1];
+            }
+            neighborCount--;
+        } else {
+            i++;
+        }
+    }
+
     if (!actionFlag) return;
 
     actionFlag = false; // Reset the flag to avoid missing future events.

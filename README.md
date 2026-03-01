@@ -51,7 +51,7 @@ This channel is used to query the network status.
   * The app must subscribe to `NOTIFY` events.
   * Once the command is executed, the ESP32 sends one of the following responses via Notify:
     * `NO_NEI`: If there are currently no known neighbors in range.
-    * `MAC,RSSI;MAC,RSSI;`: If there are neighbors, it sends the MAC addresses (HEX) and the last known RSSI (signal strength) values separated by semicolons (e.g., `A1B2C3D4,-45.50;F1E2D3C4,-80.00;`).
+    * `MAC,RSSI;MAC,RSSI;TIMESTAMP`: If there are neighbors, it sends the MAC addresses (HEX), the last known RSSI (signal strength) and timestamp values separated by semicolons (e.g., `A1B2C3D4,-45.50;F1E2D3C4,-80.00;32125`).
 
 ---
 
