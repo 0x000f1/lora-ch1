@@ -67,13 +67,12 @@ void LoRaManager::startReceive() {
     }
 }
 
-void LoRaManager::sendMessage(uint8_t* data, size_t length, uint32_t targetAddress, PackageType packageType) {
+void LoRaManager::sendMessage(uint8_t* data, size_t length, uint32_t targetAddress, uint8_t currentFragment, uint8_t totalFragment, PackageType packageType) {
     LOG_I(TAG, "Preparing to send data of length %d", length);
     
     // There will be used a CAD (Channel Activity Detection) before transmission to avoid collisions. If the channel is busy, it will wait and retry.
     
     if (length > (PAYLOAD_SIZE - sizeof(PackageHeader))) {
-        // @todo Here comes later the fragmentation logic
         LOG_E(TAG, "Data length exceeds payload size...");
         return;
     }
@@ -83,8 +82,8 @@ void LoRaManager::sendMessage(uint8_t* data, size_t length, uint32_t targetAddre
     header.targetAddress = targetAddress;
     header.packageType = packageType;
     header.sequenceNumber = currentSequenceNumber++;
-    header.currentFragment = 0;
-    header.totalFragments = 1;
+    header.currentFragment = currentFragment;
+    header.totalFragments = totalFragment;
 
     // Combine header into one message buffer
     uint8_t txBuffer[PAYLOAD_SIZE];
@@ -94,7 +93,7 @@ void LoRaManager::sendMessage(uint8_t* data, size_t length, uint32_t targetAddre
     // Air Time calculation for statistics and duty cycle measurement
     float airTime = loraModule.getTimeOnAir(sizeof(PackageHeader) + length) / 1000.0f; // Convert to milliseconds
 
-    LOG_I(TAG, "TX to 0x%08X | Type: %d | Air Time: %.2f ms", targetAddress, packageType, airTime);
+    LOG_I(TAG, "TX to 0x%08X | Type: %d | Air Time: %.2f ms | Package %d of %d", targetAddress, packageType, airTime, currentFragment, totalFragment);
 
     isTransmitting = true;
     int state = loraModule.startTransmit(txBuffer, sizeof(PackageHeader) + length);
@@ -120,7 +119,7 @@ void LoRaManager::updateDutyCycle(uint32_t currentAirTimeMs) {
 void LoRaManager::handleFlags() {
     if (heartbeatPending) {
         heartbeatPending = false;
-        sendMessage(nullptr, 0, BROADCAST_ADDRESS, PKG_HEARTBEAT); // Sends a heartbeat message to broadcast
+        sendMessage(nullptr, 0, BROADCAST_ADDRESS, 1, 1, PKG_HEARTBEAT); // Sends a heartbeat message to broadcast
     }
 
     if (!actionFlag) return;
@@ -140,25 +139,37 @@ void LoRaManager::handleFlags() {
         int state = loraModule.readData(rxBuffer, len);
 
         if (state == RADIOLIB_ERR_NONE && len >= sizeof(PackageHeader)) {
-            PackageHeader* header = (PackageHeader*)rxBuffer;
+            PackageHeader header;
+            memcpy(&header, rxBuffer, sizeof(PackageHeader));
+
             uint8_t* payload = rxBuffer + sizeof(PackageHeader);
             size_t payloadLength = len - sizeof(PackageHeader);
 
-            LOG_I(TAG, "RX from 0x%08X, RSSI: %f, Type: %d", header->senderAddress, loraModule.getRSSI(), header->packageType);
+            LOG_I(TAG, "RX from 0x%08X, RSSI: %f, Type: %d", header.senderAddress, loraModule.getRSSI(), header.packageType);
             
-            // Convert to char array if it's a data package and forward to BLE Manager.
-            if (header->packageType == PKG_DATA && payloadLength > 0) {
-                char str[PAYLOAD_SIZE];
+            // Convert to char array if it's a DATA package and forward to BLE Manager.
+            if (header.packageType == PKG_DATA && payloadLength > 0) {
+                char formattedString[PAYLOAD_SIZE + 50]; // Extra space for formatting
+                char payloadString[PAYLOAD_SIZE];
                 size_t copyLength = (payloadLength < PAYLOAD_SIZE) ? payloadLength : PAYLOAD_SIZE - 1; // Ensure null-termination
                 
-                memcpy(str, payload, copyLength);
-                str[copyLength] = '\0'; // Null-terminate the string
-                LOG_I(TAG, "Received DATA package: %s", str);
+                memcpy(payloadString, payload, copyLength);
+                payloadString[copyLength] = '\0'; // Null-terminate the string
 
-                BLEManager::pushMessage(str); // Forward the message to the BLE Manager to notify connected clients.
+                // Format generation: SENDER_ADDRESS;CURRENT_FRAGMENT;TOTAL_FRAGMENT;PAYLOAD
+                snprintf(formattedString, sizeof(formattedString), "%08X;%08X;%d;%d;%s",
+                                                                    header.senderAddress,
+                                                                    header.targetAddress,
+                                                                    header.currentFragment,
+                                                                    header.totalFragments,
+                                                                    payloadString
+                                                                );
+                LOG_I(TAG, "Received DATA package: %s", formattedString);
+
+                BLEManager::pushMessage(formattedString); // Forward the message to the BLE Manager to notify connected clients.
             }
             // Update neighbors list with the sender's address and RSSI
-            updateNeighbor(header->senderAddress, loraModule.getRSSI());
+            updateNeighbor(header.senderAddress, loraModule.getRSSI());
         } else if (state == RADIOLIB_ERR_CRC_MISMATCH) {
             LOG_W(TAG, "CRC Error!");
         } else {

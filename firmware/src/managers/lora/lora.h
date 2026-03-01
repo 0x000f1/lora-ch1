@@ -33,11 +33,18 @@ class LoRaManager {
          * @param data The pointer of the data to be sent.
          * @param length The length of the data to be sent.
          * @param targetAddress The address of the target (default is broadcast).
+         * @param currentFragment The current fragment number (Starts from 1).
+         * @param totalFragment The number of all the fragments in the package (Default 0).
          * @param packageType The type of the package (default is data). (See PackageType enum in protocol.h)
          * @details This function will handle the transmission of messages over LoRa. It will also implement a simple CAD mechanism to avoid collisions.
-         * @todo Implement a CAD mechanism and message fragmentation.
+         * @todo Implement a CAD mechanism.
          */
-        static void sendMessage(uint8_t* data, size_t length, uint32_t targetAddress = BROADCAST_ADDRESS, PackageType packageType = PKG_DATA);
+        static void sendMessage(uint8_t* data,
+                                size_t length,
+                                uint32_t targetAddress = BROADCAST_ADDRESS,
+                                uint8_t currentFragment = 1,
+                                uint8_t totalFragment = 1,
+                                PackageType packageType = PKG_DATA);
         static void handleFlags();
         /**
          * @brief Start sending heartbeat messages at given intervals.

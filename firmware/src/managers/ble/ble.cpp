@@ -50,10 +50,43 @@ class controlCharStatusCallbacks : public NimBLECharacteristicCallbacks {
 class dataCharStatusCallbacks : public NimBLECharacteristicCallbacks {
     // Handle characteristic write event, and log the new value when a client writes to the characteristic.
     void onWrite(NimBLECharacteristic* nimBleChar, NimBLEConnInfo& connInfo) override {
-        LOG_I(TAG, "Characteristic written by client: %s", nimBleChar->getValue().c_str());
-        const uint8_t* data = nimBleChar->getValue().data();
-        size_t length = nimBleChar->getValue().length();
-        LoRaManager::sendMessage((uint8_t*)data, length); // Forward the new value to the LoRa Manager to send it over LoRa.
+        // Format parsing: SENDER_ADDRESS;CURRENT_FRAGMENT;TOTAL_FRAGMENT;PAYLOAD
+        // Example:              FFFFFFFF;               1;             1;  Hello
+        std::string bleValue = nimBleChar->getValue(); // Save the value to a local variable
+        const char* value = bleValue.c_str();
+        size_t totalLength = bleValue.length();
+        LOG_I(TAG, "Characteristic written by client: %s", value);
+        
+        char* pEnd; // Helper constant for strtoul
+
+        // 1. Getting the destination MAC address
+        uint32_t targetAddress = strtoul(value, &pEnd, 16);
+        if (pEnd == value || *pEnd != ';') {
+            LOG_E(TAG, "Invalid BLE payload format: Target Address error!");
+            return;
+        }
+
+        // 2. Getting the current fragment number
+        const char* currentFragStart = pEnd + 1; // Jump after the ';'
+        uint8_t currentFragment = strtoul(currentFragStart, &pEnd, 10);
+        if (pEnd == currentFragStart || *pEnd != ';') {
+            LOG_E(TAG, "Invalid BLE payload format: Current Fragment error!");
+            return;
+        }
+        
+        // 3. Getting the total fragment number
+        const char* totalFragStart = pEnd + 1; // Jump after the ';'
+        uint8_t totalFragment = strtoul(totalFragStart, &pEnd, 10);
+        if (pEnd == totalFragStart || *pEnd != ';') {
+            LOG_E(TAG, "Invalid BLE payload format: Total Fragments error!");
+            return;
+        }
+
+        // 4. Getting the payload
+        const char* payload = pEnd + 1; // Jump after the ';'
+        size_t payloadLength = totalLength - (payload - value);
+        
+        LoRaManager::sendMessage((uint8_t*)payload, payloadLength, targetAddress, currentFragment, totalFragment, PKG_DATA); // Forward the new value to the LoRa Manager to send it over LoRa.
     }
 };
 
@@ -64,6 +97,9 @@ static controlCharStatusCallbacks ctrlCallbacks;
 
 int BLEManager::setupBLE() {
     NimBLEDevice::init(SystemManager::getDeviceName().c_str());
+    // Set the MTU to 512: Able to notify the clients with the full data.
+    // By default the MTU is 23 byte, and only send the notify this long.
+    NimBLEDevice::setMTU(512);
 
     server = NimBLEDevice::createServer();
     if (!server) return 1; // Server start error
