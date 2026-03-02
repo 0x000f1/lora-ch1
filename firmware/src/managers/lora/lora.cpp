@@ -120,21 +120,21 @@ void LoRaManager::handleFlags() {
     if (heartbeatPending) {
         heartbeatPending = false;
         sendMessage(nullptr, 0, BROADCAST_ADDRESS, 1, 1, PKG_HEARTBEAT); // Sends a heartbeat message to broadcast
-    }
+        
+        // Delete the inactive neighbors (That device has been inactive for 120 sec).
+        unsigned long currentMillis = millis();
+        uint32_t timeoutMs = 120000; // 120 sec -> 120 000 ms
 
-    // Delete the inactive neighbors (That device has been inactive for 120 sec).
-    unsigned long currentMillis = millis();
-    uint32_t timeoutMs = 120000; // 120 sec -> 120 000 ms
-
-    for (uint8_t i = 0; i < neighborCount;) {
-        if (currentMillis - neighbors[i].timestamp > timeoutMs){
-            LOG_I(TAG, "Neighbor timeout, removed: 0x%08X", neighbors[i].senderAddress);
-            for (uint8_t j = i; j < neighborCount - 1; j++){
-                neighbors[j] = neighbors[j + 1];
+        for (uint8_t i = 0; i < neighborCount;) {
+            if (currentMillis - neighbors[i].timestamp > timeoutMs){
+                LOG_I(TAG, "Neighbor timeout, removed: 0x%08X", neighbors[i].senderAddress);
+                for (uint8_t j = i; j < neighborCount - 1; j++){
+                    neighbors[j] = neighbors[j + 1];
+                }
+                neighborCount--;
+            } else {
+                i++;
             }
-            neighborCount--;
-        } else {
-            i++;
         }
     }
 
@@ -164,28 +164,37 @@ void LoRaManager::handleFlags() {
             LOG_I(TAG, "RX from 0x%08X, RSSI: %f, Type: %d", header.senderAddress, loraModule.getRSSI(), header.packageType);
             
             // Convert to char array if it's a DATA package and forward to BLE Manager.
-            if (header.packageType == PKG_DATA && payloadLength > 0) {
-                char formattedString[PAYLOAD_SIZE + 50]; // Extra space for formatting
-                char payloadString[PAYLOAD_SIZE];
-                size_t copyLength = (payloadLength < PAYLOAD_SIZE) ? payloadLength : PAYLOAD_SIZE - 1; // Ensure null-termination
-                
-                memcpy(payloadString, payload, copyLength);
-                payloadString[copyLength] = '\0'; // Null-terminate the string
+            
+            // Check if the package is sent for BROADCAST or to this device's address.
+            bool packageIsForMe = (header.targetAddress == BROADCAST_ADDRESS ||
+                                    header.targetAddress == (uint32_t)SystemManager::getLoRaID());
 
-                // Format generation: SENDER_ADDRESS;CURRENT_FRAGMENT;TOTAL_FRAGMENT;PAYLOAD
-                snprintf(formattedString, sizeof(formattedString), "%08X;%08X;%d;%d;%s",
-                                                                    header.senderAddress,
-                                                                    header.targetAddress,
-                                                                    header.currentFragment,
-                                                                    header.totalFragments,
-                                                                    payloadString
-                                                                );
-                LOG_I(TAG, "Received DATA package: %s", formattedString);
+            if (!packageIsForMe) LOG_I(TAG, "Ignored package: Different target address! (0x%08X)", header.targetAddress);
+            // The received package is for BROADCAST or for this device
+            else {
+                if (header.packageType == PKG_DATA && payloadLength > 0) {
+                    char formattedString[PAYLOAD_SIZE + 50]; // Extra space for formatting
+                    char payloadString[PAYLOAD_SIZE];
+                    size_t copyLength = (payloadLength < PAYLOAD_SIZE) ? payloadLength : PAYLOAD_SIZE - 1; // Ensure null-termination
+                    
+                    memcpy(payloadString, payload, copyLength);
+                    payloadString[copyLength] = '\0'; // Null-terminate the string
 
-                BLEManager::pushMessage(formattedString); // Forward the message to the BLE Manager to notify connected clients.
+                    // Format generation: SENDER_ADDRESS;CURRENT_FRAGMENT;TOTAL_FRAGMENT;PAYLOAD
+                    snprintf(formattedString, sizeof(formattedString), "%08X;%08X;%d;%d;%s",
+                                                                        header.senderAddress,
+                                                                        header.targetAddress,
+                                                                        header.currentFragment,
+                                                                        header.totalFragments,
+                                                                        payloadString
+                                                                    );
+                    LOG_I(TAG, "Received DATA package: %s", formattedString);
+
+                    BLEManager::pushMessage(formattedString); // Forward the message to the BLE Manager to notify connected clients.
+                }
+                // Update neighbors list with the sender's address and RSSI
+                updateNeighbor(header.senderAddress, loraModule.getRSSI());
             }
-            // Update neighbors list with the sender's address and RSSI
-            updateNeighbor(header.senderAddress, loraModule.getRSSI());
         } else if (state == RADIOLIB_ERR_CRC_MISMATCH) {
             LOG_W(TAG, "CRC Error!");
         } else {
