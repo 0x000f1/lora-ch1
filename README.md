@@ -1,11 +1,12 @@
 # lora-ch1
 
-This project is based on the ESP32-C3 microcontroller that behaves like a bridge between mobile devices and the modules. The connection is established via Bluetooth Low Energy with the phone, then sends the package over the LoRa (RFM98W) module at 433 MHz. This combination is able to perform a full internet-independent communication between two or more devices, at a long range.
+This project is based on the ESP32-C3 microcontroller that behaves like a bridge between mobile devices and the modules. The connection is established via Bluetooth Low Energy with the phone, then sends the package over the LoRa (RFM98W/SX1278) module at 433 MHz. This combination is able to perform a full internet-independent communication between two or more devices, at a long range.
 
 ## Functions
 
-* **Bidirectional communication:** Transmit packages seamlessly between two or more devices (P2P or Broadcast).
-* **Neighbour Discovery:** Automatic heartbeat messages are sent out to advertise the active device among other users, storing the RSSI and last active timestamp.
+* **Reliable Bidirectional Communication:** Transmit packages seamlessly between two or more devices. Supports public Broadcasts and private P2P messages with an Automatic Repeat Request (ARQ) mechanism. P2P messages are automatically acknowledged (ACK) and retried up to 3 times if lost in the air.
+* **Smart Neighbour Discovery:** Automatic heartbeat messages are sent out to advertise the active device among other users, storing the RSSI and last active timestamp. The system automatically cleans up "dead" or out-of-range nodes after 120 seconds of inactivity.
+* **Haptic & UI Feedback:** Integrated DRV2605L haptic motor driver and hardware button with debouncing. Provides distinct physical feedback for button presses and incoming LoRa messages, with strict power-management (zero idle consumption).
 * **Dynamic NVS management:** The device name, UUIDs, and unique identifiers are generated on the first startup and stored in the NVS.
 * **Energy management:** Currently, it supports 3 different power profiles that change the frequency of the CPU and the heartbeat interval.
 
@@ -38,9 +39,12 @@ Actual message sending and receiving takes place on this channel. The payload mu
 
 * **Receiving (LoRa -> App):**
   * The app must subscribe to `NOTIFY` events on this characteristic.
-  * **Format:** `SENDER_MAC;TARGET_MAC;CURRENT_FRAGMENT;TOTAL_FRAGMENTS;PAYLOAD`
-  * The app can use the `TARGET_MAC` to determine if the received message was a public broadcast (`FFFFFFFF`) or a private P2P message meant specifically for this user.
-  * *Example:* `9A8B7C6D;FFFFFFFF;1;1;Hi, I received it!`
+  * **Format 1 (Standard Data):** `SENDER_MAC;TARGET_MAC;CURRENT_FRAGMENT;TOTAL_FRAGMENTS;PAYLOAD`
+    * The app can use the `TARGET_MAC` to determine if the received message was a public broadcast (`FFFFFFFF`) or a private P2P message meant specifically for this user.
+  * **Format 2 (Delivery Success):** `ACK_OK;TARGET_MAC`
+    * Sent to the app when a previously sent P2P message is successfully acknowledged by the receiver.
+  * **Format 3 (Delivery Failed):** `ERR_TIMEOUT;TARGET_MAC`
+    * Sent to the app when a P2P message fails to reach the target after maximum retries.
 
 #### B. Control Characteristic
 This channel is used to query the network status.
@@ -59,11 +63,10 @@ This channel is used to query the network status.
 
 The project is under active development. The planned features in order:
 
-1. **Neighbor Cleanup (Anti-Zombie):** Automatically remove disconnected or out-of-range nodes from the neighbor list.
-2. **ACK mechanism & Retries:** Automatic retry in case of a failed P2P package transmission.
-3. **BLE Security:** "Just Works" or Passkey-based pairing for secure access.
-4. **LoRa Encryption:** Payload encryption (AES-128/256) to secure over-the-air data.
-5. **Deep/Light Sleep:** Placing the ESP32 and LoRa module into sleep mode depending on the Power Profiles.
+1. **BLE Security (Just Works):** Implement physical button-press validation to activate BLE advertising (Pairing Mode) for 60 seconds to prevent unauthorized connections.
+2. **Collision Avoidance (CAD):** Implement LoRa Channel Activity Detection before transmitting to prevent overlapping signals in crowded environments.
+3. **LoRa Encryption:** Payload encryption (AES-128/256) to secure over-the-air data.
+4. **Deep/Light Sleep PM:** Placing the ESP32 and LoRa module into deep power-saving modes (utilizing FreeRTOS idle hooks) depending on the active Power Profile.
 
 ---
 *Built using the RadioLib and NimBLE-Arduino libraries.*
