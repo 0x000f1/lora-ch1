@@ -192,7 +192,7 @@ void LoRaManager::handleFlags() {
                                                                         payloadString
                                                                     );
                     LOG_I(TAG, "Received DATA package: %s", formattedString);
-                    HapticManager::playEffect(1); // Single click haptic feedback on message received.
+                    HapticManager::playEffect(52); // Pulsing strong 1 - 100% feedback on message received.
                     BLEManager::pushMessage(formattedString); // Forward the message to the BLE Manager to notify connected clients.
                 }
             }

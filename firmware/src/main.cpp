@@ -4,6 +4,7 @@
 #include "managers/system/system_manager.h"
 #include "managers/lora/lora.h"
 #include "drivers/ui/haptic.h"
+#include "drivers/ui/button.h"
 
 #define TAG "MAIN"
 
@@ -16,9 +17,11 @@ void setup() {
     BLEManager::setupBLE();
     LoRaManager::setupLoRa();
     HapticManager::setupHaptic();
+    ButtonManager::setupButton();
 }
 
 void loop() {
     LoRaManager::handleFlags();
+    ButtonManager::handleButton();
     yield(); // Allow background tasks to run
 }
