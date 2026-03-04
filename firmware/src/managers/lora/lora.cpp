@@ -175,6 +175,12 @@ void LoRaManager::handleFlags() {
             if (!packageIsForMe) LOG_I(TAG, "Ignored package: Different target address! (0x%08X)", header.targetAddress);
             // The received package is for BROADCAST or for this device
             else {
+                if (header.packageType == PKG_DATA && header.targetAddress == (uint32_t)SystemManager::getLoRaID()){
+                    // If the message has been received is for this device (P2P communication), send back an ACK type message.
+                    LOG_I(TAG, "P2P type message received, sending back ACK to 0x%08X", header.senderAddress);
+                    sendMessage(nullptr, 0, header.senderAddress, 1, 1, PKG_ACK);
+                }
+
                 if (header.packageType == PKG_DATA && payloadLength > 0) {
                     char formattedString[PAYLOAD_SIZE + 50]; // Extra space for formatting
                     char payloadString[PAYLOAD_SIZE];
