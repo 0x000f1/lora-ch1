@@ -2,6 +2,7 @@
 #include "utils/log_helper.h"
 #include "managers/ble/ble.h"
 #include "managers/system/system_manager.h"
+#include "drivers/ui/haptic.h"
 #include <SPI.h>
 #include <RadioLib.h>
 
@@ -163,8 +164,10 @@ void LoRaManager::handleFlags() {
 
             LOG_I(TAG, "RX from 0x%08X, RSSI: %f, Type: %d", header.senderAddress, loraModule.getRSSI(), header.packageType);
             
+            // Update neighbors list with the sender's address and RSSI
+            updateNeighbor(header.senderAddress, loraModule.getRSSI());
+
             // Convert to char array if it's a DATA package and forward to BLE Manager.
-            
             // Check if the package is sent for BROADCAST or to this device's address.
             bool packageIsForMe = (header.targetAddress == BROADCAST_ADDRESS ||
                                     header.targetAddress == (uint32_t)SystemManager::getLoRaID());
@@ -189,11 +192,9 @@ void LoRaManager::handleFlags() {
                                                                         payloadString
                                                                     );
                     LOG_I(TAG, "Received DATA package: %s", formattedString);
-
+                    HapticManager::playEffect(1); // Single click haptic feedback on message received.
                     BLEManager::pushMessage(formattedString); // Forward the message to the BLE Manager to notify connected clients.
                 }
-                // Update neighbors list with the sender's address and RSSI
-                updateNeighbor(header.senderAddress, loraModule.getRSSI());
             }
         } else if (state == RADIOLIB_ERR_CRC_MISMATCH) {
             LOG_W(TAG, "CRC Error!");

@@ -3,6 +3,7 @@
 #include "managers/ble/ble.h"
 #include "managers/system/system_manager.h"
 #include "managers/lora/lora.h"
+#include "drivers/ui/haptic.h"
 
 #define TAG "MAIN"
 
@@ -14,6 +15,7 @@ void setup() {
     SystemManager::setupNVS();
     BLEManager::setupBLE();
     LoRaManager::setupLoRa();
+    HapticManager::setupHaptic();
 }
 
 void loop() {

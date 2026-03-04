@@ -8,6 +8,9 @@
 #define HAPTIC_H
 
 #include <Arduino.h>
+#include "SensorDRV2605.hpp"
+#include <freertos/FreeRTOS.h>
+#include <freertos/timers.h>
 
 class HapticManager {
     public:
@@ -22,6 +25,11 @@ class HapticManager {
          * @param effectNumber The number selects the effect to be played. See DRV2605L documentation for effect numbers.
          * @details This function will play the specified haptic effect on the motor driver.
          */
-        static void playEffect(int effectNumber);
+        static void playEffect(uint8_t effectId);
+    private:
+        static SensorDRV2605 drv;
+        // Timer to power off the DRV2605 to reduce consumption
+        static TimerHandle_t powerOffTimer;
+        static void powerOffTimerCallback(TimerHandle_t xTimer);
 };
 #endif
