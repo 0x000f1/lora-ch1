@@ -13,6 +13,7 @@
 #include <freertos/timers.h>
 #include "protocol/protocol.h"
 
+#define PAYLOAD_SIZE 250
 #define MAX_NEIGHBORS 20
 
 class LoRaManager {
@@ -36,6 +37,7 @@ class LoRaManager {
          * @param currentFragment The current fragment number (Starts from 1).
          * @param totalFragment The number of all the fragments in the package (Default 0).
          * @param packageType The type of the package (default is data). (See PackageType enum in protocol.h)
+         * @param isRetry The message is failed to send on first try, so retry it. (default is False).
          * @details This function will handle the transmission of messages over LoRa. It will also implement a simple CAD mechanism to avoid collisions.
          * @todo Implement a CAD mechanism.
          */
@@ -44,7 +46,8 @@ class LoRaManager {
                                 uint32_t targetAddress = BROADCAST_ADDRESS,
                                 uint8_t currentFragment = 1,
                                 uint8_t totalFragment = 1,
-                                PackageType packageType = PKG_DATA);
+                                PackageType packageType = PKG_DATA,
+                                bool isRetry = false);
         static void handleFlags();
         /**
          * @brief Start sending heartbeat messages at given intervals.
@@ -76,5 +79,21 @@ class LoRaManager {
         static DiscoveryInfo neighbors[MAX_NEIGHBORS];
         static uint8_t neighborCount;
         static void updateNeighbor(uint32_t senderAddress, float rssi);
+
+        // ACK and Resend variables
+        static TimerHandle_t ackTimer;
+        static volatile bool ackTimeoutPending;
+        static void ackTimerCallback(TimerHandle_t xTimer);
+
+        static uint8_t retryCount;
+        static const uint8_t MAX_RETRIES;
+        static volatile bool waitingForAck;
+
+        // Save the last message to the internal memory (If it needed for resend)
+        static uint8_t lastPayload[PAYLOAD_SIZE];
+        static size_t lastPayloadLength;
+        static uint32_t lastTargetAddress;
+        static uint8_t lastCurrentFragment;
+        static uint8_t lastTotalFragment;
 };
 #endif

@@ -7,7 +7,6 @@
 #include <RadioLib.h>
 
 #define TAG "LORA"
-#define PAYLOAD_SIZE 250 // SX1278 can handle 255 bytes, but keep a little below the limit
 #define BAND 433.0
 
 #define LORA_SCK  4
@@ -26,6 +25,17 @@ unsigned long LoRaManager::statsStartTime = 0;
 DiscoveryInfo LoRaManager::neighbors[MAX_NEIGHBORS];
 uint8_t LoRaManager::neighborCount = 0;
 
+TimerHandle_t LoRaManager::ackTimer = nullptr;
+volatile bool LoRaManager::ackTimeoutPending = false;
+uint8_t LoRaManager::retryCount = 0;
+const uint8_t LoRaManager::MAX_RETRIES = 3; // Max 3 retries before drop the package
+volatile bool LoRaManager::waitingForAck = false;
+
+uint8_t LoRaManager::lastPayload[PAYLOAD_SIZE];
+size_t LoRaManager::lastPayloadLength = 0;
+uint32_t LoRaManager::lastTargetAddress = 0;
+uint8_t LoRaManager::lastCurrentFragment = 0;
+uint8_t LoRaManager::lastTotalFragment = 0;
 
 SPIClass loraSPI(FSPI); // FSPI = SPI2 | Use the FSPI for custom pin configuration
 SX1278 loraModule = new Module(LORA_NSS, LORA_DIO0, LORA_RST, RADIOLIB_NC, loraSPI);
@@ -41,6 +51,8 @@ void ICACHE_RAM_ATTR LoRaManager::setFlag() {
 int LoRaManager::setupLoRa() {
     loraSPI.begin(LORA_SCK, LORA_MISO, LORA_MOSI, LORA_NSS);
     statsStartTime = millis(); // Start the timer for duty cycle statistics.
+
+    ackTimer = xTimerCreate("ackTimer", pdMS_TO_TICKS(2000), pdFALSE, nullptr, ackTimerCallback);
     
     LOG_I(TAG, "Initializing SX1278...");
     int state = loraModule.begin(BAND);
@@ -68,7 +80,7 @@ void LoRaManager::startReceive() {
     }
 }
 
-void LoRaManager::sendMessage(uint8_t* data, size_t length, uint32_t targetAddress, uint8_t currentFragment, uint8_t totalFragment, PackageType packageType) {
+void LoRaManager::sendMessage(uint8_t* data, size_t length, uint32_t targetAddress, uint8_t currentFragment, uint8_t totalFragment, PackageType packageType, bool isRetry) {
     LOG_I(TAG, "Preparing to send data of length %d", length);
     
     // There will be used a CAD (Channel Activity Detection) before transmission to avoid collisions. If the channel is busy, it will wait and retry.
@@ -76,6 +88,20 @@ void LoRaManager::sendMessage(uint8_t* data, size_t length, uint32_t targetAddre
     if (length > (PAYLOAD_SIZE - sizeof(PackageHeader))) {
         LOG_E(TAG, "Data length exceeds payload size...");
         return;
+    }
+
+    if (packageType == PKG_DATA && targetAddress != BROADCAST_ADDRESS) {
+        if (!isRetry) {
+            // If the message is new (not resending), save the parameters
+            memcpy(lastPayload, data, length);
+            lastPayloadLength = length;
+            lastTargetAddress = targetAddress;
+            lastCurrentFragment = currentFragment;
+            lastTotalFragment = totalFragment;
+            retryCount = 0;
+        }
+        waitingForAck = true;
+        if (ackTimer != nullptr) xTimerStart(ackTimer, 0);
     }
 
     PackageHeader header;
@@ -139,6 +165,27 @@ void LoRaManager::handleFlags() {
         }
     }
 
+    // If the 2 seconds elapsed, and not received ACK type package
+    if (ackTimeoutPending) {
+        ackTimeoutPending = false;
+        if (waitingForAck) {
+            if (retryCount < MAX_RETRIES) {
+                retryCount++;
+                LOG_W(TAG, "ACK timeout! Retrying send message to 0x%08X (Attempt %d/%d)", lastTargetAddress, retryCount, MAX_RETRIES);
+                sendMessage(lastPayload, lastPayloadLength, lastTargetAddress, lastCurrentFragment, lastTotalFragment, PKG_DATA, true);
+            } else {
+                LOG_E(TAG, "Max retries reached. Delivery failed to 0x%08X", lastTargetAddress);
+                waitingForAck = false;
+                HapticManager::playEffect(16); // Long haptic feedback to notify about the error.
+                
+                // Push BLE message that shows the error.
+                char errorMsg[50];
+                snprintf(errorMsg, sizeof(errorMsg), "ERR_TIMEOUT;%08X", lastTargetAddress);
+                BLEManager::pushMessage(errorMsg);
+            }
+        }
+    }
+
     if (!actionFlag) return;
 
     actionFlag = false; // Reset the flag to avoid missing future events.
@@ -175,6 +222,18 @@ void LoRaManager::handleFlags() {
             if (!packageIsForMe) LOG_I(TAG, "Ignored package: Different target address! (0x%08X)", header.targetAddress);
             // The received package is for BROADCAST or for this device
             else {
+                // If the message is an ACK package.
+                if (header.packageType == PKG_ACK && waitingForAck && header.senderAddress == lastTargetAddress) {
+                    LOG_I(TAG, "ACK received from 0x%08X! Message delivered successfully.", header.senderAddress);
+                    waitingForAck = false;
+                    if (ackTimer != nullptr) xTimerStop(ackTimer, 0); // Stop the ACK timer on success.
+                    
+                    // Push BLE message that shows the success.
+                    char successMsg[50];
+                    snprintf(successMsg, sizeof(successMsg), "ACK_OK;%08X", header.senderAddress);
+                    BLEManager::pushMessage(successMsg);
+                }
+
                 if (header.packageType == PKG_DATA && header.targetAddress == (uint32_t)SystemManager::getLoRaID()){
                     // If the message has been received is for this device (P2P communication), send back an ACK type message.
                     LOG_I(TAG, "P2P type message received, sending back ACK to 0x%08X", header.senderAddress);
@@ -253,4 +312,8 @@ void LoRaManager::stopHeartbeat() {
 
 void LoRaManager::heartbeatTimerCallback(TimerHandle_t xTimer) {
     heartbeatPending = true; // Set the flag to send a heartbeat (time expired)
+}
+
+void LoRaManager::ackTimerCallback(TimerHandle_t xTimer) {
+    ackTimeoutPending = true; // The timer expired
 }
