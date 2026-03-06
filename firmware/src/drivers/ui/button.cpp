@@ -1,6 +1,7 @@
 #include "button.h"
 #include "utils/log_helper.h"
 #include "drivers/ui/haptic.h"
+#include "managers/ble/ble.h"
 
 #define TAG "BUTTON"
 #define BUTTON_PIN 1
@@ -32,8 +33,9 @@ void ButtonManager::setupButton() {
 void ButtonManager::handleButton() {
     if (buttonPressedFlag) {
         buttonPressedFlag = false;
-        LOG_I(TAG, "Button pressed.");
+        LOG_I(TAG, "Button pressed. Perform BLE 'start pairing mode'.");
         
+        BLEManager::startPairingMode();
         HapticManager::playEffect(7); // Soft bump - 100% feedback on button pressed
     }
 }

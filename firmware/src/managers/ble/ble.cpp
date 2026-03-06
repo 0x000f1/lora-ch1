@@ -10,17 +10,19 @@ static NimBLEServer* server = nullptr;
 static NimBLECharacteristic* dataCharacteristic = nullptr;
 static NimBLECharacteristic* controlCharacteristic = nullptr;
 
+TimerHandle_t BLEManager::pairingTimer = nullptr;
+
 // Callbacks
 class serverStatusCallback : public NimBLEServerCallbacks {
     // Handle client connections and disconnections, and update connection parameters for better performance.
     void onConnect(NimBLEServer* nimBleServer, NimBLEConnInfo& connInfo) override {
         LOG_I(TAG, "Client connected: %s", connInfo.getAddress().toString().c_str());
         nimBleServer->updateConnParams(connInfo.getConnHandle(), 24, 48, 0, 180);
+        BLEManager::stopPairingMode();
     }
     // Handle client disconnections and restart advertising to allow new clients to connect.
     void onDisconnect(NimBLEServer* nimBleServer, NimBLEConnInfo& connInfo, int reason) override {
-        LOG_I(TAG, "Client disconnected.");
-        NimBLEDevice::startAdvertising();
+        LOG_I(TAG, "Client disconnected. Press button to start advertising.");
     }
 };
 
@@ -90,6 +92,36 @@ class dataCharStatusCallbacks : public NimBLECharacteristicCallbacks {
     }
 };
 
+void BLEManager::pairingTimerCallback(TimerHandle_t xTimer) {
+    NimBLEDevice::stopAdvertising();
+    LOG_I(TAG, "Pairing mode timeout (60s). Advertising stopped to save power and ensure security.");
+}
+
+void BLEManager::startPairingMode() {
+    if (server->getConnectedCount() > 0) {
+        LOG_W(TAG, "Already connected to a client. Pairing mode ignored.");
+        return;
+    }
+
+    NimBLEAdvertising* advertising = NimBLEDevice::getAdvertising();
+    if (advertising->start()) {
+        LOG_I(TAG, "Pairing mode started! Device is visible for 60 seconds.");
+        if (pairingTimer != nullptr) {
+            xTimerStart(pairingTimer, 0); // Start the callback timer to stop after 60 sec.
+        }
+    } else {
+        LOG_E(TAG, "Failed to start advertising.");
+    }
+}
+
+void BLEManager::stopPairingMode() {
+    if (pairingTimer != nullptr) {
+        xTimerStop(pairingTimer, 0);
+    }
+    NimBLEDevice::stopAdvertising();
+    LOG_I(TAG, "Pairing mode and advertising stopped.");
+}
+
 // Declare the callback entities statically
 static serverStatusCallback servCallbacks;
 static dataCharStatusCallbacks dataCallbacks;
@@ -132,8 +164,10 @@ int BLEManager::setupBLE() {
     advertising->setName(SystemManager::getDeviceName().c_str());
     advertising->addServiceUUID(SystemManager::getServiceUUID().c_str());
     advertising->enableScanResponse(true);
-    if (!advertising->start()) return 3; // Advertising start error
-    LOG_I(TAG, "BLE setup completed!");
+
+    pairingTimer = xTimerCreate("pairingTimer", pdMS_TO_TICKS(60000), pdFALSE, nullptr, pairingTimerCallback);
+    
+    LOG_I(TAG, "BLE setup completed! (Advertising is OFF by default. Press button!)");
     return 0;
 }
 
