@@ -83,8 +83,6 @@ void LoRaManager::startReceive() {
 void LoRaManager::sendMessage(uint8_t* data, size_t length, uint32_t targetAddress, uint8_t currentFragment, uint8_t totalFragment, PackageType packageType, bool isRetry) {
     LOG_I(TAG, "Preparing to send data of length %d", length);
     
-    // There will be used a CAD (Channel Activity Detection) before transmission to avoid collisions. If the channel is busy, it will wait and retry.
-    
     if (length > (PAYLOAD_SIZE - sizeof(PackageHeader))) {
         LOG_E(TAG, "Data length exceeds payload size...");
         return;
@@ -121,6 +119,25 @@ void LoRaManager::sendMessage(uint8_t* data, size_t length, uint32_t targetAddre
     float airTime = loraModule.getTimeOnAir(sizeof(PackageHeader) + length) / 1000.0f; // Convert to milliseconds
 
     LOG_I(TAG, "TX to 0x%08X | Type: %d | Air Time: %.2f ms | Package %d of %d", targetAddress, packageType, airTime, currentFragment, totalFragment);
+
+    LOG_I(TAG, "Checking channel activity (CAD).");
+
+    if (loraModule.scanChannel() != RADIOLIB_CHANNEL_FREE) {
+        LOG_W(TAG, "Channel is busy! Retry to send in a random time.");
+        vTaskDelay(pdMS_TO_TICKS(random(50, 150)));
+
+        // Second check if the channel is free
+        if (loraModule.scanChannel() != RADIOLIB_CHANNEL_FREE) {
+            LOG_E(TAG, "Channel is still busy! Dropped TX package.");
+            loraModule.standby();
+            startReceive();
+            return; // The P2P retry function will try again to send the message later.
+        }
+    }
+
+    LOG_I(TAG, "Channel is free. Transmitting!");
+    loraModule.standby(); // Set the module to ready state (Important after scanChannel).
+    actionFlag = false; // Delete the CAD generated false DIO0 interrupts
 
     isTransmitting = true;
     int state = loraModule.startTransmit(txBuffer, sizeof(PackageHeader) + length);
