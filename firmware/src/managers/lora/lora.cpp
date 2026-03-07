@@ -8,6 +8,13 @@
 
 #define TAG "LORA"
 #define BAND 433.0
+#define BANDWIDTH 125.0
+#define SPREADING_FACTOR 8
+#define CODING_RATE 5
+#define SYNC_WORD 0x12
+#define POWER 10
+#define PREAMBLE_LENGTH 8
+#define GAIN 0
 
 #define LORA_SCK  4
 #define LORA_MISO 5
@@ -37,6 +44,13 @@ uint32_t LoRaManager::lastTargetAddress = 0;
 uint8_t LoRaManager::lastCurrentFragment = 0;
 uint8_t LoRaManager::lastTotalFragment = 0;
 
+volatile bool LoRaManager::txPending = false;
+uint8_t LoRaManager::txPendingPayload[PAYLOAD_SIZE];
+size_t LoRaManager::txPendingLength = 0;
+uint32_t LoRaManager::txPendingTarget = 0;
+uint8_t LoRaManager::txPendingCurrentFrag = 0;
+uint8_t LoRaManager::txPendingTotalFrag = 0;
+
 SPIClass loraSPI(FSPI); // FSPI = SPI2 | Use the FSPI for custom pin configuration
 SX1278 loraModule = new Module(LORA_NSS, LORA_DIO0, LORA_RST, RADIOLIB_NC, loraSPI);
 
@@ -55,7 +69,7 @@ int LoRaManager::setupLoRa() {
     ackTimer = xTimerCreate("ackTimer", pdMS_TO_TICKS(2000), pdFALSE, nullptr, ackTimerCallback);
     
     LOG_I(TAG, "Initializing SX1278...");
-    int state = loraModule.begin(BAND);
+    int state = loraModule.begin(BAND, BANDWIDTH, SPREADING_FACTOR, CODING_RATE, SYNC_WORD, POWER, PREAMBLE_LENGTH, GAIN);
     if (state != RADIOLIB_ERR_NONE) {
         LOG_E(TAG, "Setup failed, code: %d", state);
         return state;
@@ -78,6 +92,18 @@ void LoRaManager::startReceive() {
     } else {
         LOG_E(TAG, "Starting receive failed: %d", state);
     }
+}
+
+void LoRaManager::queueMessage(uint8_t* data, size_t length, uint32_t targetAddress, uint8_t currentFragment, uint8_t totalFragment) {
+    if (length > PAYLOAD_SIZE) return;
+    
+    memcpy(txPendingPayload, data, length);
+    txPendingLength = length;
+    txPendingTarget = targetAddress;
+    txPendingCurrentFrag = currentFragment;
+    txPendingTotalFrag = totalFragment;
+    
+    txPending = true;
 }
 
 void LoRaManager::sendMessage(uint8_t* data, size_t length, uint32_t targetAddress, uint8_t currentFragment, uint8_t totalFragment, PackageType packageType, bool isRetry) {
@@ -161,6 +187,11 @@ void LoRaManager::updateDutyCycle(uint32_t currentAirTimeMs) {
 }
 
 void LoRaManager::handleFlags() {
+    if (txPending) {
+        txPending = false;
+        sendMessage(txPendingPayload, txPendingLength, txPendingTarget, txPendingCurrentFrag, txPendingTotalFrag, PKG_DATA);
+    }
+
     if (heartbeatPending) {
         heartbeatPending = false;
         sendMessage(nullptr, 0, BROADCAST_ADDRESS, 1, 1, PKG_HEARTBEAT); // Sends a heartbeat message to broadcast

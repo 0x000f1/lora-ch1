@@ -88,7 +88,7 @@ class dataCharStatusCallbacks : public NimBLECharacteristicCallbacks {
         const char* payload = pEnd + 1; // Jump after the ';'
         size_t payloadLength = totalLength - (payload - value);
         
-        LoRaManager::sendMessage((uint8_t*)payload, payloadLength, targetAddress, currentFragment, totalFragment, PKG_DATA); // Forward the new value to the LoRa Manager to send it over LoRa.
+        LoRaManager::queueMessage((uint8_t*)payload, payloadLength, targetAddress, currentFragment, totalFragment); // Forward the new value to the LoRa Manager to send it over LoRa.
     }
 };
 

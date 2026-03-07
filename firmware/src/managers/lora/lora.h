@@ -48,6 +48,14 @@ class LoRaManager {
                                 uint8_t totalFragment = 1,
                                 PackageType packageType = PKG_DATA,
                                 bool isRetry = false);
+        /**
+         * @brief Queue a message to be sent. (Thread safe from BLE task calls)
+         */
+        static void queueMessage(uint8_t* data,
+                                size_t length,
+                                uint32_t targetAddress,
+                                uint8_t currentFragment,
+                                uint8_t totalFragment);
         static void handleFlags();
         /**
          * @brief Start sending heartbeat messages at given intervals.
@@ -67,14 +75,17 @@ class LoRaManager {
         // Basic LoRa variables
         static void setFlag();
         static uint8_t currentSequenceNumber; // Sequence number for messages
+
         // Heartbeat
         static TimerHandle_t heartbeatTimer; // FreeRTOS timer for heartbeat messages
         static volatile bool heartbeatPending; // Flag to show that a heartbeat is pending
         static void heartbeatTimerCallback(TimerHandle_t xTimer);
+        
         // Air Time and Duty Cycle
         static uint32_t totalAirTimeMs;
         static unsigned long statsStartTime;
         static void updateDutyCycle(uint32_t currentAirTimeMs);
+
         // Neighbors
         static DiscoveryInfo neighbors[MAX_NEIGHBORS];
         static uint8_t neighborCount;
@@ -95,5 +106,13 @@ class LoRaManager {
         static uint32_t lastTargetAddress;
         static uint8_t lastCurrentFragment;
         static uint8_t lastTotalFragment;
+
+        // Message queueing thread-safe variables
+        static volatile bool txPending;
+        static uint8_t txPendingPayload[PAYLOAD_SIZE];
+        static size_t txPendingLength;
+        static uint32_t txPendingTarget;
+        static uint8_t txPendingCurrentFrag;
+        static uint8_t txPendingTotalFrag;
 };
 #endif
