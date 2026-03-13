@@ -9,10 +9,11 @@
 #define TAG "MAIN"
 
 void setup() {
+    Serial.begin(115200);
+    delay(3000);
     // Set the default power profile to BALANCED to able to use BLE (advertising and connection)
     SystemManager::setPowerProfile(PowerProfile::BALANCED);
-    
-    Serial.begin(115200);
+
     SystemManager::setupNVS();
     BLEManager::setupBLE();
     LoRaManager::setupLoRa();

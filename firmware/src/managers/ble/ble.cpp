@@ -68,13 +68,13 @@ class controlCharStatusCallbacks : public NimBLECharacteristicCallbacks {
             const char* profileStr = cmd + 8;
 
             if (strcmp(profileStr, "BATTERY_SAVER") == 0) {
-                BatteryManager::setPowerProfile(PowerProfile::BATTERY_SAVER);
+                SystemManager::setPowerProfile(PowerProfile::BATTERY_SAVER);
                 nimBleChar->setValue("PWR_OK");
             } else if (strcmp(profileStr, "BALANCED") == 0) {
-                BatteryManager::setPowerProfile(PowerProfile::BALANCED);
+                SystemManager::setPowerProfile(PowerProfile::BALANCED);
                 nimBleChar->setValue("PWR_OK");
             } else if (strcmp(profileStr, "PERFORMANCE") == 0) {
-                BatteryManager::setPowerProfile(PowerProfile::PERFORMANCE);
+                SystemManager::setPowerProfile(PowerProfile::PERFORMANCE);
                 nimBleChar->setValue("PWR_OK");
             } else {
                 LOG_W(TAG, "Unknown power profile requested: %s", profileStr);
