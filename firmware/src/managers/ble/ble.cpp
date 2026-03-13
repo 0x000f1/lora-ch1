@@ -3,6 +3,7 @@
 #include "utils/log_helper.h"
 #include <NimBLEDevice.h>
 #include "managers/lora/lora.h"
+#include "managers/ble/ble.h"
 
 #define TAG "BLE" 
 
@@ -29,20 +30,55 @@ class serverStatusCallback : public NimBLEServerCallbacks {
 class controlCharStatusCallbacks : public NimBLECharacteristicCallbacks {
     // Handle control characteristic events (Batter, Neighbor, etc.)
     void onWrite(NimBLECharacteristic* nimBleChar, NimBLEConnInfo& connInfo) override {
-        String cmd = nimBleChar->getValue().c_str();
+        std::string rxValue = nimBleChar->getValue();
+        const char* cmd = rxValue.c_str();
+
         LOG_I(TAG, "Control Characteristic written by client: %s", cmd);
-        if (cmd == "GET_NEI") {
+
+        if (strcmp(cmd, "GET_NEI") == 0) {
             uint8_t count = 0;
             DiscoveryInfo* list = LoRaManager::getNeighbors(count);
+
             if (count == 0) {
                 LOG_I(TAG, "No neighbors found.");
                 nimBleChar->setValue("NO_NEI");
             } else {
-                String str = "";
+                char responseBuffer[512] = {0};
+                size_t offset = 0;
+
                 for (uint8_t i = 0; i < count; i++) {
-                    str += String(list[i].senderAddress, HEX) + "," + String(list[i].rssi) + ";" + String(list[i].timestamp);
+                    int written = snprintf(responseBuffer + offset, sizeof(responseBuffer) - offset, 
+                                           "%08X,%.2f;%lu|",
+                                           list[i].senderAddress, 
+                                           list[i].rssi, 
+                                           list[i].timestamp);
+                    
+                    if (written > 0 && offset + written < sizeof(responseBuffer)) {
+                        offset += written;
+                    } else {
+                        break;
+                    }
                 }
-                nimBleChar->setValue(str);
+                nimBleChar->setValue(responseBuffer);
+            }
+            nimBleChar->notify();
+        }
+        else if (strncmp(cmd, "SET_PWR;", 8) == 0) {
+            
+            const char* profileStr = cmd + 8;
+
+            if (strcmp(profileStr, "BATTERY_SAVER") == 0) {
+                BatteryManager::setPowerProfile(PowerProfile::BATTERY_SAVER);
+                nimBleChar->setValue("PWR_OK");
+            } else if (strcmp(profileStr, "BALANCED") == 0) {
+                BatteryManager::setPowerProfile(PowerProfile::BALANCED);
+                nimBleChar->setValue("PWR_OK");
+            } else if (strcmp(profileStr, "PERFORMANCE") == 0) {
+                BatteryManager::setPowerProfile(PowerProfile::PERFORMANCE);
+                nimBleChar->setValue("PWR_OK");
+            } else {
+                LOG_W(TAG, "Unknown power profile requested: %s", profileStr);
+                nimBleChar->setValue("PWR_ERR");
             }
             nimBleChar->notify();
         }

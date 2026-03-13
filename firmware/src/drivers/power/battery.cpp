@@ -10,7 +10,7 @@ void BatteryManager::setPowerProfile(PowerProfile profile) {
     uint32_t cpuFreq = 80; // Default to BALANCED
 
     switch (profile) {
-        case PowerProfile::BATTERY_SAVER:   cpuFreq = 40; break;
+        case PowerProfile::BATTERY_SAVER:   cpuFreq = 80; break;
         case PowerProfile::BALANCED:        cpuFreq = 80; break;
         case PowerProfile::PERFORMANCE:     cpuFreq = 160; break;
     }
