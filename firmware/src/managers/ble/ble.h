@@ -34,9 +34,14 @@ class BLEManager {
          * @brief It stops the pairing mode, stop the BLE advertisement.
          */
         static void stopPairingMode();
+        static void handleFlags();
+        static bool isBLEActive(); // Is BLE gets current?
+        static volatile bool shutdownPending;
     private:
         // Timers for the 60s advertisement
         static TimerHandle_t pairingTimer;
         static void pairingTimerCallback(TimerHandle_t xTimer);
+
+        static void stopBLE();
 };
 #endif

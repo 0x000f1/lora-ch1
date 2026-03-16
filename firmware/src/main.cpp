@@ -11,18 +11,19 @@
 void setup() {
     Serial.begin(115200);
     delay(3000);
-    // Set the default power profile to BALANCED to able to use BLE (advertising and connection)
-    SystemManager::setPowerProfile(PowerProfile::BALANCED);
-
+    // Set the default power profile to BATTERY_SAVER until button pressed
+    SystemManager::setPowerProfile(PowerProfile::BATTERY_SAVER);
     SystemManager::setupNVS();
     BLEManager::setupBLE();
+    BLEManager::shutdownPending = true;
     LoRaManager::setupLoRa();
     HapticManager::setupHaptic();
     ButtonManager::setupButton();
 }
 
 void loop() {
+    BLEManager::handleFlags();
     LoRaManager::handleFlags();
     ButtonManager::handleButton();
-    yield(); // Allow background tasks to run
+    vTaskDelay(pdMS_TO_TICKS(10));
 }

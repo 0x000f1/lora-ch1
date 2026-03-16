@@ -4,6 +4,7 @@
 #include <NimBLEDevice.h>
 #include "managers/lora/lora.h"
 #include "managers/ble/ble.h"
+#include <esp_bt.h>
 
 #define TAG "BLE" 
 
@@ -13,6 +14,26 @@ static NimBLECharacteristic* controlCharacteristic = nullptr;
 
 TimerHandle_t BLEManager::pairingTimer = nullptr;
 
+volatile bool BLEManager::shutdownPending = false;
+
+bool BLEManager::isBLEActive() {
+    return NimBLEDevice::isInitialized();
+}
+
+void BLEManager::stopBLE() {
+    if (pairingTimer != nullptr) xTimerStop(pairingTimer, 0);
+    vTaskDelay(pdMS_TO_TICKS(100)); // 100 ms delay to wait onDisconnect function end.
+    // NimBLEDevice::deinit(false); // Keep the data, disconnect the BLE module.
+    esp_bt_controller_disable();
+    LOG_I(TAG, "BLE hardware powered OFF.");
+}
+
+void BLEManager::handleFlags() {
+    if (shutdownPending) {
+        shutdownPending = false;
+        stopBLE();
+    }
+}
 // Callbacks
 class serverStatusCallback : public NimBLEServerCallbacks {
     // Handle client connections and disconnections, and update connection parameters for better performance.
@@ -23,7 +44,9 @@ class serverStatusCallback : public NimBLEServerCallbacks {
     }
     // Handle client disconnections and restart advertising to allow new clients to connect.
     void onDisconnect(NimBLEServer* nimBleServer, NimBLEConnInfo& connInfo, int reason) override {
-        LOG_I(TAG, "Client disconnected. Press button to start advertising.");
+        LOG_I(TAG, "Client disconnected. Back to BATTERY_SAVER. Press button to start advertising.");
+        SystemManager::setPowerProfile(PowerProfile::BATTERY_SAVER);
+        BLEManager::shutdownPending = true;
     }
 };
 
@@ -129,11 +152,18 @@ class dataCharStatusCallbacks : public NimBLECharacteristicCallbacks {
 };
 
 void BLEManager::pairingTimerCallback(TimerHandle_t xTimer) {
-    NimBLEDevice::stopAdvertising();
     LOG_I(TAG, "Pairing mode timeout (60s). Advertising stopped to save power and ensure security.");
+    SystemManager::setPowerProfile(PowerProfile::BATTERY_SAVER);
+    BLEManager::shutdownPending = true;
 }
 
 void BLEManager::startPairingMode() {
+    if (esp_bt_controller_get_status() != ESP_BT_CONTROLLER_STATUS_ENABLED) {
+        LOG_I(TAG, "Waking up BLE PHY hardware...");
+        esp_bt_controller_enable(ESP_BT_MODE_BLE);
+        vTaskDelay(pdMS_TO_TICKS(100));
+    }
+
     if (server->getConnectedCount() > 0) {
         LOG_W(TAG, "Already connected to a client. Pairing mode ignored.");
         return;
@@ -201,7 +231,9 @@ int BLEManager::setupBLE() {
     advertising->addServiceUUID(SystemManager::getServiceUUID().c_str());
     advertising->enableScanResponse(true);
 
-    pairingTimer = xTimerCreate("pairingTimer", pdMS_TO_TICKS(60000), pdFALSE, nullptr, pairingTimerCallback);
+    if (pairingTimer == nullptr) {
+        pairingTimer = xTimerCreate("pairingTimer", pdMS_TO_TICKS(60000), pdFALSE, nullptr, pairingTimerCallback);
+    }
     
     LOG_I(TAG, "BLE setup completed! (Advertising is OFF by default. Press button!)");
     return 0;
