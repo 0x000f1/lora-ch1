@@ -54,7 +54,8 @@ class _HomePageState extends State<HomePage>
       body: BottomBar(
         borderRadius: BorderRadius.circular(25),
         width: MediaQuery.of(context).size.width * 0.55,
-        barColor: Colors.lightBlue.shade300,
+        barColor: Colors.grey.shade200,
+
         body: (context, controller) => Container(),
         child: TabBar(
           indicatorAnimation: TabIndicatorAnimation.elastic,
@@ -63,8 +64,8 @@ class _HomePageState extends State<HomePage>
             color: Colors.black26,
             borderRadius: BorderRadius.circular(20),
           ),
-          unselectedLabelColor: Colors.black,
-          labelColor: Colors.black,
+          unselectedLabelColor: Colors.blue.shade800,
+          labelColor: Colors.blue.shade800,
           controller: tabController,
           tabs: [
             SizedBox(
