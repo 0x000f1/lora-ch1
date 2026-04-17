@@ -28,6 +28,7 @@ public:
      * @return The current battery profile as a string.
      */
     static const char* getPowerProfile();
+    static uint8_t getBatteryPercentage();
 private:
     static PowerProfile currentProfile;
 };

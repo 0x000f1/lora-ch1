@@ -19,10 +19,17 @@ public:
     static String getControlCharUUID(); // Retrieves the Control characteristic UUID from NVS.
     static uint32_t getLoRaID();     // Retrieves the LoRa ID from NVS.
     static void setPowerProfile(PowerProfile profile); // Sets the power profile for the device (Battery Saver, Balanced, Performance).
+    static void setUsername(const String& username);
+    static String getUsername();
+    static void setColor(const String& hexColor);
+    static String getColor();
 private:
     static String generateUUID();       // Helper function to generate a random UUID (version 4).
     static String generateDeviceName(); // Helper function to generate a device name based on Prefix + MAC address.
     static uint32_t generateLoRaID();    // Helper function to generate a random LoRa ID.
+    // Default generators for user preferences
+    static String generateDefaultUsername(); 
+    static String generateDefaultColor();
     static void checkIfExists(const char* key, String (*generator)()); // Checks if a key - value pair exists in NVS, if not generates and stores it.
     static void checkIfExists(const char* key, uint32_t (*generator)()); // Overloaded function for uint32_t values.
 };

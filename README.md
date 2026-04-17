@@ -5,13 +5,13 @@ This project is based on the ESP32-C3 microcontroller that behaves like a bridge
 ## Functions
 
 * **Reliable Bidirectional Communication:** Transmit packages seamlessly between two or more devices. Supports public Broadcasts and private P2P messages with an Automatic Repeat Request (ARQ) mechanism. P2P messages are automatically acknowledged (ACK) and retried up to 3 times if lost in the air.
-* **Collision Avoidance (LBT/CAD):** Implements a "Listen Before Talk" mechanism using LoRa Channel Activity Detection (CAD). The device scans the RF channel before transmitting and uses random backoff delays to prevent signal collisions in crowded environments. *Thread-safe implementation prevents conflicts between BLE and LoRa tasks.*
+* **Fast TX & Continuous RX Architecture:** Optimized for ultra-low latency and high reliability. By utilizing a minimal preamble (12 symbols), the Time on Air (ToA) is reduced to ~90ms, virtually eliminating packet collisions while ensuring zero message drops through continuous background listening. *Thread-safe implementation prevents conflicts between BLE and LoRa tasks.*
 * **Smart Neighbour Discovery:** Automatic heartbeat messages are sent out to advertise the active device among other users, storing the RSSI and last active timestamp. The system automatically cleans up "dead" or out-of-range nodes after 120 seconds of inactivity.
 * **Haptic & UI Feedback:** Integrated DRV2605L haptic motor driver and hardware button with debouncing. Provides distinct physical feedback for button presses and incoming LoRa messages, with strict power-management (zero idle consumption).
 * **BLE Security (Just Works):** Implements physical button-press validation to activate BLE advertising (Pairing Mode) for 60 seconds, preventing unauthorized external connections.
-* **Dynamic NVS management:** The device name, UUIDs, and unique identifiers are generated on the first startup and stored in the NVS.
+* **Dynamic NVS Management:** The device name, UUIDs, unique LoRa ID, and user preferences (Username, UI Color) are generated on the first startup and safely stored in the Non-Volatile Storage (NVS).
 * **Duty Cycle Monitoring:** Tracks and logs the Time on Air (ToA) and calculates the current duty cycle percentage to assist with regulatory compliance (e.g., the 10% limit on 433MHz in Europe).
-* **Energy management:** Currently, it supports 3 different power profiles that change the frequency of the CPU and the heartbeat interval.
+* **Energy Management:** Supports 3 different power profiles (`BATTERY_SAVER`, `BALANCED`, `PERFORMANCE`) that dynamically scale the CPU frequency and adjust the heartbeat intervals.
 
 ## BLE API Documentation
 
@@ -49,22 +49,34 @@ Actual message sending and receiving takes place on this channel. The payload mu
     * Sent to the app when a P2P message fails to reach the target after maximum retries or channel collisions.
 
 #### B. Control Characteristic
-This channel is used to query the network status.
+This channel is used to query the network status and manage system preferences.
 
-* **Commands (App -> ESP32):**
-  * `GET_NEI`: Queries the currently known LoRa network neighbors.
-* **Responses (ESP32 -> App):**
-  * The app must subscribe to `NOTIFY` events.
-  * Once the command is executed, the ESP32 sends one of the following responses via Notify:
-    * `NO_NEI`: If there are currently no known neighbors in range.
-    * `MAC,RSSI;MAC,RSSI;TIMESTAMP`: If there are neighbors, it sends the MAC addresses (HEX), the last known RSSI (signal strength) and timestamp values separated by semicolons (e.g., `A1B2C3D4,-45.50;F1E2D3C4,-80.00;32125`).
+* **Commands (App -> ESP32) & Responses (via NOTIFY):**
+  * `GET_NEI`
+    * *Response:* `MAC,RSSI;TIMESTAMP|MAC,RSSI;TIMESTAMP|` (e.g., `A1B2C3D4,-45.50;32125|...`) or `NO_NEI` if the list is empty.
+  * `GET_BAT`
+    * *Response:* `BAT;87` (Returns the battery percentage 0-100).
+  * `SET_USR;Username`
+    * *Action:* Saves the string to NVS (max length depends on BLE MTU, trims whitespaces).
+    * *Response:* `USR_OK`
+  * `GET_USR`
+    * *Response:* `USR;Username` (Defaults to `Guest` if not set).
+  * `SET_COL;HexColor`
+    * *Action:* Saves the UI color HEX string to NVS (e.g., `FF0000`).
+    * *Response:* `COL_OK`
+  * `GET_COL`
+    * *Response:* `COL;HexColor` (Defaults to `0088FF` if not set).
+  * `SET_PWR;ProfileName`
+    * *Action:* Sets the active power profile (`BATTERY_SAVER`, `BALANCED`, `PERFORMANCE`).
+    * *Response:* `PWR_OK` or `PWR_ERR` (if the profile name is invalid).
 
 ## Future Developments (TODO)
 
 The project is under active development. The planned features in order:
 
-1. **LoRa Encryption:** Payload encryption (AES-128/256) to secure over-the-air data against eavesdropping.
-2. **Deep/Light Sleep PM:** Placing the ESP32 and LoRa module into deep power-saving modes (utilizing FreeRTOS idle hooks and LoRa Wake-on-Radio CAD) depending on the active Power Profile.
+1. **Hardware ADC Integration:** Implement real battery voltage reading via the ESP32's ADC pins to replace the simulated `GET_BAT` response.
+2. **Advanced Power Management:** Optimizing ESP32 Light Sleep modes to reduce the idle current consumption (~40mA) without disrupting the Continuous LoRa RX and BLE states.
+3. **LoRa Encryption:** Payload encryption (AES-128/256) to secure over-the-air data against eavesdropping.
 
 ---
 *Built using the RadioLib and NimBLE-Arduino libraries.*

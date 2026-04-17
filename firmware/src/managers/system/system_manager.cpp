@@ -44,6 +44,14 @@ uint32_t SystemManager::generateLoRaID() {
     return id;
 }
 
+String SystemManager::generateDefaultUsername() {
+    return String("Guest");
+}
+
+String SystemManager::generateDefaultColor() {
+    return String("0088FF"); // Light blue color
+}
+
 void SystemManager::checkIfExists(const char* key, String (*generator)()) {
     if (!prefs.isKey(key)) {
         String newVal = generator();
@@ -91,6 +99,8 @@ void SystemManager::setupNVS() {
     checkIfExists("c_data_uuid", generateUUID);
     checkIfExists("c_control_uuid", generateUUID);
     checkIfExists("lora_id", generateLoRaID);
+    checkIfExists("username", generateDefaultUsername);
+    checkIfExists("color", generateDefaultColor);
 }
 
 String SystemManager::getDeviceName() {
@@ -116,4 +126,38 @@ String SystemManager::getControlCharUUID() {
 uint32_t SystemManager::getLoRaID() {
     // Return the LoRa ID stored in NVS
     return prefs.getUInt("lora_id", 0);
+}
+
+void SystemManager::setUsername(const String& username) {
+    String safeName = username;
+    safeName.trim(); // Trim the unnecessary characters
+    
+    if (safeName.length() == 0) {
+        safeName = "Guest"; // If input is none, set back to default
+    }
+    
+    prefs.putString("username", safeName);
+    LOG_I(TAG, "Username saved to NVS: %s", safeName.c_str());
+}
+
+String SystemManager::getUsername() {
+    // Return the saved username, on NaN return Guest
+    return prefs.getString("username", "Guest");
+}
+
+void SystemManager::setColor(const String& hexColor) {
+    String safeColor = hexColor;
+    safeColor.trim();
+    
+    if (safeColor.length() == 0 && safeColor.length() != 6) {
+        safeColor = "0088FF";
+    }
+    
+    prefs.putString("color", safeColor);
+    LOG_I(TAG, "Color saved to NVS: %s", safeColor.c_str());
+}
+
+String SystemManager::getColor() {
+    // Return the saved color, if NaN return 0088FF
+    return prefs.getString("color", "0088FF");
 }

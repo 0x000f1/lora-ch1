@@ -105,6 +105,50 @@ class controlCharStatusCallbacks : public NimBLECharacteristicCallbacks {
             }
             nimBleChar->notify();
         }
+        else if (strcmp(cmd, "GET_BAT") == 0) {
+            uint8_t batLevel = BatteryManager::getBatteryPercentage();
+            char response[20];
+            snprintf(response, sizeof(response), "BAT;%d", batLevel);
+            
+            nimBleChar->setValue(response);
+            nimBleChar->notify();
+        }
+        else if (strcmp(cmd, "GET_USR") == 0) {
+            String username = SystemManager::getUsername();
+            char response[64];
+            snprintf(response, sizeof(response), "USR;%s", username.c_str());
+            
+            nimBleChar->setValue(response);
+            nimBleChar->notify();
+            LOG_I(TAG, "Sent username to client: %s", username.c_str());
+        }
+        else if (strncmp(cmd, "SET_USR;", 8) == 0) {
+
+            const char* payloadStr = cmd + 8;
+
+            SystemManager::setUsername(String(payloadStr));
+            
+            nimBleChar->setValue("USR_OK");
+            nimBleChar->notify();
+        }
+        else if (strcmp(cmd, "GET_COL") == 0) {
+            String color = SystemManager::getColor();
+            char response[20];
+            snprintf(response, sizeof(response), "COL;%s", color.c_str());
+            
+            nimBleChar->setValue(response);
+            nimBleChar->notify();
+            LOG_I(TAG, "Sent color to client: %s", color.c_str());
+        }
+        else if (strncmp(cmd, "SET_COL;", 8) == 0) {
+
+            const char* payloadStr = cmd + 8;
+
+            SystemManager::setColor(String(payloadStr));
+            
+            nimBleChar->setValue("COL_OK");
+            nimBleChar->notify();
+        }
     }
 };
 
