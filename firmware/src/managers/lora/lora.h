@@ -116,12 +116,12 @@ class LoRaManager {
         static uint8_t txPendingTotalFrag;
 
         // Wake on radio (CAD) variables
-        static TimerHandle_t cadRxTimer;
-        static volatile bool cadCheckPending;
-        static void cadRxTimerCallback(TimerHandle_t xTimer);
+        // static TimerHandle_t cadRxTimer;
+        // static volatile bool cadCheckPending;
+        // static void cadRxTimerCallback(TimerHandle_t xTimer);
 
-        static TimerHandle_t rxTimeoutTimer;
-        static volatile bool rxTimeoutPending;
-        static void rxTimeoutTimerCallback(TimerHandle_t xTimer);
+        // static TimerHandle_t rxTimeoutTimer;
+        // static volatile bool rxTimeoutPending;
+        // static void rxTimeoutTimerCallback(TimerHandle_t xTimer);
 };
 #endif
