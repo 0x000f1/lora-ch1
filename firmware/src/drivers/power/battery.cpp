@@ -26,3 +26,9 @@ const char* BatteryManager::getPowerProfile() {
         default: return "UNKNOWN";
     }
 }
+
+uint8_t BatteryManager::getBatteryPercentage() {
+    // TODO: Solve the ADC reading (when battery connected)
+    LOG_I(TAG, "Battery percentage requested.");
+    return 67;
+}

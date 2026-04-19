@@ -17,15 +17,17 @@ TimerHandle_t BLEManager::pairingTimer = nullptr;
 volatile bool BLEManager::shutdownPending = false;
 
 bool BLEManager::isBLEActive() {
-    return NimBLEDevice::isInitialized();
+    return NimBLEDevice::getAdvertising()->isAdvertising() || 
+        (server != nullptr && server->getConnectedCount() > 0);
 }
 
 void BLEManager::stopBLE() {
     if (pairingTimer != nullptr) xTimerStop(pairingTimer, 0);
-    vTaskDelay(pdMS_TO_TICKS(100)); // 100 ms delay to wait onDisconnect function end.
+    // vTaskDelay(pdMS_TO_TICKS(100)); // 100 ms delay to wait onDisconnect function end.
     // NimBLEDevice::deinit(false); // Keep the data, disconnect the BLE module.
-    esp_bt_controller_disable();
-    LOG_I(TAG, "BLE hardware powered OFF.");
+    // esp_bt_controller_disable();
+    NimBLEDevice::stopAdvertising();
+    LOG_I(TAG, "BLE advertising stopped. Radio is in sleep mode.");
 }
 
 void BLEManager::handleFlags() {
@@ -71,7 +73,7 @@ class controlCharStatusCallbacks : public NimBLECharacteristicCallbacks {
 
                 for (uint8_t i = 0; i < count; i++) {
                     int written = snprintf(responseBuffer + offset, sizeof(responseBuffer) - offset, 
-                                           "%08X,%.2f;%lu|",
+                                           "%08X;%.2f;%lu|",
                                            list[i].senderAddress, 
                                            list[i].rssi, 
                                            list[i].timestamp);
@@ -103,6 +105,50 @@ class controlCharStatusCallbacks : public NimBLECharacteristicCallbacks {
                 LOG_W(TAG, "Unknown power profile requested: %s", profileStr);
                 nimBleChar->setValue("PWR_ERR");
             }
+            nimBleChar->notify();
+        }
+        else if (strcmp(cmd, "GET_BAT") == 0) {
+            uint8_t batLevel = BatteryManager::getBatteryPercentage();
+            char response[20];
+            snprintf(response, sizeof(response), "BAT;%d", batLevel);
+            
+            nimBleChar->setValue(response);
+            nimBleChar->notify();
+        }
+        else if (strcmp(cmd, "GET_USR") == 0) {
+            String username = SystemManager::getUsername();
+            char response[64];
+            snprintf(response, sizeof(response), "USR;%s", username.c_str());
+            
+            nimBleChar->setValue(response);
+            nimBleChar->notify();
+            LOG_I(TAG, "Sent username to client: %s", username.c_str());
+        }
+        else if (strncmp(cmd, "SET_USR;", 8) == 0) {
+
+            const char* payloadStr = cmd + 8;
+
+            SystemManager::setUsername(payloadStr);
+            
+            nimBleChar->setValue("USR_OK");
+            nimBleChar->notify();
+        }
+        else if (strcmp(cmd, "GET_COL") == 0) {
+            String color = SystemManager::getColor();
+            char response[20];
+            snprintf(response, sizeof(response), "COL;%s", color.c_str());
+            
+            nimBleChar->setValue(response);
+            nimBleChar->notify();
+            LOG_I(TAG, "Sent color to client: %s", color.c_str());
+        }
+        else if (strncmp(cmd, "SET_COL;", 8) == 0) {
+
+            const char* payloadStr = cmd + 8;
+
+            SystemManager::setColor(payloadStr);
+            
+            nimBleChar->setValue("COL_OK");
             nimBleChar->notify();
         }
     }
@@ -158,11 +204,11 @@ void BLEManager::pairingTimerCallback(TimerHandle_t xTimer) {
 }
 
 void BLEManager::startPairingMode() {
-    if (esp_bt_controller_get_status() != ESP_BT_CONTROLLER_STATUS_ENABLED) {
-        LOG_I(TAG, "Waking up BLE PHY hardware...");
-        esp_bt_controller_enable(ESP_BT_MODE_BLE);
-        vTaskDelay(pdMS_TO_TICKS(100));
-    }
+    // if (esp_bt_controller_get_status() != ESP_BT_CONTROLLER_STATUS_ENABLED) {
+        // LOG_I(TAG, "Waking up BLE PHY hardware...");
+        // esp_bt_controller_enable(ESP_BT_MODE_BLE);
+        // vTaskDelay(pdMS_TO_TICKS(100));
+    // }
 
     if (server->getConnectedCount() > 0) {
         LOG_W(TAG, "Already connected to a client. Pairing mode ignored.");
@@ -170,8 +216,13 @@ void BLEManager::startPairingMode() {
     }
 
     NimBLEAdvertising* advertising = NimBLEDevice::getAdvertising();
+
+    // advertising->setName(SystemManager::getDeviceName());
+    // advertising->addServiceUUID(SystemManager::getServiceUUID());
+    // advertising->enableScanResponse(true);
+
     if (advertising->start()) {
-        LOG_I(TAG, "Pairing mode started! Device is visible for 60 seconds.");
+        LOG_I(TAG, "Pairing mode started! Visible as: %s", SystemManager::getDeviceName());
         if (pairingTimer != nullptr) {
             xTimerStart(pairingTimer, 0); // Start the callback timer to stop after 60 sec.
         }
@@ -194,7 +245,7 @@ static dataCharStatusCallbacks dataCallbacks;
 static controlCharStatusCallbacks ctrlCallbacks;
 
 int BLEManager::setupBLE() {
-    NimBLEDevice::init(SystemManager::getDeviceName().c_str());
+    NimBLEDevice::init(SystemManager::getDeviceName());
     // Set the MTU to 512: Able to notify the clients with the full data.
     // By default the MTU is 23 byte, and only send the notify this long.
     NimBLEDevice::setMTU(512);
@@ -203,12 +254,12 @@ int BLEManager::setupBLE() {
     if (!server) return 1; // Server start error
     server->setCallbacks(&servCallbacks);
 
-    NimBLEService* service = server->createService(SystemManager::getServiceUUID().c_str());
+    NimBLEService* service = server->createService(SystemManager::getServiceUUID());
     if (!service) return 2; // Service start error
     
     // DATA characteristic for sending/receiving messages
     dataCharacteristic = service->createCharacteristic(
-        SystemManager::getDataCharUUID().c_str(),
+        SystemManager::getDataCharUUID(),
         NIMBLE_PROPERTY::READ | 
         NIMBLE_PROPERTY::WRITE | 
         NIMBLE_PROPERTY::NOTIFY
@@ -217,7 +268,7 @@ int BLEManager::setupBLE() {
     
     // CONTROL characteristic for receiving control commands
     controlCharacteristic = service->createCharacteristic(
-        SystemManager::getControlCharUUID().c_str(),
+        SystemManager::getControlCharUUID(),
         NIMBLE_PROPERTY::READ |
         NIMBLE_PROPERTY::WRITE | 
         NIMBLE_PROPERTY::NOTIFY
@@ -227,9 +278,12 @@ int BLEManager::setupBLE() {
     service->start();
 
     NimBLEAdvertising* advertising = NimBLEDevice::getAdvertising();
-    advertising->setName(SystemManager::getDeviceName().c_str());
-    advertising->addServiceUUID(SystemManager::getServiceUUID().c_str());
+    advertising->setName(SystemManager::getDeviceName());
+    advertising->addServiceUUID(SystemManager::getServiceUUID());
     advertising->enableScanResponse(true);
+
+    advertising->setMinInterval(256); // ~160ms
+    advertising->setMaxInterval(512); // ~320ms
 
     if (pairingTimer == nullptr) {
         pairingTimer = xTimerCreate("pairingTimer", pdMS_TO_TICKS(60000), pdFALSE, nullptr, pairingTimerCallback);

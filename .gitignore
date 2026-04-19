@@ -8,3 +8,4 @@ docs/pcb/*-cache
 docs/pcb/*-tmp
 docs/pcb/*-tmp.*
 docs/pcb/*~
+docs/pcb/.history
