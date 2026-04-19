@@ -15,7 +15,6 @@ void setup() {
     SystemManager::setPowerProfile(PowerProfile::BATTERY_SAVER);
     SystemManager::setupNVS();
     BLEManager::setupBLE();
-    BLEManager::shutdownPending = true;
     LoRaManager::setupLoRa();
     HapticManager::setupHaptic();
     ButtonManager::setupButton();

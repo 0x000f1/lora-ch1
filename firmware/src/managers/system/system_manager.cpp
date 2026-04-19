@@ -12,6 +12,15 @@
 
 Preferences prefs; // Global Preferences for NVS access
 
+// Cache initialization
+char SystemManager::cachedDeviceName[32] = {0};
+char SystemManager::cachedServiceUUID[40] = {0};
+char SystemManager::cachedDataUUID[40] = {0};
+char SystemManager::cachedControlUUID[40] = {0};
+char SystemManager::cachedUsername[32] = {0};
+char SystemManager::cachedColor[10] = {0};
+uint32_t SystemManager::cachedLoraID = 0;
+
 String SystemManager::generateUUID() {
     String uuid = "";
     
@@ -101,63 +110,71 @@ void SystemManager::setupNVS() {
     checkIfExists("lora_id", generateLoRaID);
     checkIfExists("username", generateDefaultUsername);
     checkIfExists("color", generateDefaultColor);
+
+    // Cache populating with error handling
+    strncpy(cachedDeviceName, prefs.getString("device_name", "unknown-device").c_str(), sizeof(cachedDeviceName) - 1);
+    strncpy(cachedServiceUUID, prefs.getString("s_uuid", "00000000-0000-0000-0000-000000000000").c_str(), sizeof(cachedServiceUUID) - 1);
+    strncpy(cachedDataUUID, prefs.getString("c_data_uuid", "00000000-0000-0000-0000-000000000001").c_str(), sizeof(cachedDataUUID) - 1);
+    strncpy(cachedControlUUID, prefs.getString("c_control_uuid", "00000000-0000-0000-0000-000000000002").c_str(), sizeof(cachedControlUUID) - 1);
+    strncpy(cachedUsername, prefs.getString("username", "Guest").c_str(), sizeof(cachedUsername) - 1);
+    strncpy(cachedColor, prefs.getString("color", "0088FF").c_str(), sizeof(cachedColor) - 1);
+    cachedLoraID = prefs.getUInt("lora_id", 0);
 }
 
-String SystemManager::getDeviceName() {
-    // Return the device name stored in NVS
-    return prefs.getString("device_name", "unknown-device");
+// Getter methods from RAM with empty value handling
+const char* SystemManager::getDeviceName() {
+    // Return the device name stored in CACHE
+    return (cachedDeviceName[0] == '\0') ? "unknown-device" : cachedDeviceName;
 }
 
-String SystemManager::getServiceUUID() {
-    // Return the service UUID stored in NVS
-    return prefs.getString("s_uuid", "00000000-0000-0000-0000-000000000000");
+const char* SystemManager::getServiceUUID() {
+    // Return the service UUID stored in CACHE
+    return cachedServiceUUID;
 }
 
-String SystemManager::getDataCharUUID() {
-    // Return the characteristic UUID stored in NVS
-    return prefs.getString("c_data_uuid", "00000000-0000-0000-0000-000000000001");
+const char* SystemManager::getDataCharUUID() {
+    // Return the characteristic UUID stored in CACHE
+    return cachedDataUUID;
 }
 
-String SystemManager::getControlCharUUID() {
-    // Return the control characteristic UUID stored in NVS
-    return prefs.getString("c_control_uuid", "00000000-0000-0000-0000-000000000002");
+const char* SystemManager::getControlCharUUID() {
+    // Return the control characteristic UUID stored in CACHE
+    return cachedControlUUID;
 }
 
 uint32_t SystemManager::getLoRaID() {
-    // Return the LoRa ID stored in NVS
-    return prefs.getUInt("lora_id", 0);
+    // Return the LoRa ID stored in CACHE
+    return cachedLoraID;
 }
 
-void SystemManager::setUsername(const String& username) {
-    String safeName = username;
+void SystemManager::setUsername(const char* username) {
+    String safeName = String(username);
     safeName.trim(); // Trim the unnecessary characters
     
-    if (safeName.length() == 0) {
-        safeName = "Guest"; // If input is none, set back to default
-    }
+    if (safeName.length() == 0) safeName = "Guest"; // If input is none, set back to default
     
     prefs.putString("username", safeName);
-    LOG_I(TAG, "Username saved to NVS: %s", safeName.c_str());
+    strncpy(cachedUsername, safeName.c_str(), sizeof(cachedUsername) - 1);
+    LOG_I(TAG, "Username updated in cache: %s", cachedUsername);
 }
 
-String SystemManager::getUsername() {
+const char* SystemManager::getUsername() {
     // Return the saved username, on NaN return Guest
-    return prefs.getString("username", "Guest");
+    return (cachedUsername[0] == '\0') ? "Guest" : cachedUsername;
 }
 
-void SystemManager::setColor(const String& hexColor) {
-    String safeColor = hexColor;
+void SystemManager::setColor(const char* hexColor) {
+    String safeColor = String(hexColor);
     safeColor.trim();
     
-    if (safeColor.length() == 0 && safeColor.length() != 6) {
-        safeColor = "0088FF";
-    }
+    if (safeColor.length() != 6) safeColor = "0088FF";
     
     prefs.putString("color", safeColor);
-    LOG_I(TAG, "Color saved to NVS: %s", safeColor.c_str());
+    strncpy(cachedColor, safeColor.c_str(), sizeof(cachedColor) - 1);
+    LOG_I(TAG, "Color updated in cache: %s", cachedColor);
 }
 
-String SystemManager::getColor() {
+const char* SystemManager::getColor() {
     // Return the saved color, if NaN return 0088FF
-    return prefs.getString("color", "0088FF");
+    return (cachedColor[0] == '\0') ? "0088FF" : cachedColor;
 }

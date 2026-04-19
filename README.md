@@ -53,7 +53,7 @@ This channel is used to query the network status and manage system preferences.
 
 * **Commands (App -> ESP32) & Responses (via NOTIFY):**
   * `GET_NEI`
-    * *Response:* `MAC,RSSI;TIMESTAMP|MAC,RSSI;TIMESTAMP|` (e.g., `A1B2C3D4,-45.50;32125|...`) or `NO_NEI` if the list is empty.
+    * *Response:* `MAC;RSSI;TIMESTAMP|MAC,RSSI;TIMESTAMP|` (e.g., `A1B2C3D4;-45.50;32125|...`) or `NO_NEI` if the list is empty.
   * `GET_BAT`
     * *Response:* `BAT;87` (Returns the battery percentage 0-100).
   * `SET_USR;Username`

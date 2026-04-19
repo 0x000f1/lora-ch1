@@ -364,7 +364,9 @@ void LoRaManager::handleFlags() {
             LOG_E(TAG, "Receive failed, code: %d", state);
         }
 
-        startReceive();
+        if (!isTransmitting) {
+            startReceive();
+        }
     }
 }
 
