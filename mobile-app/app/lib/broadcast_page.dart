@@ -19,7 +19,6 @@ class BroadcastPage extends StatefulWidget {
   const BroadcastPage({super.key, this.device, required this.scrollController});
 
 
-
   @override
   State<BroadcastPage> createState() => _BroadcastPageState();
 }
@@ -28,12 +27,36 @@ class BroadcastPage extends StatefulWidget {
 class _BroadcastPageState extends State<BroadcastPage> {
   final TextEditingController _controller = TextEditingController();
 
-  final List<ChatMessage> _messages = [
-    ChatMessage(text: "Message", isMe: false),
-    ChatMessage(text: "Reply", isMe: true),
-    ChatMessage(text: "Lorem ipsum dolor sit amet, consectetur adipiscing elit", isMe: false),
-    ChatMessage(text: "sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.", isMe: false),
-  ];
+  final List<ChatMessage> _messages = [];
+  // connection listener
+  StreamSubscription? _connectionSub;
+  // data listener
+  StreamSubscription? _dataSub;
+
+
+  void initState() {
+    super.initState();
+    _connectionSub = FlutterBluePlus.events.onConnectionStateChanged.listen((event) {
+      setState(() {});
+    });
+
+    _dataSub = dataStream.listen((rawMsg) {
+      if(mounted) {
+        final parts = rawMsg.split(';');
+
+        if (parts.length >= 5){
+          final senderMac = parts[0];
+          // join message in case there is ';' in it
+          final payload = parts.sublist(4).join(';'); 
+
+          setState(() {
+            _messages.add(ChatMessage(text: payload, isMe: false));
+          });
+        }
+      }
+    });
+
+  }
 
 
 
@@ -118,7 +141,17 @@ class _BroadcastPageState extends State<BroadcastPage> {
             child: IconButton(
               icon: const Icon(Icons.send, color: Colors.white, size: 20),
               onPressed: () {
-                debugPrint("Send button pressed ${_controller.text}");
+                final text = _controller.text;
+                if (text.isNotEmpty) {
+                  sendBroadcastMsg(text);
+
+                  setState(() {
+                    _messages.add(ChatMessage(text: text, isMe: true));
+                  });
+                }
+                _controller.clear();
+
+
               },
             ),
           ),

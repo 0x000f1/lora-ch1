@@ -47,3 +47,8 @@ Future<void> setupBleCommunication(BluetoothCharacteristic control, BluetoothCha
 // writing
 Future<void> sendOnDataChar(String msg) async => await _dataChar?.write(utf8.encode(msg));
 Future<void> sendOnControlChar(String msg) async => await _dataChar?.write(utf8.encode(msg));
+
+Future<void> sendBroadcastMsg(String msg) async {
+  final formattedMsg = "FFFFFFFF;1;1;$msg";
+  await _dataChar?.write(utf8.encode(formattedMsg));
+}
