@@ -11,7 +11,7 @@
 #include "utils/log_helper.h"
 
 enum class PowerProfile {
-    BATTERY_SAVER, // 40 MHz - Ultra low performance
+    BATTERY_SAVER, // 80 MHz - Ultra low performance
     BALANCED, // 80 MHz - Optimized for BLE
     PERFORMANCE // 160 MHz - Maximum performance
 };

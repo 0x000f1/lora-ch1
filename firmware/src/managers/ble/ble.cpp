@@ -73,10 +73,10 @@ class controlCharStatusCallbacks : public NimBLECharacteristicCallbacks {
 
                 for (uint8_t i = 0; i < count; i++) {
                     int written = snprintf(responseBuffer + offset, sizeof(responseBuffer) - offset, 
-                                           "%08X;%.2f;%lu|",
-                                           list[i].senderAddress, 
-                                           list[i].rssi, 
-                                           list[i].timestamp);
+                                            "%08X;%.2f;%lu|",
+                                            list[i].senderAddress, 
+                                            list[i].rssi, 
+                                            list[i].timestamp);
                     
                     if (written > 0 && offset + written < sizeof(responseBuffer)) {
                         offset += written;

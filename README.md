@@ -72,11 +72,10 @@ This channel is used to query the network status and manage system preferences.
 
 ## Future Developments (TODO)
 
-The project is under active development. The planned features in order:
+The project is under active development. The primary focus is maximizing battery life and hardware integration:
 
 1. **Hardware ADC Integration:** Implement real battery voltage reading via the ESP32's ADC pins to replace the simulated `GET_BAT` response.
-2. **Advanced Power Management:** Optimizing ESP32 Light Sleep modes to reduce the idle current consumption (~40mA) without disrupting the Continuous LoRa RX and BLE states.
-3. **LoRa Encryption:** Payload encryption (AES-128/256) to secure over-the-air data against eavesdropping.
+2. **Advanced Power Management (Deep/Light Sleep):** Optimizing ESP32 Automatic Light Sleep modes to drastically reduce the idle current consumption (from ~96mA to under ~20mA) while keeping the LoRa continuous RX alive.
 
 ---
 *Built using the RadioLib and NimBLE-Arduino libraries.*
