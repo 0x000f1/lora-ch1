@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
+import 'package:flutter/rendering.dart';
+import 'package:flutter_blue_plus/flutter_blue_plus.dart';
 // https://pub.dev/packages/flutter_floating_bottom_bar
 import 'package:flutter_floating_bottom_bar/flutter_floating_bottom_bar.dart';
 import 'theme.dart';
 import 'bt_sheet.dart';
+import 'broadcast_page.dart';
 
 void main() {
   runApp(const MainApp());
@@ -27,10 +29,26 @@ class _HomePageState extends State<HomePage>
     with SingleTickerProviderStateMixin {
   // late: will be initialized before first use (in initState())
   late TabController tabController;
+  int currentPage = 0;
+
   @override
   void initState() {
-    super.initState();
     tabController = TabController(length: 2, vsync: this);
+    tabController.animation!.addListener(
+      () {
+        final value = tabController.animation!.value.round();
+        if (value != currentPage) {
+            changePage(value);
+        }
+      }
+    );
+    super.initState();
+  }
+
+  void changePage(int newPage){
+    setState(() {
+      currentPage = newPage;
+    });
   }
 
   @override
@@ -47,15 +65,26 @@ class _HomePageState extends State<HomePage>
         actions: [
           IconButton(
             icon: Icon(Icons.bluetooth_rounded),
+            
             onPressed: () => showBTSheet(context),
           ),
         ],
+        
       ),
       body: BottomBar(
         borderRadius: BorderRadius.circular(25),
         width: MediaQuery.of(context).size.width * 0.55,
-        barColor: Colors.lightBlue.shade300,
-        body: (context, controller) => Container(),
+        barColor: Colors.grey.shade200,
+
+        body: (context, controller) => TabBarView(
+          controller: tabController,
+          physics: const NeverScrollableScrollPhysics(),
+          children: [
+            const Center(child: Text("Private Chats")),
+            BroadcastPage(scrollController: controller),
+          ],
+
+        ),
         child: TabBar(
           indicatorAnimation: TabIndicatorAnimation.elastic,
           indicatorPadding: EdgeInsetsGeometry.only(top: 7, bottom: 7),
@@ -63,8 +92,8 @@ class _HomePageState extends State<HomePage>
             color: Colors.black26,
             borderRadius: BorderRadius.circular(20),
           ),
-          unselectedLabelColor: Colors.black,
-          labelColor: Colors.black,
+          unselectedLabelColor: Colors.blue.shade800,
+          labelColor: Colors.blue.shade800,
           controller: tabController,
           tabs: [
             SizedBox(
@@ -78,6 +107,7 @@ class _HomePageState extends State<HomePage>
               ),
             ),
             SizedBox(
+
               height: 55,
               width: 55,
               child: Center(
