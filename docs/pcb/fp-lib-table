@@ -1,6 +1,7 @@
 (fp_lib_table
-  (version 7)
-  (lib (name "RFM98W-433S2")(type "KiCad")(uri "${KIPRJMOD}/PCB_Modules/RFM98W-433S2")(options "")(descr ""))
-  (lib (name "FS8205A")(type "KiCad")(uri "${KIPRJMOD}/PCB_Modules/FS8205A")(options "")(descr ""))
-  (lib (name "ESP32-C3_SUPERMINI_SMD")(type "KiCad")(uri "${KIPRJMOD}/PCB_Modules/ESP32-C3_SUPERMINI_SMD")(options "")(descr ""))
+	(version 7)
+	(lib (name "RFM98W-433S2") (type "KiCad") (uri "${KIPRJMOD}/PCB_Modules/RFM98W-433S2") (options "") (descr ""))
+	(lib (name "FS8205A") (type "KiCad") (uri "${KIPRJMOD}/PCB_Modules/FS8205A") (options "") (descr ""))
+	(lib (name "ESP32-C3_SUPERMINI_SMD") (type "KiCad") (uri "${KIPRJMOD}/PCB_Modules/ESP32-C3_SUPERMINI_SMD") (options "") (descr ""))
+	(lib (name "BQ24075RGTR") (type "KiCad") (uri "${KIPRJMOD}/PCB_Modules/BQ24075RGTR") (options "") (descr ""))
 )
