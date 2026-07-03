@@ -18,6 +18,11 @@ enum class PowerProfile {
 
 class BatteryManager {
 public:
+    /**
+     * @brief Initializes the ADC and charging indicator pin.
+     */
+    static void setupBattery();
+
     /** 
      * @brief Changes the power profile of the device.
      * @param profile The desired power profile to set. (BATTERY_SAVER, BALANCED, PERFORMANCE)
@@ -28,7 +33,15 @@ public:
      * @return The current battery profile as a string.
      */
     static const char* getPowerProfile();
+    /**
+     * @brief Returns the battery current level (0-100)
+     */
     static uint8_t getBatteryPercentage();
+    /**
+     * @brief Checks the charging status
+     * @return true if charging, false is discharging
+     */
+    static bool isCharging();
 private:
     static PowerProfile currentProfile;
 };

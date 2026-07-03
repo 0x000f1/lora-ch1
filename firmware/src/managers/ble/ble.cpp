@@ -84,7 +84,7 @@ class controlCharStatusCallbacks : public NimBLECharacteristicCallbacks {
                         break;
                     }
                 }
-                nimBleChar->setValue(responseBuffer);
+                nimBleChar->setValue(std::string(responseBuffer));
             }
             nimBleChar->notify();
         }
@@ -109,10 +109,12 @@ class controlCharStatusCallbacks : public NimBLECharacteristicCallbacks {
         }
         else if (strcmp(cmd, "GET_BAT") == 0) {
             uint8_t batLevel = BatteryManager::getBatteryPercentage();
-            char response[20];
-            snprintf(response, sizeof(response), "BAT;%d", batLevel);
+            bool isCharging = BatteryManager::isCharging();
+
+            char response[30];
+            snprintf(response, sizeof(response), "BAT;%d;%d", batLevel, isCharging);
             
-            nimBleChar->setValue(response);
+            nimBleChar->setValue(std::string(response));
             nimBleChar->notify();
         }
         else if (strcmp(cmd, "GET_USR") == 0) {
@@ -120,7 +122,7 @@ class controlCharStatusCallbacks : public NimBLECharacteristicCallbacks {
             char response[64];
             snprintf(response, sizeof(response), "USR;%s", username.c_str());
             
-            nimBleChar->setValue(response);
+            nimBleChar->setValue(std::string(response));
             nimBleChar->notify();
             LOG_I(TAG, "Sent username to client: %s", username.c_str());
         }
@@ -138,7 +140,7 @@ class controlCharStatusCallbacks : public NimBLECharacteristicCallbacks {
             char response[20];
             snprintf(response, sizeof(response), "COL;%s", color.c_str());
             
-            nimBleChar->setValue(response);
+            nimBleChar->setValue(std::string(response));
             nimBleChar->notify();
             LOG_I(TAG, "Sent color to client: %s", color.c_str());
         }

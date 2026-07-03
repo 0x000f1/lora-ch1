@@ -11,6 +11,7 @@
 void setup() {
     Serial.begin(115200);
     delay(3000);
+    BatteryManager::setupBattery();
     // Set the default power profile to BATTERY_SAVER until button pressed
     SystemManager::setPowerProfile(PowerProfile::BATTERY_SAVER);
     SystemManager::setupNVS();

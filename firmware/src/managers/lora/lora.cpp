@@ -20,8 +20,9 @@
 #define LORA_MISO 5
 #define LORA_MOSI 6
 #define LORA_NSS  7
-#define LORA_RST  3
+#define LORA_RST  2
 #define LORA_DIO0 10
+#define LORA_DIO1 3
 
 // Static variables (Heartbeat, sequence number, duty cycle stats, neighbors)
 TimerHandle_t LoRaManager::heartbeatTimer = nullptr;
@@ -65,7 +66,7 @@ uint8_t LoRaManager::txPendingTotalFrag = 0;
 // }
 
 SPIClass loraSPI(FSPI); // FSPI = SPI2 | Use the FSPI for custom pin configuration
-SX1278 loraModule = new Module(LORA_NSS, LORA_DIO0, LORA_RST, RADIOLIB_NC, loraSPI);
+SX1278 loraModule = new Module(LORA_NSS, LORA_DIO0, LORA_RST, LORA_DIO1, loraSPI);
 
 volatile bool actionFlag = false; // Interrupt flag to show receive/transmit events.
 bool isTransmitting = false;      // Current state: true = waiting for transmission to finish, false = waiting for package.
