@@ -116,6 +116,7 @@ class controlCharStatusCallbacks : public NimBLECharacteristicCallbacks {
             
             nimBleChar->setValue(std::string(response));
             nimBleChar->notify();
+            LOG_I(TAG, "Battery percentage: %d | Charging: %d", (uint8_t)batLevel, isCharging);
         }
         else if (strcmp(cmd, "GET_USR") == 0) {
             String username = SystemManager::getUsername();

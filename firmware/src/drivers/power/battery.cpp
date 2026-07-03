@@ -55,7 +55,5 @@ uint8_t BatteryManager::getBatteryPercentage() {
     if (percentageBattery > 100.0f) percentageBattery = 100.0f;
     if (percentageBattery < 0.0f) percentageBattery = 0.0f;
 
-    LOG_I(TAG, "Battery voltage: %.2fV (%d%%) | Charging: %s", voltageBattery, (uint8_t)percentageBattery, isCharging() ? "YES" : "NO");
-
     return (uint8_t)percentageBattery;
 }
