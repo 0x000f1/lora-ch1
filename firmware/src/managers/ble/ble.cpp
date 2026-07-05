@@ -13,29 +13,45 @@ static NimBLECharacteristic* dataCharacteristic = nullptr;
 static NimBLECharacteristic* controlCharacteristic = nullptr;
 
 TimerHandle_t BLEManager::pairingTimer = nullptr;
-
 volatile bool BLEManager::shutdownPending = false;
+static bool isRadioSleeping = false; // Track the state of the radio
 
 bool BLEManager::isBLEActive() {
-    return NimBLEDevice::getAdvertising()->isAdvertising() || 
-        (server != nullptr && server->getConnectedCount() > 0);
+    return NimBLEDevice::isInitialized() && 
+        (NimBLEDevice::getAdvertising()->isAdvertising() || 
+        (server != nullptr && server->getConnectedCount() > 0));
 }
 
 void BLEManager::stopBLE() {
     if (pairingTimer != nullptr) xTimerStop(pairingTimer, 0);
-    // vTaskDelay(pdMS_TO_TICKS(100)); // 100 ms delay to wait onDisconnect function end.
-    // NimBLEDevice::deinit(false); // Keep the data, disconnect the BLE module.
-    // esp_bt_controller_disable();
+    LOG_I(TAG, "Stopping advertising and trying to sleep the BLE hardware...");
     NimBLEDevice::stopAdvertising();
-    LOG_I(TAG, "BLE advertising stopped. Radio is in sleep mode.");
+
+    // Disconnect all peers for safety.
+    if (server != nullptr) {
+        std::vector<uint16_t> peers = server->getPeerDevices();
+        for (auto& peer : peers) {
+            server->disconnect(peer);
+        }
+    }
+
+    vTaskDelay(pdMS_TO_TICKS(150)); // 100 ms delay to wait clients disconnection.
+    // NimBLEDevice::deinit(false); // Keep the data, disconnect the BLE module.
+    esp_bt_controller_disable();
+    isRadioSleeping = true;
+
+    LOG_I(TAG, "BLE is turned OFF.");
 }
 
 void BLEManager::handleFlags() {
     if (shutdownPending) {
         shutdownPending = false;
         stopBLE();
+        LOG_I(TAG, "BLE sleep completed. Setting power profile to BATTERY_SAVER");
+        SystemManager::setPowerProfile(PowerProfile::BATTERY_SAVER);
     }
 }
+
 // Callbacks
 class serverStatusCallback : public NimBLEServerCallbacks {
     // Handle client connections and disconnections, and update connection parameters for better performance.
@@ -46,8 +62,7 @@ class serverStatusCallback : public NimBLEServerCallbacks {
     }
     // Handle client disconnections and restart advertising to allow new clients to connect.
     void onDisconnect(NimBLEServer* nimBleServer, NimBLEConnInfo& connInfo, int reason) override {
-        LOG_I(TAG, "Client disconnected. Back to BATTERY_SAVER. Press button to start advertising.");
-        SystemManager::setPowerProfile(PowerProfile::BATTERY_SAVER);
+        LOG_I(TAG, "Client disconnected. Reason: %d. Press button to start advertising.", reason);
         BLEManager::shutdownPending = true;
     }
 };
@@ -68,30 +83,23 @@ class controlCharStatusCallbacks : public NimBLECharacteristicCallbacks {
                 LOG_I(TAG, "No neighbors found.");
                 nimBleChar->setValue("NO_NEI");
             } else {
-                char responseBuffer[512] = {0};
-                size_t offset = 0;
+                std::string response = "";
 
                 for (uint8_t i = 0; i < count; i++) {
-                    int written = snprintf(responseBuffer + offset, sizeof(responseBuffer) - offset, 
+                    char responseBuffer[64];
+                    snprintf(responseBuffer, sizeof(responseBuffer), 
                                             "%08X;%.2f;%lu|",
                                             list[i].senderAddress, 
                                             list[i].rssi, 
                                             list[i].timestamp);
-                    
-                    if (written > 0 && offset + written < sizeof(responseBuffer)) {
-                        offset += written;
-                    } else {
-                        break;
-                    }
+                    response += responseBuffer;
                 }
-                nimBleChar->setValue(std::string(responseBuffer));
+                nimBleChar->setValue(response);
             }
             nimBleChar->notify();
         }
         else if (strncmp(cmd, "SET_PWR;", 8) == 0) {
-            
             const char* profileStr = cmd + 8;
-
             if (strcmp(profileStr, "BATTERY_SAVER") == 0) {
                 SystemManager::setPowerProfile(PowerProfile::BATTERY_SAVER);
                 nimBleChar->setValue("PWR_OK");
@@ -201,45 +209,9 @@ class dataCharStatusCallbacks : public NimBLECharacteristicCallbacks {
 };
 
 void BLEManager::pairingTimerCallback(TimerHandle_t xTimer) {
-    LOG_I(TAG, "Pairing mode timeout (60s). Advertising stopped to save power and ensure security.");
+    LOG_I(TAG, "Pairing mode timeout (60s). Shutting down BLE.");
     SystemManager::setPowerProfile(PowerProfile::BATTERY_SAVER);
     BLEManager::shutdownPending = true;
-}
-
-void BLEManager::startPairingMode() {
-    // if (esp_bt_controller_get_status() != ESP_BT_CONTROLLER_STATUS_ENABLED) {
-        // LOG_I(TAG, "Waking up BLE PHY hardware...");
-        // esp_bt_controller_enable(ESP_BT_MODE_BLE);
-        // vTaskDelay(pdMS_TO_TICKS(100));
-    // }
-
-    if (server->getConnectedCount() > 0) {
-        LOG_W(TAG, "Already connected to a client. Pairing mode ignored.");
-        return;
-    }
-
-    NimBLEAdvertising* advertising = NimBLEDevice::getAdvertising();
-
-    // advertising->setName(SystemManager::getDeviceName());
-    // advertising->addServiceUUID(SystemManager::getServiceUUID());
-    // advertising->enableScanResponse(true);
-
-    if (advertising->start()) {
-        LOG_I(TAG, "Pairing mode started! Visible as: %s", SystemManager::getDeviceName());
-        if (pairingTimer != nullptr) {
-            xTimerStart(pairingTimer, 0); // Start the callback timer to stop after 60 sec.
-        }
-    } else {
-        LOG_E(TAG, "Failed to start advertising.");
-    }
-}
-
-void BLEManager::stopPairingMode() {
-    if (pairingTimer != nullptr) {
-        xTimerStop(pairingTimer, 0);
-    }
-    NimBLEDevice::stopAdvertising();
-    LOG_I(TAG, "Pairing mode and advertising stopped.");
 }
 
 // Declare the callback entities statically
@@ -248,7 +220,11 @@ static dataCharStatusCallbacks dataCallbacks;
 static controlCharStatusCallbacks ctrlCallbacks;
 
 int BLEManager::setupBLE() {
+    if (NimBLEDevice::isInitialized()) return 0;
+
+    LOG_I(TAG, "Initializing BLE stack and allocating memory.");
     NimBLEDevice::init(SystemManager::getDeviceName());
+    NimBLEDevice::setPower(ESP_PWR_LVL_N0);
     // Set the MTU to 512: Able to notify the clients with the full data.
     // By default the MTU is 23 byte, and only send the notify this long.
     NimBLEDevice::setMTU(512);
@@ -265,6 +241,7 @@ int BLEManager::setupBLE() {
         SystemManager::getDataCharUUID(),
         NIMBLE_PROPERTY::READ | 
         NIMBLE_PROPERTY::WRITE | 
+        NIMBLE_PROPERTY::WRITE_NR | 
         NIMBLE_PROPERTY::NOTIFY
     );
     dataCharacteristic->setCallbacks(&dataCallbacks);
@@ -274,6 +251,7 @@ int BLEManager::setupBLE() {
         SystemManager::getControlCharUUID(),
         NIMBLE_PROPERTY::READ |
         NIMBLE_PROPERTY::WRITE | 
+        NIMBLE_PROPERTY::WRITE_NR | 
         NIMBLE_PROPERTY::NOTIFY
     );
     controlCharacteristic->setCallbacks(&ctrlCallbacks);
@@ -293,12 +271,55 @@ int BLEManager::setupBLE() {
     }
     
     LOG_I(TAG, "BLE setup completed! (Advertising is OFF by default. Press button!)");
+    esp_bt_controller_disable();
+    isRadioSleeping = true;
+
     return 0;
 }
 
+void BLEManager::startPairingMode() {
+    if (!NimBLEDevice::isInitialized()) {
+        setupBLE();
+    }
+
+    // Wake up the radio if it was sleeping.
+    if (isRadioSleeping) {
+        LOG_I(TAG, "Waking up BLE hardware...");
+        esp_bt_controller_enable(ESP_BT_MODE_BLE);
+        isRadioSleeping = false;
+        vTaskDelay(pdMS_TO_TICKS(50));
+    }
+
+    if (server != nullptr && server->getConnectedCount() > 0) {
+        LOG_W(TAG, "Already connected to a client. Pairing mode ignored.");
+        return;
+    }
+
+    NimBLEAdvertising* advertising = NimBLEDevice::getAdvertising();
+
+    if (advertising->start()) {
+        LOG_I(TAG, "Pairing mode started! Visible as: %s", SystemManager::getDeviceName());
+        if (pairingTimer != nullptr) {
+            xTimerStart(pairingTimer, 0); // Start the callback timer to stop after 60 sec.
+        }
+    } else {
+        LOG_E(TAG, "Failed to start advertising.");
+    }
+}
+
+void BLEManager::stopPairingMode() {
+    if (pairingTimer != nullptr) {
+        xTimerStop(pairingTimer, 0);
+    }
+    if (NimBLEDevice::isInitialized()) {
+        NimBLEDevice::stopAdvertising();
+        LOG_I(TAG, "Pairing mode and advertising stopped.");
+    }
+}
+
 void BLEManager::pushMessage(const char* message) {
-    if (server->getConnectedCount() > 0) {
-        dataCharacteristic->setValue(message);
+    if (server != nullptr && dataCharacteristic != nullptr && server->getConnectedCount() > 0) {
+        dataCharacteristic->setValue(std::string(message));
         dataCharacteristic->notify(); // Notify all connected clients
         LOG_I(TAG, "Sent notify: %s", message);
     } else {
