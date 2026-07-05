@@ -114,5 +114,14 @@ class LoRaManager {
         static uint32_t txPendingTarget;
         static uint8_t txPendingCurrentFrag;
         static uint8_t txPendingTotalFrag;
+
+        // CAD variables
+        static TimerHandle_t cadRxTimer;
+        static volatile bool cadCheckPending;
+        static TimerHandle_t rxTimeoutTimer;
+        static volatile bool rxTimeoutPending;
+
+        static void cadRxTimerCallback(TimerHandle_t xTimer);
+        static void rxTimeoutTimerCallback(TimerHandle_t xTimer);
 };
 #endif
