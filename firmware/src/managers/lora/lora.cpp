@@ -13,7 +13,7 @@
 #define CODING_RATE 5
 #define SYNC_WORD 0x12
 #define POWER 10
-#define PREAMBLE_LENGTH 24 // OLD(1 symbol: 2.048ms, 150 symbol ~ 300ms) NEW DEFAULT 12
+#define PREAMBLE_LENGTH 24 // OLD(1 symbol: 2.048ms, 150 symbol ~ 300ms) NEW DEFAULT 24 ~ 49ms
 #define GAIN 0
 
 #define LORA_SCK  4
