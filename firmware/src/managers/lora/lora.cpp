@@ -13,7 +13,7 @@
 #define CODING_RATE 5
 #define SYNC_WORD 0x12
 #define POWER 10
-#define PREAMBLE_LENGTH 24 // OLD(1 symbol: 2.048ms, 150 symbol ~ 300ms) NEW DEFAULT 24 ~ 49ms
+#define PREAMBLE_LENGTH 8 // 1 symbol: 2.048ms, 8 symbol ~ 16ms)
 #define GAIN 0
 
 #define LORA_SCK  4
@@ -25,6 +25,7 @@
 #define LORA_DIO1 3
 
 // Static variables (Heartbeat, sequence number, duty cycle stats, neighbors)
+TaskHandle_t LoRaManager::mainTaskHandle = NULL;
 TimerHandle_t LoRaManager::heartbeatTimer = nullptr;
 volatile bool LoRaManager::heartbeatPending = false;
 uint8_t LoRaManager::currentSequenceNumber = 0; // Initialize sequence number
@@ -53,28 +54,37 @@ uint8_t LoRaManager::txPendingCurrentFrag = 0;
 uint8_t LoRaManager::txPendingTotalFrag = 0;
 
 // CAD variables
-TimerHandle_t LoRaManager::cadRxTimer = nullptr;
-volatile bool LoRaManager::cadCheckPending = false;
-TimerHandle_t LoRaManager::rxTimeoutTimer = nullptr;
-volatile bool LoRaManager::rxTimeoutPending = false;
+// TimerHandle_t LoRaManager::cadRxTimer = nullptr;
+// volatile bool LoRaManager::cadCheckPending = false;
+// TimerHandle_t LoRaManager::rxTimeoutTimer = nullptr;
+// volatile bool LoRaManager::rxTimeoutPending = false;
 
-void LoRaManager::cadRxTimerCallback(TimerHandle_t xTimer) {
-    cadCheckPending = true; 
-}
-void LoRaManager::rxTimeoutTimerCallback(TimerHandle_t xTimer) {
-    rxTimeoutPending = true;
-}
+// void LoRaManager::cadRxTimerCallback(TimerHandle_t xTimer) {
+//     cadCheckPending = true; 
+// }
+// void LoRaManager::rxTimeoutTimerCallback(TimerHandle_t xTimer) {
+//     rxTimeoutPending = true;
+// }
 
 SPIClass loraSPI(FSPI); // FSPI = SPI2 | Use the FSPI for custom pin configuration
 SX1278 loraModule = new Module(LORA_NSS, LORA_DIO0, LORA_RST, LORA_DIO1, loraSPI);
 
 volatile bool actionFlag = false; // Interrupt flag to show receive/transmit events.
 bool isTransmitting = false;      // Current state: true = waiting for transmission to finish, false = waiting for package.
-bool isScanning = false;          // true = CAD scanning in the background
+// bool isScanning = false;          // true = CAD scanning in the background
 
 // Interrupt callback stored in RAM to ensure fast access.
 void ICACHE_RAM_ATTR LoRaManager::setFlag() {
     actionFlag = true;
+
+    // FreeRTOS task wake up from interrupt (instantly wake up on received)
+    BaseType_t xHigherPriorityTaskWoken = pdFALSE;
+    if (mainTaskHandle != NULL) {
+        vTaskNotifyGiveFromISR(mainTaskHandle, &xHigherPriorityTaskWoken);
+        if (xHigherPriorityTaskWoken) {
+            portYIELD_FROM_ISR(); // Context switch, if required
+        }
+    }
 }
 
 int LoRaManager::setupLoRa() {
@@ -84,8 +94,8 @@ int LoRaManager::setupLoRa() {
     // Timers
     ackTimer = xTimerCreate("ackTimer", pdMS_TO_TICKS(2000), pdFALSE, nullptr, ackTimerCallback);
     // CAD Timer
-    cadRxTimer = xTimerCreate("cadRxTimer", pdMS_TO_TICKS(30), pdTRUE, nullptr, cadRxTimerCallback);
-    rxTimeoutTimer = xTimerCreate("rxTimeoutTimer", pdMS_TO_TICKS(1500), pdFALSE, nullptr, rxTimeoutTimerCallback); // If the CAD alert was false
+    // cadRxTimer = xTimerCreate("cadRxTimer", pdMS_TO_TICKS(30), pdTRUE, nullptr, cadRxTimerCallback);
+    // rxTimeoutTimer = xTimerCreate("rxTimeoutTimer", pdMS_TO_TICKS(1500), pdFALSE, nullptr, rxTimeoutTimerCallback); // If the CAD alert was false
 
     LOG_I(TAG, "Initializing SX1278...");
     int state = loraModule.begin(BAND, BANDWIDTH, SPREADING_FACTOR, CODING_RATE, SYNC_WORD, POWER, PREAMBLE_LENGTH, GAIN);
@@ -106,11 +116,15 @@ int LoRaManager::setupLoRa() {
 void LoRaManager::startReceive() {
     // loraModule.standby();
     isTransmitting = false;
-    isScanning = false;
+    // isScanning = false;
 
-    loraModule.sleep();
+    int state = loraModule.startReceive();
+    if (state != RADIOLIB_ERR_NONE) {
+        LOG_E(TAG, "Failed to start receive: %d", state);
+    }
+    // loraModule.sleep();
 
-    if (cadRxTimer != nullptr) xTimerStart(cadRxTimer, 0); // Start the CAD cycle
+    // if (cadRxTimer != nullptr) xTimerStart(cadRxTimer, 0); // Start the CAD cycle
 }
 
 void LoRaManager::queueMessage(uint8_t* data, size_t length, uint32_t targetAddress, uint8_t currentFragment, uint8_t totalFragment) {
@@ -127,7 +141,7 @@ void LoRaManager::queueMessage(uint8_t* data, size_t length, uint32_t targetAddr
 
 void LoRaManager::sendMessage(uint8_t* data, size_t length, uint32_t targetAddress, uint8_t currentFragment, uint8_t totalFragment, PackageType packageType, bool isRetry) {
     LOG_I(TAG, "Preparing to send data of length %d", length);
-    if (cadRxTimer != nullptr) xTimerStop(cadRxTimer, 0); // Stop CAD while transmitting
+    // if (cadRxTimer != nullptr) xTimerStop(cadRxTimer, 0); // Stop CAD while transmitting
     
     if (length > (PAYLOAD_SIZE - sizeof(PackageHeader))) {
         LOG_E(TAG, "Data length exceeds payload size...");
@@ -205,7 +219,7 @@ void LoRaManager::handleFlags() {
         
         // Delete the inactive neighbors (That device has been inactive for 120 sec).
         unsigned long currentMillis = millis();
-        uint32_t timeoutMs = 120000; // 120 sec -> 120 000 ms
+        uint32_t timeoutMs = 1500000; // 25 min -> 1 500 000 ms
 
         for (uint8_t i = 0; i < neighborCount;) {
             if (currentMillis - neighbors[i].timestamp > timeoutMs){
@@ -242,45 +256,46 @@ void LoRaManager::handleFlags() {
     }
 
     // CAD and timeout handling
-    if (rxTimeoutPending) {
-        rxTimeoutPending = false;
-        LOG_W(TAG, "RX Timeout: False CAD alarm. Going back to sleep.");
-        startReceive(); // Back to 'sleep'
-    }
+    // if (rxTimeoutPending) {
+    //     rxTimeoutPending = false;
+    //     LOG_W(TAG, "RX Timeout: False CAD alarm. Going back to sleep.");
+    //     startReceive(); // Back to 'sleep'
+    // }
 
     // Async CAD start
-    if (cadCheckPending) {
-        cadCheckPending = false;
-        
-        loraModule.standby();
-        isScanning = true; // Indicate that scanning started
-        int state = loraModule.startChannelScan(); // NON blocking, means continue!
-        
-        if (state != RADIOLIB_ERR_NONE) {
-            LOG_E(TAG, "CAD Start failed: %d", state);
-            isScanning = false;
-            startReceive();
-        }
-    }
+    // if (cadCheckPending) {
+    //     cadCheckPending = false;
+
+    //     loraModule.standby();
+    //     isScanning = true; // Indicate that scanning started
+    //     int state = loraModule.startChannelScan(); // NON blocking, means continue!
+
+    //     if (state != RADIOLIB_ERR_NONE) {
+    //         LOG_E(TAG, "CAD Start failed: %d", state);
+    //         isScanning = false;
+    //         startReceive();
+    //     }
+    // }
 
     if (!actionFlag) return;
 
     actionFlag = false; // Reset the flag to avoid missing future events.
 
-    if (isScanning) {
+    // if (isScanning) {
         // A) CAD scan finished in the background
-        isScanning = false;
-        int cadResult = loraModule.getChannelScanResult(); // Get result
-        
-        if (cadResult == RADIOLIB_LORA_DETECTED) {
-            LOG_I(TAG, "CAD: Activity detected! Waking up receiver...");
-            xTimerStop(cadRxTimer, 0);       
-            loraModule.startReceive();       
-            xTimerStart(rxTimeoutTimer, 0);  
-        } else {
-            startReceive(); // Air is empty, go back to sleep
-        }
-    } else if (isTransmitting) {
+        // isScanning = false;
+        // int cadResult = loraModule.getChannelScanResult(); // Get result
+
+        // if (cadResult == RADIOLIB_LORA_DETECTED) {
+        //     LOG_I(TAG, "CAD: Activity detected! Waking up receiver...");
+        //     xTimerStop(cadRxTimer, 0);       
+        //     loraModule.startReceive();       
+        //     xTimerStart(rxTimeoutTimer, 0);  
+        // } else {
+        //     startReceive(); // Air is empty, go back to sleep
+        // }
+    //} else if (isTransmitting) {
+    if (isTransmitting) {
         // B) TX finished
         // This means the transmission has just completed.
         loraModule.finishTransmit();
@@ -289,7 +304,7 @@ void LoRaManager::handleFlags() {
     } else {
         // C) RX finished
         // This means a new message just arrived.
-        if (rxTimeoutTimer != nullptr) xTimerStop(rxTimeoutTimer, 0); // Receive success, delete Watchdog timer
+        // if (rxTimeoutTimer != nullptr) xTimerStop(rxTimeoutTimer, 0); // Receive success, delete Watchdog timer
 
         size_t len = loraModule.getPacketLength();
         uint8_t rxBuffer[PAYLOAD_SIZE];

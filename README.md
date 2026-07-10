@@ -5,13 +5,14 @@ This project is based on the ESP32-C3 microcontroller that behaves like a bridge
 ## Functions
 
 * **Reliable Bidirectional Communication:** Transmit packages seamlessly between two or more devices. Supports public Broadcasts and private P2P messages with an Automatic Repeat Request (ARQ) mechanism. P2P messages are automatically acknowledged (ACK) and retried up to 3 times if lost in the air.
-* **Fast TX & Continuous RX Architecture:** Optimized for ultra-low latency and high reliability. By utilizing a minimal preamble (12 symbols), the Time on Air (ToA) is reduced to ~90ms, virtually eliminating packet collisions while ensuring zero message drops through continuous background listening. *Thread-safe implementation prevents conflicts between BLE and LoRa tasks.*
-* **Smart Neighbour Discovery:** Automatic heartbeat messages are sent out to advertise the active device among other users, storing the RSSI and last active timestamp. The system automatically cleans up "dead" or out-of-range nodes after 120 seconds of inactivity.
+* **Fast TX & Continuous RX Architecture:** Optimized for ultra-low latency and high reliability in the prototype phase. By utilizing a safe preamble (32 symbols), the Time on Air (ToA) is ~132ms, virtually eliminating packet collisions while ensuring zero message drops through continuous background listening. *Thread-safe FreeRTOS implementation prevents conflicts between BLE and LoRa tasks.*
+* **Smart Neighbour Discovery:** Automatic heartbeat messages are sent out to advertise the active device among other users, storing the RSSI and last active timestamp. The system automatically cleans up "dead" or out-of-range nodes after 25 minutes of inactivity.
 * **Haptic & UI Feedback:** Integrated DRV2605L haptic motor driver and hardware button with debouncing. Provides distinct physical feedback for button presses and incoming LoRa messages, with strict power-management (zero idle consumption).
 * **BLE Security (Just Works):** Implements physical button-press validation to activate BLE advertising (Pairing Mode) for 60 seconds, preventing unauthorized external connections.
 * **Dynamic NVS Management:** The device name, UUIDs, unique LoRa ID, and user preferences (Username, UI Color) are generated on the first startup and safely stored in the Non-Volatile Storage (NVS).
 * **Duty Cycle Monitoring:** Tracks and logs the Time on Air (ToA) and calculates the current duty cycle percentage to assist with regulatory compliance (e.g., the 10% limit on 433MHz in Europe).
-* **Energy Management:** Supports 3 different power profiles (`BATTERY_SAVER`, `BALANCED`, `PERFORMANCE`) that dynamically scale the CPU frequency and adjust the heartbeat intervals.
+* **Energy Management:** Supports 3 different power profiles (`BATTERY_SAVER`, `BALANCED`, `PERFORMANCE`) that dynamically scale the CPU frequency and adjust the heartbeat intervals (10 min, 5 min, and 1 min respectively).
+* **Real Battery Monitoring:** Built-in hardware ADC integration calculates real battery percentage and monitors the active charging status.
 
 ## BLE API Documentation
 
@@ -55,7 +56,7 @@ This channel is used to query the network status and manage system preferences.
   * `GET_NEI`
     * *Response:* `MAC;RSSI;TIMESTAMP|MAC,RSSI;TIMESTAMP|` (e.g., `A1B2C3D4;-45.50;32125|...`) or `NO_NEI` if the list is empty.
   * `GET_BAT`
-    * *Response:* `BAT;87` (Returns the battery percentage 0-100).
+    * *Response:* `BAT;Percentage;IsCharging` (e.g., `BAT;87;1` where 1 means charging, 0 means discharging).
   * `SET_USR;Username`
     * *Action:* Saves the string to NVS (max length depends on BLE MTU, trims whitespaces).
     * *Response:* `USR_OK`
@@ -69,13 +70,6 @@ This channel is used to query the network status and manage system preferences.
   * `SET_PWR;ProfileName`
     * *Action:* Sets the active power profile (`BATTERY_SAVER`, `BALANCED`, `PERFORMANCE`).
     * *Response:* `PWR_OK` or `PWR_ERR` (if the profile name is invalid).
-
-## Future Developments (TODO)
-
-The project is under active development. The primary focus is maximizing battery life and hardware integration:
-
-1. **Hardware ADC Integration:** Implement real battery voltage reading via the ESP32's ADC pins to replace the simulated `GET_BAT` response.
-2. **Advanced Power Management (Deep/Light Sleep):** Optimizing ESP32 Automatic Light Sleep modes to drastically reduce the idle current consumption (from ~96mA to under ~20mA) while keeping the LoRa continuous RX alive.
 
 ---
 *Built using the RadioLib and NimBLE-Arduino libraries.*

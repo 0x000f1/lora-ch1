@@ -85,11 +85,11 @@ void SystemManager::setPowerProfile(PowerProfile profile) {
     BatteryManager::setPowerProfile(profile);
 
     // Heartbeat interval based on power profile
-    uint16_t heartbeatInterval = 30; // Default to 30 seconds for BALANCED
+    uint16_t heartbeatInterval = 300; // Default to 300 seconds - 5 min for BALANCED
     switch (profile) {
-        case PowerProfile::BATTERY_SAVER:   heartbeatInterval = 60; break;
-        case PowerProfile::BALANCED:        heartbeatInterval = 30; break;
-        case PowerProfile::PERFORMANCE:     heartbeatInterval = 15; break;
+        case PowerProfile::BATTERY_SAVER:   heartbeatInterval = 600; break; // 10 min
+        case PowerProfile::BALANCED:        heartbeatInterval = 300; break; // 5 min
+        case PowerProfile::PERFORMANCE:     heartbeatInterval = 60; break; // 1 min
     }
     LoRaManager::startHeartbeat(heartbeatInterval);
     LOG_I(TAG, "Heartbeat interval set to %d seconds", heartbeatInterval);

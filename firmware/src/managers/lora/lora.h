@@ -71,10 +71,14 @@ class LoRaManager {
             count = neighborCount;
             return neighbors;
         };
+        static void setMainTaskHandle(TaskHandle_t handle) {
+            mainTaskHandle = handle;
+        }
     private:
         // Basic LoRa variables
         static void setFlag();
         static uint8_t currentSequenceNumber; // Sequence number for messages
+        static TaskHandle_t mainTaskHandle;
 
         // Heartbeat
         static TimerHandle_t heartbeatTimer; // FreeRTOS timer for heartbeat messages
@@ -116,12 +120,12 @@ class LoRaManager {
         static uint8_t txPendingTotalFrag;
 
         // CAD variables
-        static TimerHandle_t cadRxTimer;
-        static volatile bool cadCheckPending;
-        static TimerHandle_t rxTimeoutTimer;
-        static volatile bool rxTimeoutPending;
+        // static TimerHandle_t cadRxTimer;
+        // static volatile bool cadCheckPending;
+        // static TimerHandle_t rxTimeoutTimer;
+        // static volatile bool rxTimeoutPending;
 
-        static void cadRxTimerCallback(TimerHandle_t xTimer);
-        static void rxTimeoutTimerCallback(TimerHandle_t xTimer);
+        // static void cadRxTimerCallback(TimerHandle_t xTimer);
+        // static void rxTimeoutTimerCallback(TimerHandle_t xTimer);
 };
 #endif

@@ -8,9 +8,14 @@
 
 #define TAG "MAIN"
 
+TaskHandle_t mainTaskHandle = NULL;
+
 void setup() {
     Serial.begin(115200);
-    delay(3000);
+    
+    mainTaskHandle = xTaskGetCurrentTaskHandle();
+    LoRaManager::setMainTaskHandle(mainTaskHandle);
+
     BatteryManager::setupBattery();
     // Set the default power profile to BATTERY_SAVER until button pressed
     SystemManager::setPowerProfile(PowerProfile::BATTERY_SAVER);
@@ -25,5 +30,5 @@ void loop() {
     BLEManager::handleFlags();
     LoRaManager::handleFlags();
     ButtonManager::handleButton();
-    vTaskDelay(pdMS_TO_TICKS(10));
+    ulTaskNotifyTake(pdTRUE, pdMS_TO_TICKS(10));
 }
