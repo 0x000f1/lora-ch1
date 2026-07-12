@@ -5,7 +5,8 @@ This project is based on the ESP32-C3 microcontroller that behaves like a bridge
 ## Functions
 
 * **Reliable Bidirectional Communication:** Transmit packages seamlessly between two or more devices. Supports public Broadcasts and private P2P messages with an Automatic Repeat Request (ARQ) mechanism. P2P messages are automatically acknowledged (ACK) and retried up to 3 times if lost in the air.
-* **Fast TX & Continuous RX Architecture:** Optimized for ultra-low latency and high reliability in the prototype phase. By utilizing a safe preamble (32 symbols), the Time on Air (ToA) is ~132ms, virtually eliminating packet collisions while ensuring zero message drops through continuous background listening. *Thread-safe FreeRTOS implementation prevents conflicts between BLE and LoRa tasks.*
+* **Fast TX & Continuous RX Architecture:** Optimized for ultra-low latency and high reliability in the prototype phase. By utilizing an optimized preamble (12 symbols), the Time on Air (ToA) is reduced to ~100-132ms (payload dependent), virtually eliminating packet collisions while ensuring zero message drops through continuous background listening. *Thread-safe FreeRTOS implementation prevents conflicts between BLE and LoRa tasks.*
+* **Offline Message Buffer:** Safely stores up to 32 incoming direct (P2P) messages in the RAM if the phone is disconnected. Upon BLE reconnection, all buffered messages are instantly pushed to the app. Public Broadcasts are ignored for offline storage to preserve memory.
 * **Smart Neighbour Discovery:** Automatic heartbeat messages are sent out to advertise the active device among other users, storing the RSSI and last active timestamp. The system automatically cleans up "dead" or out-of-range nodes after 25 minutes of inactivity.
 * **Haptic & UI Feedback:** Integrated DRV2605L haptic motor driver and hardware button with debouncing. Provides distinct physical feedback for button presses and incoming LoRa messages, with strict power-management (zero idle consumption).
 * **BLE Security (Just Works):** Implements physical button-press validation to activate BLE advertising (Pairing Mode) for 60 seconds, preventing unauthorized external connections.
@@ -42,8 +43,10 @@ Actual message sending and receiving takes place on this channel. The payload mu
 
 * **Receiving (LoRa -> App):**
   * The app must subscribe to `NOTIFY` events on this characteristic.
-  * **Format 1 (Standard Data):** `SENDER_MAC;TARGET_MAC;CURRENT_FRAGMENT;TOTAL_FRAGMENTS;PAYLOAD`
-    * The app can use the `TARGET_MAC` to determine if the received message was a public broadcast (`FFFFFFFF`) or a private P2P message meant specifically for this user.
+  * **Format 1 (Standard Data):** `SENDER_MAC;TARGET_MAC;CURRENT_FRAGMENT;TOTAL_FRAGMENTS;TIMESTAMP;RSSI;PAYLOAD`
+    * The app can use the `TARGET_MAC` to determine if the received message was a public broadcast (`FFFFFFFF`) or a private P2P message.
+    * `TIMESTAMP`: The UNIX Epoch time in seconds. If the device clock is not synced via `SET_TIM`, this value returns `0`.
+    * `RSSI`: The signal strength of the received LoRa package (e.g., `-78.00`).
   * **Format 2 (Delivery Success):** `ACK_OK;TARGET_MAC`
     * Sent to the app when a previously sent P2P message is successfully acknowledged by the receiver.
   * **Format 3 (Delivery Failed):** `ERR_TIMEOUT;TARGET_MAC`
@@ -53,6 +56,9 @@ Actual message sending and receiving takes place on this channel. The payload mu
 This channel is used to query the network status and manage system preferences.
 
 * **Commands (App -> ESP32) & Responses (via NOTIFY):**
+  * `SET_TIM;UnixSeconds`
+    * *Action:* Syncs the ESP32's internal RTC to the real-world UNIX epoch time (e.g., `SET_TIM;1715423000`). Must be sent immediately after connecting.
+    * *Response:* `TIM_OK`
   * `GET_NEI`
     * *Response:* `MAC;RSSI;TIMESTAMP|MAC,RSSI;TIMESTAMP|` (e.g., `A1B2C3D4;-45.50;32125|...`) or `NO_NEI` if the list is empty.
   * `GET_BAT`

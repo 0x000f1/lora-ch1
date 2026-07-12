@@ -5,6 +5,7 @@
 #include "managers/lora/lora.h"
 #include "managers/ble/ble.h"
 #include <esp_bt.h>
+#include <sys/time.h>
 
 #define TAG "BLE" 
 
@@ -15,6 +16,9 @@ static NimBLECharacteristic* controlCharacteristic = nullptr;
 TimerHandle_t BLEManager::pairingTimer = nullptr;
 volatile bool BLEManager::shutdownPending = false;
 static bool isRadioSleeping = false; // Track the state of the radio
+volatile bool BLEManager::pushStoredPending = false;
+char BLEManager::messageBuffer[MAX_STORED_MESSAGES][300];
+uint8_t BLEManager::messageCount = 0;
 
 bool BLEManager::isBLEActive() {
     return NimBLEDevice::isInitialized() && 
@@ -50,6 +54,11 @@ void BLEManager::handleFlags() {
         LOG_I(TAG, "BLE sleep completed. Setting power profile to BATTERY_SAVER");
         SystemManager::setPowerProfile(PowerProfile::BATTERY_SAVER);
     }
+
+    if (pushStoredPending) {
+        pushStoredPending = false;
+        pushStoredMessages();
+    }
 }
 
 // Callbacks
@@ -59,6 +68,11 @@ class serverStatusCallback : public NimBLEServerCallbacks {
         LOG_I(TAG, "Client connected: %s", connInfo.getAddress().toString().c_str());
         nimBleServer->updateConnParams(connInfo.getConnHandle(), 24, 48, 0, 180);
         BLEManager::stopPairingMode();
+
+        // If there is a stored message, push it to the connected device.
+        if (BLEManager::messageCount > 0) {
+            BLEManager::pushStoredPending = true;
+        }
     }
     // Handle client disconnections and restart advertising to allow new clients to connect.
     void onDisconnect(NimBLEServer* nimBleServer, NimBLEConnInfo& connInfo, int reason) override {
@@ -161,6 +175,19 @@ class controlCharStatusCallbacks : public NimBLECharacteristicCallbacks {
             
             nimBleChar->setValue("COL_OK");
             nimBleChar->notify();
+        }
+        else if (strncmp(cmd, "SET_TIM;", 8) == 0) {
+            const char* payloadStr = cmd + 8;
+            
+            struct timeval timeValue;
+            timeValue.tv_sec = strtol(payloadStr, NULL, 10); // Convert string to UNIX timestamp
+            timeValue.tv_usec = 0;
+            
+            settimeofday(&timeValue, NULL); // ESP32 internal system time set
+            
+            nimBleChar->setValue("TIM_OK");
+            nimBleChar->notify();
+            LOG_I(TAG, "Time synced via BLE to UNIX epoch: %ld", timeValue.tv_sec);
         }
     }
 };
@@ -317,12 +344,45 @@ void BLEManager::stopPairingMode() {
     }
 }
 
-void BLEManager::pushMessage(const char* message) {
+void BLEManager::storeMessage(const char* message) {
+    if (messageCount < MAX_STORED_MESSAGES) {
+        strncpy(messageBuffer[messageCount], message, sizeof(messageBuffer[0]) - 1);
+        messageBuffer[messageCount][sizeof(messageBuffer[0]) - 1] = '\0';
+        messageCount++;
+        LOG_I(TAG, "Message stored in buffer. Total stored: %d", messageCount);
+    } else {
+        LOG_W(TAG, "Message buffer full! Dropping oldest message.");
+        // Ring buffer: push the whole buffer left, the oldest buffer will be 'removed' from the list.
+        for(int i = 0; i < MAX_STORED_MESSAGES - 1; i++) {
+            strncpy(messageBuffer[i], messageBuffer[i+1], sizeof(messageBuffer[0]));
+        }
+        strncpy(messageBuffer[MAX_STORED_MESSAGES - 1], message, sizeof(messageBuffer[0]) - 1);
+    }
+}
+
+void BLEManager::pushStoredMessages() {
+    if (messageCount > 0 && server != nullptr && server->getConnectedCount() > 0) {
+        LOG_I(TAG, "Pushing %d stored messages to client...", messageCount);
+        for (uint8_t i = 0; i < messageCount; i++) {
+            dataCharacteristic->setValue(std::string(messageBuffer[i]));
+            dataCharacteristic->notify();
+            LOG_I(TAG, "Pushed stored message: %s", messageBuffer[i]);
+            vTaskDelay(pdMS_TO_TICKS(50)); // 50 ms break for BLE stability
+        }
+        messageCount = 0; // Clear buffer
+    }
+}
+
+void BLEManager::pushMessage(const char* message, bool isBroadcast) {
     if (server != nullptr && dataCharacteristic != nullptr && server->getConnectedCount() > 0) {
         dataCharacteristic->setValue(std::string(message));
         dataCharacteristic->notify(); // Notify all connected clients
         LOG_I(TAG, "Sent notify: %s", message);
+    } else if (!isBroadcast) {
+        // Save only if: NO connected client + NOT broadcast message received
+        LOG_W(TAG, "No clients connected. Saving direct message to the buffer.");
+        storeMessage(message);
     } else {
-        LOG_W(TAG, "No clients connected. Message not sent: %s", message);
+        LOG_I(TAG, "Broadcast message ignored for storage.");
     }
 }

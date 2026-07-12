@@ -5,6 +5,7 @@
 #include "drivers/ui/haptic.h"
 #include <SPI.h>
 #include <RadioLib.h>
+#include <time.h>
 
 #define TAG "LORA"
 #define BAND 433.0
@@ -350,24 +351,36 @@ void LoRaManager::handleFlags() {
                 }
 
                 if (header.packageType == PKG_DATA && payloadLength > 0) {
-                    char formattedString[PAYLOAD_SIZE + 50]; // Extra space for formatting
+                    char formattedString[PAYLOAD_SIZE + 80]; // Extra space for formatting
                     char payloadString[PAYLOAD_SIZE];
                     size_t copyLength = (payloadLength < PAYLOAD_SIZE) ? payloadLength : PAYLOAD_SIZE - 1; // Ensure null-termination
                     
                     memcpy(payloadString, payload, copyLength);
                     payloadString[copyLength] = '\0'; // Null-terminate the string
 
-                    // Format generation: SENDER_ADDRESS;CURRENT_FRAGMENT;TOTAL_FRAGMENT;PAYLOAD
-                    snprintf(formattedString, sizeof(formattedString), "%08X;%08X;%d;%d;%s",
+                    time_t now;
+                    time(&now);
+
+                    // FAIL-SAFE: 1704067200 = 2024. 01. 1
+                    // If the ESP time is less than the FAIL-SAFE time, there it is outdated. Set it to 0.
+                    long safeTimestamp = (now < 1704067200) ? 0 : (long)now;
+
+                    // Check if the target address was broadcast.
+                    bool isBroadcast = (header.targetAddress == BROADCAST_ADDRESS);
+
+                    // Format generation: SENDER;TARGET;CURRENT_FRAGMENT;TOTAL_FRAGMENT;TIMESTAMP;RSSI;PAYLOAD
+                    snprintf(formattedString, sizeof(formattedString), "%08X;%08X;%d;%d;%ld;%.2f;%s",
                                                                         header.senderAddress,
                                                                         header.targetAddress,
                                                                         header.currentFragment,
                                                                         header.totalFragments,
+                                                                        safeTimestamp,
+                                                                        loraModule.getRSSI(),
                                                                         payloadString
                                                                     );
                     LOG_I(TAG, "Received DATA package: %s", formattedString);
                     HapticManager::playEffect(52); // Pulsing strong 1 - 100% feedback on message received.
-                    BLEManager::pushMessage(formattedString); // Forward the message to the BLE Manager to notify connected clients.
+                    BLEManager::pushMessage(formattedString, isBroadcast); // Forward the message to the BLE Manager to notify connected clients.
                 }
             }
         } else if (state == RADIOLIB_ERR_CRC_MISMATCH) {
