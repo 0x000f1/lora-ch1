@@ -104,10 +104,11 @@ class controlCharStatusCallbacks : public NimBLECharacteristicCallbacks {
                 std::string response = "";
 
                 for (uint8_t i = 0; i < count; i++) {
-                    char responseBuffer[64];
+                    char responseBuffer[128];
                     snprintf(responseBuffer, sizeof(responseBuffer), 
-                                            "%08X;%.2f;%lu|",
+                                            "%08X;%s;%.2f;%lu|",
                                             list[i].senderAddress, 
+                                            list[i].senderUsername,
                                             list[i].rssi, 
                                             list[i].timestamp);
                     response += responseBuffer;

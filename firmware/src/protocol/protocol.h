@@ -21,7 +21,8 @@ enum PackageType : uint8_t {
 
 // Header of the package (every package will have this header)
 struct PackageHeader {
-    uint32_t senderAddress; // Address of the sender @todo Implement addressing scheme
+    uint32_t senderAddress; // Address of the sender
+    char senderUsername[32]; // Username of the sender
     uint32_t targetAddress; // Address of the target (0xFFFF for broadcast)
     uint8_t packageType; // Type of the package (data, discovery, etc.)
     uint8_t sequenceNumber; // ID for the package (for tracking and acknowledgment)
@@ -32,6 +33,7 @@ struct PackageHeader {
 // Structure for neighbor information
 struct DiscoveryInfo {
     uint32_t senderAddress; // Address of the neighbor
+    char senderUsername[32]; // Username of the sender
     unsigned long timestamp; // Last seen timestamp
     float rssi; // RSSI value of the last received message
 };

@@ -43,8 +43,9 @@ Actual message sending and receiving takes place on this channel. The payload mu
 
 * **Receiving (LoRa -> App):**
   * The app must subscribe to `NOTIFY` events on this characteristic.
-  * **Format 1 (Standard Data):** `SENDER_MAC;TARGET_MAC;CURRENT_FRAGMENT;TOTAL_FRAGMENTS;TIMESTAMP;RSSI;PAYLOAD`
+  * **Format 1 (Standard Data):** `SENDER_MAC;SENDER_USERNAME;TARGET_MAC;CURRENT_FRAGMENT;TOTAL_FRAGMENTS;TIMESTAMP;RSSI;PAYLOAD`
     * The app can use the `TARGET_MAC` to determine if the received message was a public broadcast (`FFFFFFFF`) or a private P2P message.
+    * Sender username sent from the device NVS.
     * `TIMESTAMP`: The UNIX Epoch time in seconds. If the device clock is not synced via `SET_TIM`, this value returns `0`.
     * `RSSI`: The signal strength of the received LoRa package (e.g., `-78.00`).
   * **Format 2 (Delivery Success):** `ACK_OK;TARGET_MAC`
@@ -60,7 +61,7 @@ This channel is used to query the network status and manage system preferences.
     * *Action:* Syncs the ESP32's internal RTC to the real-world UNIX epoch time (e.g., `SET_TIM;1715423000`). Must be sent immediately after connecting.
     * *Response:* `TIM_OK`
   * `GET_NEI`
-    * *Response:* `MAC;RSSI;TIMESTAMP|MAC,RSSI;TIMESTAMP|` (e.g., `A1B2C3D4;-45.50;32125|...`) or `NO_NEI` if the list is empty.
+    * *Response:* `MAC;NEI_USERNAME;RSSI;TIMESTAMP|MAC,RSSI;TIMESTAMP|` (e.g., `A1B2C3D4;Guest;-45.50;32125|...`) or `NO_NEI` if the list is empty.
   * `GET_BAT`
     * *Response:* `BAT;Percentage;IsCharging` (e.g., `BAT;87;1` where 1 means charging, 0 means discharging).
   * `SET_USR;Username`
@@ -76,6 +77,11 @@ This channel is used to query the network status and manage system preferences.
   * `SET_PWR;ProfileName`
     * *Action:* Sets the active power profile (`BATTERY_SAVER`, `BALANCED`, `PERFORMANCE`).
     * *Response:* `PWR_OK` or `PWR_ERR` (if the profile name is invalid).
+  * `GET_VIB`
+    * *Response:* `VIB;{0/1}` Where 0 means haptics is off, 1 means haptics is on.
+  * `SET_VIB;STATUS`
+    * *Action:* `1` turns on (by default) the haptic feedback actuator, `0` turns off.
+    * *Response:* `VIB_OK` means the command ran.
 
 ---
 *Built using the RadioLib and NimBLE-Arduino libraries.*

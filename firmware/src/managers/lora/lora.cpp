@@ -165,6 +165,8 @@ void LoRaManager::sendMessage(uint8_t* data, size_t length, uint32_t targetAddre
 
     PackageHeader header;
     header.senderAddress = SystemManager::getLoRaID();
+    memset(header.senderUsername, 0, sizeof(header.senderUsername));
+    strncpy(header.senderUsername, SystemManager::getUsername(), sizeof(header.senderUsername) - 1);
     header.targetAddress = targetAddress;
     header.packageType = packageType;
     header.sequenceNumber = currentSequenceNumber++;
@@ -325,7 +327,7 @@ void LoRaManager::handleFlags() {
             LOG_I(TAG, "RX from 0x%08X, RSSI: %f, Type: %d", header.senderAddress, loraModule.getRSSI(), header.packageType);
             
             // Update neighbors list with the sender's address and RSSI
-            updateNeighbor(header.senderAddress, loraModule.getRSSI());
+            updateNeighbor(header.senderAddress, header.senderUsername, loraModule.getRSSI());
 
             // Convert to char array if it's a DATA package and forward to BLE Manager.
             // Check if the package is sent for BROADCAST or to this device's address.
@@ -372,8 +374,9 @@ void LoRaManager::handleFlags() {
                     bool isBroadcast = (header.targetAddress == BROADCAST_ADDRESS);
 
                     // Format generation: SENDER;TARGET;CURRENT_FRAGMENT;TOTAL_FRAGMENT;TIMESTAMP;RSSI;PAYLOAD
-                    snprintf(formattedString, sizeof(formattedString), "%08X;%08X;%d;%d;%ld;%.2f;%s",
+                    snprintf(formattedString, sizeof(formattedString), "%08X;%s;%08X;%d;%d;%ld;%.2f;%s",
                                                                         header.senderAddress,
+                                                                        header.senderUsername,
                                                                         header.targetAddress,
                                                                         header.currentFragment,
                                                                         header.totalFragments,
@@ -400,10 +403,12 @@ void LoRaManager::handleFlags() {
     }
 }
 
-void LoRaManager::updateNeighbor(uint32_t senderAddress, float rssi) {
+void LoRaManager::updateNeighbor(uint32_t senderAddress, const char* username, float rssi) {
     // Check if the sender is already in the neighbors list
     for (uint8_t i = 0; i < neighborCount; i++) {
         if (neighbors[i].senderAddress == senderAddress) {
+            strncpy(neighbors[i].senderUsername, username, sizeof(neighbors[i].senderUsername) - 1);
+            neighbors[i].senderUsername[sizeof(neighbors[i].senderUsername) - 1] = '\0';
             neighbors[i].timestamp = millis(); // Update timestamp (last seen)
             neighbors[i].rssi = rssi; // Update RSSI value (signal strength)
             return;
@@ -413,10 +418,12 @@ void LoRaManager::updateNeighbor(uint32_t senderAddress, float rssi) {
     // If not found, add the neighbor to the list, if there is space left
     if (neighborCount < MAX_NEIGHBORS) {
         neighbors[neighborCount].senderAddress = senderAddress;
+        strncpy(neighbors[neighborCount].senderUsername, username, sizeof(neighbors[neighborCount].senderUsername) - 1);
+        neighbors[neighborCount].senderUsername[sizeof(neighbors[neighborCount].senderUsername) - 1] = '\0';
         neighbors[neighborCount].rssi = rssi;
         neighbors[neighborCount].timestamp = millis();
         neighborCount++;
-        LOG_I(TAG, "New neighbor added: 0x%08X with RSSI: %f", senderAddress, rssi);
+        LOG_I(TAG, "New neighbor added: 0x%08X (%s) with RSSI: %f", senderAddress, username, rssi);
     } else {
         LOG_W(TAG, "Neighbors list full. Cannot add new neighbor: 0x%08X", senderAddress);
     }

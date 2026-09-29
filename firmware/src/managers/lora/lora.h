@@ -93,7 +93,7 @@ class LoRaManager {
         // Neighbors
         static DiscoveryInfo neighbors[MAX_NEIGHBORS];
         static uint8_t neighborCount;
-        static void updateNeighbor(uint32_t senderAddress, float rssi);
+        static void updateNeighbor(uint32_t senderAddress, const char* username, float rssi);
 
         // ACK and Resend variables
         static TimerHandle_t ackTimer;
