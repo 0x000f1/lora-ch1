@@ -84,6 +84,10 @@ This channel is used to query the network status and manage system preferences.
     * *Response:* `VIB_OK` means the command ran.
   * `GET_ID`
     * *Response:* `ID:LOCAL_ID` (e.g., `ID:3FFE78C0`) returns the LoRa local address
+  * `RST`
+    * *Action:* `Restarts the ESP, needs to reconnect after!
+  * `FACTORY_RESET`
+    * *Action:* Erases the whole NVS, clears color, username, all settings. The MAC remains, because it is generated from the ESP MAC address.
 
 ---
 *Built using the RadioLib and NimBLE-Arduino libraries.*

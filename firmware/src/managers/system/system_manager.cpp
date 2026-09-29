@@ -5,6 +5,7 @@
 #include <Preferences.h>
 #include <esp_mac.h>
 #include <esp_random.h>
+#include <nvs_flash.h>
 
 #define STORAGE_NAMESPACE "system" 
 #define TAG "SYS"
@@ -21,6 +22,24 @@ char SystemManager::cachedUsername[32] = {0};
 char SystemManager::cachedColor[10] = {0};
 uint32_t SystemManager::cachedLoraID = 0;
 uint32_t SystemManager::cachedHapticsProfile = 0;
+
+void SystemManager::reboot() {
+    LOG_W(TAG, "Rebooting device...");
+    vTaskDelay(pdMS_TO_TICKS(100)); // Wait to write the log
+    esp_restart();
+}
+
+void SystemManager::factoryReset() {
+    LOG_W(TAG, "Executing FACTORY RESET! Erasing entire NVS...");
+    
+    prefs.end(); // Close the Preferences if it was open
+    
+    nvs_flash_erase(); // Erase the whole NVS partition
+    
+    LOG_W(TAG, "NVS erased. Restarting now...");
+    vTaskDelay(pdMS_TO_TICKS(100));
+    esp_restart();
+}
 
 String SystemManager::generateUUID() {
     String uuid = "";

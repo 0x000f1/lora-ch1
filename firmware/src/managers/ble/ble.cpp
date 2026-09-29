@@ -212,7 +212,6 @@ class controlCharStatusCallbacks : public NimBLECharacteristicCallbacks {
             LOG_I(TAG, "Sent haptics status to client: %d", hapticsStatus);
         }
         else if (strncmp(cmd, "SET_VIB;", 8) == 0) {
-
             const char* payloadStr = cmd + 8;
 
             int32_t payloadValue = atoi(payloadStr);
@@ -221,6 +220,20 @@ class controlCharStatusCallbacks : public NimBLECharacteristicCallbacks {
             nimBleChar->setValue("VIB_OK");
             nimBleChar->notify();
             LOG_I(TAG, "Haptics status updated: %d", (uint8_t)payloadValue);
+        }
+        else if (strcmp(cmd, "RST") == 0) {
+            LOG_I(TAG, "Command received: RST. Restarting.");
+            nimBleChar->setValue("RST_OK");
+            nimBleChar->notify();
+            vTaskDelay(pdMS_TO_TICKS(100));
+            SystemManager::reboot();
+        }
+        else if (strcmp(cmd, "FACTORY_RESET") == 0) {
+            LOG_W(TAG, "Command received: FACTORY_RESET. Erasing NVS then restart.");
+            nimBleChar->setValue("FACTORY_RESET_OK");
+            nimBleChar->notify();
+            vTaskDelay(pdMS_TO_TICKS(100));
+            SystemManager::factoryReset();
         }
     }
 };

@@ -28,6 +28,9 @@ public:
     static const char* getUsername(); // Retrieves the username saved from NVS.
     static void setColor(const char* hexColor); // Sets the user favorite color.
     static const char* getColor(); // Retrieves the favorite color saved from NVS.
+
+    static void reboot(); // Reboots the ESP controller, keep all the NVS data.
+    static void factoryReset(); // Erase the whole NVS partition, full clean boot.
 private:
     // Static variables for caching
     static char cachedDeviceName[32];
