@@ -39,6 +39,7 @@ class BLEManager {
         static void stopPairingMode();
         static void handleFlags();
         static bool isBLEActive();
+        static bool isConnected();
         static volatile bool shutdownPending;
         static volatile bool pushStoredPending;
         static uint8_t messageCount; // Pending message to out counter

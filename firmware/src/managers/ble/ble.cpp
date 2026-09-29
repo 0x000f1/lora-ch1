@@ -26,6 +26,10 @@ bool BLEManager::isBLEActive() {
         (server != nullptr && server->getConnectedCount() > 0));
 }
 
+bool BLEManager::isConnected() {
+    return server->getConnectedCount() > 0;
+}
+
 void BLEManager::stopBLE() {
     if (pairingTimer != nullptr) xTimerStop(pairingTimer, 0);
     LOG_I(TAG, "Stopping advertising and trying to sleep the BLE hardware...");

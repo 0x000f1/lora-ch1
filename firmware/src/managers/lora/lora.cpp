@@ -382,7 +382,9 @@ void LoRaManager::handleFlags() {
                                                                         payloadString
                                                                     );
                     LOG_I(TAG, "Received DATA package: %s", formattedString);
-                    HapticManager::playEffect(52); // Pulsing strong 1 - 100% feedback on message received.
+                    // Play haptics if the message was P2P or a client was connected.
+                    (BLEManager::isConnected() || !isBroadcast) ? HapticManager::playEffect(52) :
+                    LOG_I(TAG, "Haptics not played, because there is no connected devices or the message was broadcast.");
                     BLEManager::pushMessage(formattedString, isBroadcast); // Forward the message to the BLE Manager to notify connected clients.
                 }
             }
