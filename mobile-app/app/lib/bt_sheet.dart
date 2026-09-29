@@ -4,9 +4,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_blue_plus/flutter_blue_plus.dart';
 import 'dart:convert';
 
-List<BluetoothCharacteristic> _foundChars = [];
-List<BluetoothCharacteristic> get chars => _foundChars;
-
 void showBTSheet(BuildContext context) {
   showModalBottomSheet(
     context: context,
@@ -62,7 +59,10 @@ class _BtScanSheetState extends State<_BtScanSheet> {
       _devices = connected;
     });
 
-    FlutterBluePlus.startScan(timeout: const Duration(seconds: 15), androidUsesFineLocation: true);
+    FlutterBluePlus.startScan(
+      timeout: const Duration(seconds: 15),
+      androidUsesFineLocation: true,
+    );
 
     _scanSub = FlutterBluePlus.scanResults.listen((results) {
       if (mounted) {
@@ -88,40 +88,19 @@ class _BtScanSheetState extends State<_BtScanSheet> {
   }
 
   Future<void> _connect(BluetoothDevice device, int index) async {
-    _foundChars.clear();
     setState(() => _connectIndex = index);
-    try {
-      await device.connect();
-      debugPrint("[BLE] Connected ${device.platformName}");
 
-      List<BluetoothService> services = await device.discoverServices();
+    // function from ble_service.dart
+    bool success = await connectAndSetupDevice(device);
 
-      for (var service in services) {
-        for (var characteristics in service.characteristics) {
-          // writable and readable characteristic means it was found
-          if (characteristics.properties.write && characteristics.properties.notify) {
-            _foundChars.add(characteristics);
-          }
-        }
-      }
-      if (_foundChars.length == 2) {
-        setupBleCommunication(_foundChars[1], _foundChars[0]);
-        debugPrint("[BLE] Data characteristic found: ${_foundChars[0].uuid}");
-        debugPrint("[BLE] Control characteristic found: ${_foundChars[1].uuid}");
-        debugPrint("[BLE] BLE channels succesfully set up.");
+    if (mounted) {
+      if (success) {
+        Navigator.pop(context);
       } else {
-        debugPrint("[BLE] ERROR: Expected 2 channels, got  ${_foundChars.length}.");
-      }
-      if (mounted) Navigator.pop(context);
-    }
-    // if connect not succesful, reset index to null
-    catch (e) {
-      if (mounted) {
         setState(() => _connectIndex = null);
-        debugPrint("[BLE] Connection failed.");
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text("Connection failed: $e")));
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("Connection or channel setup failed")),
+        );
       }
     }
   }
@@ -144,13 +123,20 @@ class _BtScanSheetState extends State<_BtScanSheet> {
             padding: EdgeInsets.all(16.0),
             child: Text(
               "Available Devices",
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.white70),
+              style: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+                color: Colors.white70,
+              ),
             ),
           ),
           if (!_isBtOn)
             const Expanded(
               child: Center(
-                child: Text("Please turn on Bluetooth", style: TextStyle(color: Colors.white)),
+                child: Text(
+                  "Please turn on Bluetooth",
+                  style: TextStyle(color: Colors.white),
+                ),
               ),
             ),
           if (_isBtOn)
@@ -175,32 +161,65 @@ class _BtScanSheetState extends State<_BtScanSheet> {
                     )
                   : ListView.separated(
                       itemCount: _devices.length,
+                      // horizontal line between list tiles
                       separatorBuilder: (_, __) => const Divider(),
                       itemBuilder: (context, i) {
                         final device = _devices[i];
-                        final isConnectedToThis = FlutterBluePlus.connectedDevices.contains(device);
+                        final isConnectedToThis = FlutterBluePlus
+                            .connectedDevices
+                            .contains(device);
                         final isConnecting = _connectIndex == i;
 
                         return ListTile(
+                          // DEVICE TILE
+                          // checks if the app is trying to connect to a device
                           leading: isConnecting
                               ? const SizedBox(
                                   width: 24,
                                   height: 24,
-                                  child: CircularProgressIndicator(strokeWidth: 2),
+                                  // loading icon if the device is connecting
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                  ),
                                 )
+
+                              // green icon for connected devices
                               : isConnectedToThis
-                              ? const Icon(Icons.check_circle_outline, color: Colors.green)
-                              : const Icon(Icons.bluetooth, color: Colors.white),
+                              ? const Icon(
+                                  Icons.check_circle_outline,
+                                  color: Colors.green,
+                                )
+                              : const Icon(
+                                  Icons.bluetooth,
+                                  color: Colors.white,
+                                ),
                           title: Text(
-                            device.platformName.isEmpty ? "Unknown" : device.platformName,
+                            device.platformName.isEmpty
+                                ? "Unknown"
+                                : device.platformName,
                             style: TextStyle(
-                              color: isConnectedToThis ? Colors.green : Colors.white,
+                              color: isConnectedToThis
+                                  ? Colors.green
+                                  : Colors.white,
                             ),
                           ),
                           // only connect if not already connected/connecting
                           onTap: (isConnecting || isConnectedToThis)
                               ? null
                               : () => _connect(device, i),
+
+                          // DISCONNECT BUTTON
+                          // checks if device is already connected
+                          trailing: isConnectedToThis
+                              ? IconButton(
+                                  icon: Icon(Icons.close, color: Colors.red),
+                                  onPressed: () async {
+                                    await disconnectDevice(device);
+                                    setState(() {});
+                                  },
+                                )
+                              // no button if device is not connected already
+                              : null,
                         );
                       },
                     ),

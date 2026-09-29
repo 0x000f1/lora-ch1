@@ -37,17 +37,20 @@ class _BroadcastPageState extends State<BroadcastPage> {
   void initState() {
     super.initState();
     _connectionSub = FlutterBluePlus.events.onConnectionStateChanged.listen((event) {
+      // redraw on connect or disconnect
       setState(() {});
     });
 
     _dataSub = dataStream.listen((rawMsg) {
       if(mounted) {
+        // SENDER_MAC;TARGET_MAC;CURRENT_FRAGMENT;TOTAL_FRAGMENTS;TIMESTAMP;RSSI;PAYLOAD
         final parts = rawMsg.split(';');
 
         if (parts.length >= 5){
+          print("Recieved message: $rawMsg");
           final senderMac = parts[0];
           // join message in case there is ';' in it
-          final payload = parts.sublist(4).join(';'); 
+          final payload = parts.sublist(6).join(';'); 
 
           setState(() {
             _messages.add(ChatMessage(text: payload, isMe: false));

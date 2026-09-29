@@ -39,16 +39,92 @@ Future<void> setupBleCommunication(BluetoothCharacteristic control, BluetoothCha
 
   _controlChar!.lastValueStream.listen((value) {
     if(value.isNotEmpty) {
+      String rawMsg = utf8.decode(value);
+
+      if(rawMsg.startsWith("BAT;")) {
+        batteryLevel.value = int.tryParse(rawMsg.split(";")[1]) ?? batteryLevel.value;
+      }
       _controlStreamController.add(utf8.decode(value));
     }
   });
 }
 
+List<BluetoothCharacteristic> _foundChars = [];
+List<BluetoothCharacteristic> get chars => _foundChars;
+final ValueNotifier<bool> isDeviceConnected = ValueNotifier(false);
+final ValueNotifier<int> batteryLevel = ValueNotifier(0);
+Timer? _batteryTimer;
+
+void initConnectionListener() {
+  FlutterBluePlus.events.onConnectionStateChanged.listen((event) {
+    bool connected = event.connectionState == BluetoothConnectionState.connected;
+    isDeviceConnected.value = connected;
+    print("Device connected? ${isDeviceConnected.value}");
+    print("Battery level: ${batteryLevel.value}");
+    
+    if (connected) {
+      _batteryTimer?.cancel();
+      _batteryTimer = Timer.periodic(const Duration(seconds: 1), (_) {
+        sendOnControlChar("GET_BAT");
+      });
+    } else {
+      _batteryTimer?.cancel();
+      batteryLevel.value = 0; 
+    }
+  });
+}
+
+Future<bool> connectAndSetupDevice(BluetoothDevice device) async {
+  _foundChars.clear();
+  try {
+    await device.connect();
+    List<BluetoothService> services = await device.discoverServices();
+
+    for (var service in services) {
+      for (var char in service.characteristics) {
+        if (char.properties.write && char.properties.notify) {
+          _foundChars.add(char);
+        }
+      }
+    }
+    
+    if (_foundChars.length == 2) {
+      await setupBleCommunication(_foundChars[1], _foundChars[0]);
+      return true;
+    }
+    return false;
+  } catch (e) {
+    return false;
+  }
+}
+
+Future<void> disconnectDevice(BluetoothDevice device) async {
+  await device.disconnect();
+  _foundChars.clear();
+}
+
+
 // writing
-Future<void> sendOnDataChar(String msg) async => await _dataChar?.write(utf8.encode(msg));
-Future<void> sendOnControlChar(String msg) async => await _dataChar?.write(utf8.encode(msg));
+Future<void> sendOnDataChar(String msg) async {
+  // check if the device is connected to avoid errors
+  if (_dataChar == null || !isDeviceConnected.value) return;
+  try {
+    await _dataChar!.write(utf8.encode(msg));
+  } catch (e) {
+    print(e);
+  }
+}
+Future<void> sendOnControlChar(String msg) async {
+  if (_controlChar == null || !isDeviceConnected.value) return;
+  try {
+    await _controlChar!.write(utf8.encode(msg));
+  } catch (e) {
+    print(e);
+  }
+}
 
 Future<void> sendBroadcastMsg(String msg) async {
   final formattedMsg = "FFFFFFFF;1;1;$msg";
   await _dataChar?.write(utf8.encode(formattedMsg));
+  print("Sent message $formattedMsg");
 }
