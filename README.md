@@ -82,6 +82,8 @@ This channel is used to query the network status and manage system preferences.
   * `SET_VIB;STATUS`
     * *Action:* `1` turns on (by default) the haptic feedback actuator, `0` turns off.
     * *Response:* `VIB_OK` means the command ran.
+  * `GET_ID`
+    * *Response:* `ID:LOCAL_ID` (e.g., `ID:3FFE78C0`) returns the LoRa local address
 
 ---
 *Built using the RadioLib and NimBLE-Arduino libraries.*

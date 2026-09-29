@@ -194,6 +194,15 @@ class controlCharStatusCallbacks : public NimBLECharacteristicCallbacks {
             nimBleChar->notify();
             LOG_I(TAG, "Time synced via BLE to UNIX epoch: %ld", timeValue.tv_sec);
         }
+        else if (strcmp(cmd, "GET_ID") == 0) {
+            uint32_t localAddress = SystemManager::getLoRaID();
+            char response[64];
+            snprintf(response, sizeof(response), "ID;%08X", localAddress);
+            
+            nimBleChar->setValue(std::string(response));
+            nimBleChar->notify();
+            LOG_I(TAG, "Sent local address to client: %08X", localAddress);
+        }
         else if (strcmp(cmd, "GET_VIB") == 0) {
             uint32_t hapticsStatus = SystemManager::getHapticsProfile();
             char response[10];
