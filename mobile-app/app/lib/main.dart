@@ -1,3 +1,5 @@
+import 'package:app/ble_service.dart';
+import 'package:app/private_page.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter_blue_plus/flutter_blue_plus.dart';
@@ -6,8 +8,10 @@ import 'package:flutter_floating_bottom_bar/flutter_floating_bottom_bar.dart';
 import 'theme.dart';
 import 'bt_sheet.dart';
 import 'broadcast_page.dart';
+import 'package:flutter/rendering.dart';
 
 void main() {
+  //debugPaintSizeEnabled = true; // see layout bounds in debug mode
   runApp(const MainApp());
 }
 
@@ -33,19 +37,18 @@ class _HomePageState extends State<HomePage>
 
   @override
   void initState() {
+    initConnectionListener();
     tabController = TabController(length: 2, vsync: this);
-    tabController.animation!.addListener(
-      () {
-        final value = tabController.animation!.value.round();
-        if (value != currentPage) {
-            changePage(value);
-        }
+    tabController.animation!.addListener(() {
+      final value = tabController.animation!.value.round();
+      if (value != currentPage) {
+        changePage(value);
       }
-    );
+    });
     super.initState();
   }
 
-  void changePage(int newPage){
+  void changePage(int newPage) {
     setState(() {
       currentPage = newPage;
     });
@@ -59,17 +62,52 @@ class _HomePageState extends State<HomePage>
 
   @override
   Widget build(BuildContext context) {
+    print("Device Connected: $isDeviceConnected");
     return Scaffold(
       appBar: AppBar(
-        title: Text("BT Mesh Chat"),
+        title: const Text("BT Mesh Chat"),
         actions: [
-          IconButton(
-            icon: Icon(Icons.bluetooth_rounded),
-            
-            onPressed: () => showBTSheet(context),
+          ValueListenableBuilder<bool>(
+            valueListenable: isDeviceConnected,
+            builder: (context, isConnected, child) {
+              return Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  if (isConnected)
+                    ValueListenableBuilder<int>(
+                      valueListenable: batteryLevel,
+                      builder: (context, bat, child) {
+                        return Row(
+                          children: [
+                            Text("$bat%",),
+                            const SizedBox(width: 4),
+                            Icon(
+                              bat > 20
+                                  ? Icons.battery_full_rounded
+                                  : Icons.battery_alert_rounded,
+                            ),
+                          ],
+                        );
+                      },
+                    ),
+
+                  const SizedBox(width: 4),
+
+                  IconButton(
+                    icon: Icon(
+                      isConnected
+                          ? Icons.bluetooth_connected_rounded
+                          : Icons.bluetooth_rounded,
+                      color: Colors.black,
+                    ),
+                    onPressed: () => showBTSheet(context),
+                  ),
+                  const SizedBox(width: 10),
+                ],
+              );
+            },
           ),
         ],
-        
       ),
       body: BottomBar(
         borderRadius: BorderRadius.circular(25),
@@ -80,10 +118,10 @@ class _HomePageState extends State<HomePage>
           controller: tabController,
           physics: const NeverScrollableScrollPhysics(),
           children: [
-            const Center(child: Text("Private Chats")),
+            //const Center(child: Text("Private Chats")),
+            PrivatePage(scrollController: controller),
             BroadcastPage(scrollController: controller),
           ],
-
         ),
         child: TabBar(
           indicatorAnimation: TabIndicatorAnimation.elastic,
@@ -107,7 +145,6 @@ class _HomePageState extends State<HomePage>
               ),
             ),
             SizedBox(
-
               height: 55,
               width: 55,
               child: Center(
