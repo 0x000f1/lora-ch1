@@ -233,6 +233,9 @@ void LoRaManager::handleFlags() {
                 i++;
             }
         }
+
+        // Check the battery condition (If lower than 15 percent, warn the user)
+        BatteryManager::checkLowBattery();
     }
 
     // If the 2 seconds elapsed, and not received ACK type package

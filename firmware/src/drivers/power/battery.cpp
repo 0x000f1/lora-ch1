@@ -1,5 +1,6 @@
 #include "battery.h"
 #include "utils/log_helper.h"
+#include "drivers/ui/haptic.h"
 
 #define TAG "POWER"
 
@@ -56,4 +57,19 @@ uint8_t BatteryManager::getBatteryPercentage() {
     if (percentageBattery < 0.0f) percentageBattery = 0.0f;
 
     return (uint8_t)percentageBattery;
+}
+
+void BatteryManager::checkLowBattery() {
+    uint8_t batLevel = getBatteryPercentage();
+    bool charging = isCharging();
+
+    // If the level is below 15 percent, AND not charging
+    static bool lowBatteryAlerted = false;
+    if (batLevel <= 15 && !charging && !lowBatteryAlerted) {
+        HapticManager::playEffect(7); // Send a haptic signal
+        lowBatteryAlerted = true;
+        LOG_W(TAG, "Low battery warning: %d%%", batLevel);
+    } else if (batLevel > 20 || charging) {
+        lowBatteryAlerted = false; // Cancel the alert if any condition changed
+    }
 }

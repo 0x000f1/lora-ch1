@@ -42,6 +42,10 @@ public:
      * @return true if charging, false is discharging
      */
     static bool isCharging();
+    /**
+     * @brief Check if the battery is in low condition, send a haptic signal
+     */
+    static void checkLowBattery();
 private:
     static PowerProfile currentProfile;
 };

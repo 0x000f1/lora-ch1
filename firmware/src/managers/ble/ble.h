@@ -49,7 +49,7 @@ class BLEManager {
         static void stopBLE();
 
         // Store message functions
-        static char messageBuffer[MAX_STORED_MESSAGES][300]; // 10*300 char message capacity
+        static char messageBuffer[MAX_STORED_MESSAGES][300]; // 32*300 char message capacity
         static void storeMessage(const char* message);
         static void pushStoredMessages();
 };
