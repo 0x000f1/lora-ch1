@@ -20,6 +20,7 @@ char SystemManager::cachedControlUUID[40] = {0};
 char SystemManager::cachedUsername[32] = {0};
 char SystemManager::cachedColor[10] = {0};
 uint32_t SystemManager::cachedLoraID = 0;
+uint32_t SystemManager::cachedHapticsProfile = 0;
 
 String SystemManager::generateUUID() {
     String uuid = "";
@@ -59,6 +60,10 @@ String SystemManager::generateDefaultUsername() {
 
 String SystemManager::generateDefaultColor() {
     return String("0088FF"); // Light blue color
+}
+
+uint32_t SystemManager::generateDefaultHapticsProfile() {
+    return 1; // On first boot default the haptics is On
 }
 
 void SystemManager::checkIfExists(const char* key, String (*generator)()) {
@@ -110,6 +115,7 @@ void SystemManager::setupNVS() {
     checkIfExists("lora_id", generateLoRaID);
     checkIfExists("username", generateDefaultUsername);
     checkIfExists("color", generateDefaultColor);
+    checkIfExists("haptics", generateDefaultHapticsProfile);
 
     // Cache populating with error handling
     strncpy(cachedDeviceName, prefs.getString("device_name", "unknown-device").c_str(), sizeof(cachedDeviceName) - 1);
@@ -119,6 +125,7 @@ void SystemManager::setupNVS() {
     strncpy(cachedUsername, prefs.getString("username", "Guest").c_str(), sizeof(cachedUsername) - 1);
     strncpy(cachedColor, prefs.getString("color", "0088FF").c_str(), sizeof(cachedColor) - 1);
     cachedLoraID = prefs.getUInt("lora_id", 0);
+    cachedHapticsProfile = prefs.getUInt("haptics", 1);
 }
 
 // Getter methods from RAM with empty value handling
@@ -145,6 +152,20 @@ const char* SystemManager::getControlCharUUID() {
 uint32_t SystemManager::getLoRaID() {
     // Return the LoRa ID stored in CACHE
     return cachedLoraID;
+}
+
+void SystemManager::setHapticsProfile(uint32_t profileToggle) {
+    uint32_t safeStatus = profileToggle;
+    if (profileToggle != 0 && profileToggle != 1) safeStatus = 1;
+
+    prefs.putUInt("haptics", safeStatus);
+    cachedHapticsProfile = prefs.getUInt("haptics", 1);
+    LOG_I(TAG, "Haptics status updated in cache: %d", cachedHapticsProfile);
+}
+
+uint32_t SystemManager::getHapticsProfile() {
+    // Return the Haptics Profile (0/1) stored in CACHE
+    return cachedHapticsProfile;
 }
 
 void SystemManager::setUsername(const char* username) {

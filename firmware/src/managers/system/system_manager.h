@@ -20,7 +20,8 @@ public:
     static const char* getDataCharUUID();    // Retrieves the Data characteristic UUID from NVS.
     static const char* getControlCharUUID(); // Retrieves the Control characteristic UUID from NVS.
     static uint32_t getLoRaID();     // Retrieves the LoRa ID from NVS.
-
+    static uint32_t getHapticsProfile();    // Retrieves the current status of the device haptics (0/1)
+    static void setHapticsProfile(uint32_t profileToggle);    // Sets the haptics mode (0/1)
     static void setPowerProfile(PowerProfile profile); // Sets the power profile for the device (Battery Saver, Balanced, Performance).
     
     static void setUsername(const char* username); // Sets the username.
@@ -36,6 +37,7 @@ private:
     static char cachedUsername[32];
     static char cachedColor[10];
     static uint32_t cachedLoraID;
+    static uint32_t cachedHapticsProfile;
 
     static String generateUUID();       // Helper function to generate a random UUID (version 4).
     static String generateDeviceName(); // Helper function to generate a device name based on Prefix + MAC address.
@@ -43,6 +45,7 @@ private:
     // Default generators for user preferences
     static String generateDefaultUsername(); 
     static String generateDefaultColor();
+    static uint32_t generateDefaultHapticsProfile();
     static void checkIfExists(const char* key, String (*generator)()); // Checks if a key - value pair exists in NVS, if not generates and stores it.
     static void checkIfExists(const char* key, uint32_t (*generator)()); // Overloaded function for uint32_t values.
 };

@@ -1,6 +1,7 @@
 #include "haptic.h"
 #include <Wire.h>
 #include "utils/log_helper.h"
+#include "managers/system/system_manager.h"
 
 #define TAG "HAPTIC"
 
@@ -26,26 +27,30 @@ int HapticManager::setupHaptic() {
 }
 
 void HapticManager::playEffect(uint8_t effectId) {
-    digitalWrite(HAPTIC_EN_PIN, HIGH); // Turn on the chip
-    vTaskDelay(pdMS_TO_TICKS(2)); // Wait 2 ms to wakeup (250us should enough)
+    if (SystemManager::getHapticsProfile() != 0) {
+        digitalWrite(HAPTIC_EN_PIN, HIGH); // Turn on the chip
+        vTaskDelay(pdMS_TO_TICKS(2)); // Wait 2 ms to wakeup (250us should enough)
 
-    if (!drv.begin(Wire)) {
-        LOG_E(TAG, "DRV2605 init failed!");
-        digitalWrite(HAPTIC_EN_PIN, LOW);
-        return;
-    }
-    drv.selectLibrary(1);
-    drv.setMode(SensorDRV2605::MODE_INTTRIG);
+        if (!drv.begin(Wire)) {
+            LOG_E(TAG, "DRV2605 init failed!");
+            digitalWrite(HAPTIC_EN_PIN, LOW);
+            return;
+        }
+        drv.selectLibrary(1);
+        drv.setMode(SensorDRV2605::MODE_INTTRIG);
 
-    drv.setWaveform(0, effectId); // Load the effect into 'buffer' at position 0
-    drv.setWaveform(1, 0); // Sequence end marker (0) at position 1
-    drv.run(); // Play effect
-    
-    LOG_I(TAG, "Effect played (ID): %d", effectId);
+        drv.setWaveform(0, effectId); // Load the effect into 'buffer' at position 0
+        drv.setWaveform(1, 0); // Sequence end marker (0) at position 1
+        drv.run(); // Play effect
+        
+        LOG_I(TAG, "Effect played (ID): %d", effectId);
 
-    // Start the timer that automatically turn off the chip in 500ms
-    if (powerOffTimer != nullptr){
-        xTimerStart(powerOffTimer, 0);
+        // Start the timer that automatically turn off the chip in 500ms
+        if (powerOffTimer != nullptr){
+            xTimerStart(powerOffTimer, 0);
+        }
+    } else {
+        LOG_W(TAG, "Haptics is disabled in the settings!");
     }
 }
 

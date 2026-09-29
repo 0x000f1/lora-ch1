@@ -189,6 +189,26 @@ class controlCharStatusCallbacks : public NimBLECharacteristicCallbacks {
             nimBleChar->notify();
             LOG_I(TAG, "Time synced via BLE to UNIX epoch: %ld", timeValue.tv_sec);
         }
+        else if (strcmp(cmd, "GET_VIB") == 0) {
+            uint32_t hapticsStatus = SystemManager::getHapticsProfile();
+            char response[10];
+            snprintf(response, sizeof(response), "VIB;%d", hapticsStatus);
+            
+            nimBleChar->setValue(std::string(response));
+            nimBleChar->notify();
+            LOG_I(TAG, "Sent haptics status to client: %d", hapticsStatus);
+        }
+        else if (strncmp(cmd, "SET_VIB;", 8) == 0) {
+
+            const char* payloadStr = cmd + 8;
+
+            int32_t payloadValue = atoi(payloadStr);
+            SystemManager::setHapticsProfile(payloadValue);
+            
+            nimBleChar->setValue("VIB_OK");
+            nimBleChar->notify();
+            LOG_I(TAG, "Haptics status updated: %d", (uint8_t)payloadValue);
+        }
     }
 };
 

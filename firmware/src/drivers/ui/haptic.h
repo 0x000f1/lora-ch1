@@ -21,6 +21,11 @@ class HapticManager {
          */
         static int setupHaptic();
         /**
+         * @brief Toggles the haptic feedback.
+         * @param enableFeedback True: Feedback ON, False: Feedback OFF (Device silenced)
+         */
+        static bool isEnabledByUser(bool enabledFeedback);
+        /**
          * @brief Play a haptic effect.
          * @param effectNumber The number selects the effect to be played. See DRV2605L documentation for effect numbers.
          * @details This function will play the specified haptic effect on the motor driver.
