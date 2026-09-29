@@ -99,10 +99,9 @@ class controlCharStatusCallbacks : public NimBLECharacteristicCallbacks {
 
             if (count == 0) {
                 LOG_I(TAG, "No neighbors found.");
-                nimBleChar->setValue("NO_NEI");
+                nimBleChar->setValue("NEI|NO_NEI");
             } else {
-                std::string response = "";
-
+                std::string response = "NEI|";
                 for (uint8_t i = 0; i < count; i++) {
                     char responseBuffer[128];
                     snprintf(responseBuffer, sizeof(responseBuffer), 
