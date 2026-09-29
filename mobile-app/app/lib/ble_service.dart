@@ -128,3 +128,9 @@ Future<void> sendBroadcastMsg(String msg) async {
   await _dataChar?.write(utf8.encode(formattedMsg));
   print("Sent message $formattedMsg");
 }
+
+Future<void> sendPrivateMsg(String targetMac, String msg) async {
+  final formattedMsg = "$targetMac;1;1;$msg";
+  await sendOnDataChar(formattedMsg);
+}
+

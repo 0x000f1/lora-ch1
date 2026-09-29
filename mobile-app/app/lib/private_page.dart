@@ -1,7 +1,7 @@
 import 'dart:async';
-
 import 'package:app/ble_service.dart';
 import 'package:flutter/material.dart';
+import 'package:app/private_chat.dart';
 
 class PeerDevice {
   final String mac;
@@ -27,10 +27,15 @@ class _PrivatePageState extends State<PrivatePage> {
     super.initState();
     sendOnControlChar("GET_NEI");
 
-    // "subscribe" to control stream in ble_service.dart
+    // "subscribe" to control stream in ble_service.dart to listen to GET_NEI response
+    // NEI|MAC;NEI_USERNAME;RSSI;TIMESTAMP|MAC;etc...
     _controlSub = controlStream.listen((rawMsg) {
       if (mounted) {
-        if (rawMsg.contains("BAT") || rawMsg == "GET_NEI") return;
+        // only check for responses starting with NEI
+        if (!rawMsg.startsWith("NEI")) return;
+        // NEI tag in the first 4 chars no longer needed after check
+        print("rawMSG = $rawMsg");
+        rawMsg = rawMsg.substring(4, rawMsg.length);
         final List<PeerDevice> parsedDevices = [];
         if (rawMsg == "NO_NEI") {
           setState(() {
@@ -45,8 +50,8 @@ class _PrivatePageState extends State<PrivatePage> {
           if (deviceData.isNotEmpty) {
             print("Device data: $deviceData");
             final mac = deviceData[0];
-            final rssi = deviceData[1];
-            final name = "lora-ch-${mac.substring(mac.length - 4)}";
+            final name = deviceData[1];
+            final rssi = deviceData[2];
             parsedDevices.add(PeerDevice(mac: mac, rssi: rssi, name: name));
           }
         }
@@ -84,6 +89,14 @@ class _PrivatePageState extends State<PrivatePage> {
                 itemBuilder: (context, index) {
                   final device = _devices[index];
                   return ListTile(
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => PrivateChatPage(device: device),
+                        ),
+                      );
+                    },
                     leading: CircleAvatar(
                       backgroundColor: Colors.blue.shade800,
                       child: Icon(Icons.person, color: Colors.white),

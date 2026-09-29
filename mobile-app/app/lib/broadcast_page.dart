@@ -4,6 +4,7 @@ import 'package:app/bt_sheet.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_blue_plus/flutter_blue_plus.dart';
 import 'theme.dart';
+import 'package:app/widgets.dart';
 
 class ChatMessage {
   final String text;
@@ -18,11 +19,9 @@ class BroadcastPage extends StatefulWidget {
 
   const BroadcastPage({super.key, this.device, required this.scrollController});
 
-
   @override
   State<BroadcastPage> createState() => _BroadcastPageState();
 }
-
 
 class _BroadcastPageState extends State<BroadcastPage> {
   final TextEditingController _controller = TextEditingController();
@@ -33,24 +32,28 @@ class _BroadcastPageState extends State<BroadcastPage> {
   // data listener
   StreamSubscription? _dataSub;
 
-
+  @override
   void initState() {
     super.initState();
-    _connectionSub = FlutterBluePlus.events.onConnectionStateChanged.listen((event) {
-      // redraw on connect or disconnect
-      setState(() {});
+    _connectionSub = FlutterBluePlus.events.onConnectionStateChanged.listen((
+      event,
+    ) {
+      if (mounted) {
+        // redraw on connect or disconnect
+        setState(() {});
+      }
     });
 
     _dataSub = dataStream.listen((rawMsg) {
-      if(mounted) {
-        // SENDER_MAC;TARGET_MAC;CURRENT_FRAGMENT;TOTAL_FRAGMENTS;TIMESTAMP;RSSI;PAYLOAD
+      if (mounted) {
+        // SENDER_MAC;SENDER_USERNAME;TARGET_MAC;CURRENT_FRAGMENT;TOTAL_FRAGMENTS;TIMESTAMP;RSSI;PAYLOAD
         final parts = rawMsg.split(';');
 
-        if (parts.length >= 5){
+        if (parts.length >= 5) {
           print("Recieved message: $rawMsg");
-          final senderMac = parts[0];
+          final senderUsername = parts[1];
           // join message in case there is ';' in it
-          final payload = parts.sublist(6).join(';'); 
+          final payload = parts.sublist(7).join(';');
 
           setState(() {
             _messages.add(ChatMessage(text: payload, isMe: false));
@@ -58,10 +61,14 @@ class _BroadcastPageState extends State<BroadcastPage> {
         }
       }
     });
-
   }
 
-
+  @override
+  void dispose() {
+    _connectionSub?.cancel();
+    _dataSub?.cancel();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -85,81 +92,34 @@ class _BroadcastPageState extends State<BroadcastPage> {
   }
 
   Widget _buildMsgBubble(ChatMessage msg) {
-    // placeholder until device is connected
     String deviceName = "device";
-    
+
     if (chars.length == 2) {
       deviceName = chars[0].device.platformName;
     }
-    return Align(
-      alignment: msg.isMe ? Alignment.centerRight : Alignment.centerLeft,
-      child: Container(
-        margin: const EdgeInsets.symmetric(vertical: 5),
-        padding: const EdgeInsets.all(12),
-        decoration: msgDecoration(msg.isMe),
-        child: Column(
-          crossAxisAlignment: msg.isMe ? CrossAxisAlignment.end : CrossAxisAlignment.start,
-          children: [
-            Text(
-              deviceName,
-              style: TextStyle(
-                color: msg.isMe ? Colors.white : Colors.black87,
-                fontSize: 8,
-                ),
-            ),
-            Text(
-              msg.text,
-              style: TextStyle(color: msg.isMe ? Colors.white : Colors.black87),
-            ),
-          ],
-        ),
-      ),
+
+    return ChatBubble(
+      text: msg.text,
+      senderName: msg.isMe ? "Me" : "Other User",
+      isMe: msg.isMe,
     );
   }
 
   Widget _buildInputField() {
-    return Padding(
-      padding: const EdgeInsets.only(left: 16, right: 16, bottom: 90),
-      child: Row(
-        children: [
-          Expanded(
-            child: TextField(
-              controller: _controller,
-              decoration: InputDecoration(
-                hintText: "Message",
-                hintStyle: TextStyle(color: Colors.black),
-                filled: true,
-                fillColor: Colors.grey.shade100,
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(25),
-                  borderSide: BorderSide.none,
-                ),
-                contentPadding: const EdgeInsets.symmetric(horizontal: 20),
-              ),
-            ),
-          ),
-          const SizedBox(width: 8),
-          CircleAvatar(
-            backgroundColor: Colors.blue.shade800,
-            child: IconButton(
-              icon: const Icon(Icons.send, color: Colors.white, size: 20),
-              onPressed: () {
-                final text = _controller.text;
-                if (text.isNotEmpty) {
-                  sendBroadcastMsg(text);
+    return ChatInput(
+      controller: _controller,
+      bottomPadding: 90.0,
+      onSend: () {
+        final text = _controller.text;
+        if (text.isNotEmpty) {
+          sendBroadcastMsg(text);
 
-                  setState(() {
-                    _messages.add(ChatMessage(text: text, isMe: true));
-                  });
-                }
-                _controller.clear();
-
-
-              },
-            ),
-          ),
-        ],
-      ),
+          setState(() {
+            _messages.add(ChatMessage(text: text, isMe: true));
+          });
+        }
+        _controller.clear();
+      },
     );
   }
 }
