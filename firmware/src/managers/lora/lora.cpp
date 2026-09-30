@@ -373,7 +373,7 @@ void LoRaManager::handleFlags() {
                     // Check if the target address was broadcast.
                     bool isBroadcast = (header.targetAddress == BROADCAST_ADDRESS);
 
-                    // Format generation: SENDER;TARGET;CURRENT_FRAGMENT;TOTAL_FRAGMENT;TIMESTAMP;RSSI;PAYLOAD
+                    // Format generation: SENDER_ADDRESS;SENDER_USERNAME;TARGET_ADDRESS;CURRENT_FRAGMENT;TOTAL_FRAGMENT;TIMESTAMP;RSSI;PAYLOAD
                     snprintf(formattedString, sizeof(formattedString), "%08X;%s;%08X;%d;%d;%ld;%.2f;%s",
                                                                         header.senderAddress,
                                                                         header.senderUsername,

@@ -74,7 +74,7 @@ uint32_t SystemManager::generateLoRaID() {
 }
 
 String SystemManager::generateDefaultUsername() {
-    return String("Guest");
+    return SystemManager::generateDeviceName();
 }
 
 String SystemManager::generateDefaultColor() {
