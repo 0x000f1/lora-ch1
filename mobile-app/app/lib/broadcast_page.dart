@@ -9,8 +9,9 @@ import 'package:app/widgets.dart';
 class ChatMessage {
   final String text;
   final bool isMe;
+  final String senderName;
 
-  ChatMessage({required this.text, required this.isMe});
+  ChatMessage({required this.text, required this.isMe, required this.senderName});
 }
 
 class BroadcastPage extends StatefulWidget {
@@ -56,7 +57,7 @@ class _BroadcastPageState extends State<BroadcastPage> {
           final payload = parts.sublist(7).join(';');
 
           setState(() {
-            _messages.add(ChatMessage(text: payload, isMe: false));
+            _messages.add(ChatMessage(text: payload, isMe: false, senderName: senderUsername));
           });
         }
       }
@@ -81,27 +82,17 @@ class _BroadcastPageState extends State<BroadcastPage> {
             itemCount: _messages.length,
             itemBuilder: (context, index) {
               final msg = _messages[index];
-              return _buildMsgBubble(msg);
+              return ChatBubble(
+                text: msg.text,
+                senderName: msg.senderName,
+                isMe: msg.isMe,
+              );
             },
           ),
         ),
 
         _buildInputField(),
       ],
-    );
-  }
-
-  Widget _buildMsgBubble(ChatMessage msg) {
-    String deviceName = "device";
-
-    if (chars.length == 2) {
-      deviceName = chars[0].device.platformName;
-    }
-
-    return ChatBubble(
-      text: msg.text,
-      senderName: msg.isMe ? "Me" : "Other User",
-      isMe: msg.isMe,
     );
   }
 
@@ -115,7 +106,7 @@ class _BroadcastPageState extends State<BroadcastPage> {
           sendBroadcastMsg(text);
 
           setState(() {
-            _messages.add(ChatMessage(text: text, isMe: true));
+            _messages.add(ChatMessage(text: text, isMe: true, senderName: "Me"));
           });
         }
         _controller.clear();
