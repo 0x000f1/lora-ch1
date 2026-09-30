@@ -61,14 +61,14 @@ This channel is used to query the network status and manage system preferences.
     * *Action:* Syncs the ESP32's internal RTC to the real-world UNIX epoch time (e.g., `SET_TIM;1715423000`). Must be sent immediately after connecting.
     * *Response:* `TIM_OK`
   * `GET_NEI`
-    * *Response:* `MAC;NEI_USERNAME;RSSI;TIMESTAMP|MAC,RSSI;TIMESTAMP|` (e.g., `A1B2C3D4;Guest;-45.50;32125|...`) or `NO_NEI` if the list is empty.
+    * *Response:* `NEI|MAC;NEI_USERNAME;RSSI;TIMESTAMP|MAC;NEI_USERNAME;RSSI;TIMESTAMP|` (e.g., `NEI|A1B2C3D4;lora-ch1-XXXX;-45.50;32125|...`) or `NEI|NO_NEI` if the list is empty.
   * `GET_BAT`
     * *Response:* `BAT;Percentage;IsCharging` (e.g., `BAT;87;1` where 1 means charging, 0 means discharging).
   * `SET_USR;Username`
     * *Action:* Saves the string to NVS (max length depends on BLE MTU, trims whitespaces).
     * *Response:* `USR_OK`
   * `GET_USR`
-    * *Response:* `USR;Username` (Defaults to `Guest` if not set).
+    * *Response:* `USR;Username` (Defaults to `lora-ch1-XXXX` if not set).
   * `SET_COL;HexColor`
     * *Action:* Saves the UI color HEX string to NVS (e.g., `FF0000`).
     * *Response:* `COL_OK`
