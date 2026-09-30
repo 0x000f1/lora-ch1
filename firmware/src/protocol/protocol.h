@@ -35,6 +35,7 @@ struct DiscoveryInfo {
     uint32_t senderAddress; // Address of the neighbor
     char senderUsername[32]; // Username of the sender
     unsigned long timestamp; // Last seen timestamp
+    unsigned long lastSeenMillis; // Last seen in millis for timeout
     float rssi; // RSSI value of the last received message
 };
 #endif

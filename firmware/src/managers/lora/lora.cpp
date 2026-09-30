@@ -219,25 +219,25 @@ void LoRaManager::handleFlags() {
     if (heartbeatPending) {
         heartbeatPending = false;
         sendMessage(nullptr, 0, BROADCAST_ADDRESS, 1, 1, PKG_HEARTBEAT); // Sends a heartbeat message to broadcast
-        
-        // Delete the inactive neighbors (That device has been inactive for 120 sec).
-        unsigned long currentMillis = millis();
-        uint32_t timeoutMs = 1500000; // 25 min -> 1 500 000 ms
-
-        for (uint8_t i = 0; i < neighborCount;) {
-            if (currentMillis - neighbors[i].timestamp > timeoutMs){
-                LOG_I(TAG, "Neighbor timeout, removed: 0x%08X", neighbors[i].senderAddress);
-                for (uint8_t j = i; j < neighborCount - 1; j++){
-                    neighbors[j] = neighbors[j + 1];
-                }
-                neighborCount--;
-            } else {
-                i++;
-            }
-        }
 
         // Check the battery condition (If lower than 15 percent, warn the user)
         BatteryManager::checkLowBattery();
+    }
+
+    // Delete the inactive neighbors (That device has been inactive for 120 sec).
+    unsigned long currentMillis = millis();
+    uint32_t timeoutMs = 120000; // 2 min -> 120 000 ms
+
+    for (uint8_t i = 0; i < neighborCount;) {
+        if (currentMillis - neighbors[i].lastSeenMillis > timeoutMs){
+            LOG_I(TAG, "Neighbor timeout, removed: 0x%08X", neighbors[i].senderAddress);
+            for (uint8_t j = i; j < neighborCount - 1; j++){
+                neighbors[j] = neighbors[j + 1];
+            }
+            neighborCount--;
+        } else {
+            i++;
+        }
     }
 
     // If the 2 seconds elapsed, and not received ACK type package
@@ -410,6 +410,7 @@ void LoRaManager::updateNeighbor(uint32_t senderAddress, const char* username, f
     // FAIL-SAFE: 1704067200 = 2024. 01. 1
     // If the ESP time is less than the FAIL-SAFE time, there it is outdated. Set it to 0.
     long safeTimestamp = (now < 1704067200) ? 0 : (long)now;
+    unsigned long currentMillis = millis(); // Timestamp used for internal timeout
     
     // Check if the sender is already in the neighbors list
     for (uint8_t i = 0; i < neighborCount; i++) {
@@ -417,6 +418,7 @@ void LoRaManager::updateNeighbor(uint32_t senderAddress, const char* username, f
             strncpy(neighbors[i].senderUsername, username, sizeof(neighbors[i].senderUsername) - 1);
             neighbors[i].senderUsername[sizeof(neighbors[i].senderUsername) - 1] = '\0';
             neighbors[i].timestamp = safeTimestamp; // Update timestamp (last seen)
+            neighbors[i].lastSeenMillis = currentMillis;
             neighbors[i].rssi = rssi; // Update RSSI value (signal strength)
             return;
         }
@@ -429,6 +431,7 @@ void LoRaManager::updateNeighbor(uint32_t senderAddress, const char* username, f
         neighbors[neighborCount].senderUsername[sizeof(neighbors[neighborCount].senderUsername) - 1] = '\0';
         neighbors[neighborCount].rssi = rssi;
         neighbors[neighborCount].timestamp = safeTimestamp;
+        neighbors[neighborCount].lastSeenMillis = currentMillis;
         neighborCount++;
         LOG_I(TAG, "New neighbor added: 0x%08X (%s) with RSSI: %f", senderAddress, username, rssi);
     } else {
