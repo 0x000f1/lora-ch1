@@ -387,7 +387,7 @@ void LoRaManager::handleFlags() {
                     LOG_I(TAG, "Received DATA package: %s", formattedString);
                     // Play haptics if the message was P2P or a client was connected.
                     (!BLEManager::isConnected() || !isBroadcast) ? HapticManager::playEffect(52) :
-                    LOG_I(TAG, "Haptics not played, because there is no connected devices or the message was broadcast.");
+                    LOG_I(TAG, "Haptics not played, because there is a connected device or the message was broadcast.");
                     BLEManager::pushMessage(formattedString, isBroadcast); // Forward the message to the BLE Manager to notify connected clients.
                 }
             }
@@ -404,12 +404,19 @@ void LoRaManager::handleFlags() {
 }
 
 void LoRaManager::updateNeighbor(uint32_t senderAddress, const char* username, float rssi) {
+    time_t now;
+    time(&now);
+
+    // FAIL-SAFE: 1704067200 = 2024. 01. 1
+    // If the ESP time is less than the FAIL-SAFE time, there it is outdated. Set it to 0.
+    long safeTimestamp = (now < 1704067200) ? 0 : (long)now;
+    
     // Check if the sender is already in the neighbors list
     for (uint8_t i = 0; i < neighborCount; i++) {
         if (neighbors[i].senderAddress == senderAddress) {
             strncpy(neighbors[i].senderUsername, username, sizeof(neighbors[i].senderUsername) - 1);
             neighbors[i].senderUsername[sizeof(neighbors[i].senderUsername) - 1] = '\0';
-            neighbors[i].timestamp = millis(); // Update timestamp (last seen)
+            neighbors[i].timestamp = safeTimestamp; // Update timestamp (last seen)
             neighbors[i].rssi = rssi; // Update RSSI value (signal strength)
             return;
         }
@@ -421,7 +428,7 @@ void LoRaManager::updateNeighbor(uint32_t senderAddress, const char* username, f
         strncpy(neighbors[neighborCount].senderUsername, username, sizeof(neighbors[neighborCount].senderUsername) - 1);
         neighbors[neighborCount].senderUsername[sizeof(neighbors[neighborCount].senderUsername) - 1] = '\0';
         neighbors[neighborCount].rssi = rssi;
-        neighbors[neighborCount].timestamp = millis();
+        neighbors[neighborCount].timestamp = safeTimestamp;
         neighborCount++;
         LOG_I(TAG, "New neighbor added: 0x%08X (%s) with RSSI: %f", senderAddress, username, rssi);
     } else {
