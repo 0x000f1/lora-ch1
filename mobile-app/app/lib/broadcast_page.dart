@@ -51,7 +51,7 @@ class _BroadcastPageState extends State<BroadcastPage> {
         final parts = rawMsg.split(';');
 
         if (parts.length >= 5) {
-          print("Recieved message: $rawMsg");
+          debugPrint("Recieved message: $rawMsg");
           final senderUsername = parts[1];
           // join message in case there is ';' in it
           final payload = parts.sublist(7).join(';');
