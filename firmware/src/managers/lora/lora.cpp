@@ -32,6 +32,7 @@ volatile bool LoRaManager::heartbeatPending = false;
 uint8_t LoRaManager::currentSequenceNumber = 0; // Initialize sequence number
 uint32_t LoRaManager::totalAirTimeMs = 0;
 unsigned long LoRaManager::statsStartTime = 0;
+unsigned long LoRaManager::nextTxAllowedMillis = 0;
 DiscoveryInfo LoRaManager::neighbors[MAX_NEIGHBORS];
 uint8_t LoRaManager::neighborCount = 0;
 
@@ -253,12 +254,18 @@ void LoRaManager::sendMessage(uint8_t* data, size_t length, uint32_t targetAddre
     }
 
     // Air Time calculation for statistics and duty cycle measurement
-    float airTime = loraModule.getTimeOnAir(sizeof(PackageHeader) + length) / 1000.0f; // Convert to milliseconds
+    float airTime = loraModule.getTimeOnAir(sizeof(PackageHeader) + length) / 1000.0f;
 
     LOG_I(TAG, "TX to 0x%08X | Type: %d | Seq: %d | Air Time: %.2f ms | Package %d of %d",
           targetAddress, packageType, sequenceNumber, airTime, currentFragment, totalFragment);
 
     // if (cadRxTimer != nullptr) xTimerStop(cadRxTimer, 0);
+
+    // 10% duty cycle hardware limitation
+    uint32_t requiredOffTimeMs = (uint32_t)(airTime * 9.0f); // In 10 units 1 can used, 9 can't usable
+    nextTxAllowedMillis = millis() + requiredOffTimeMs;
+    LOG_I(TAG, "Duty Cycle (10%%) enforced: TX paused for %lu ms", requiredOffTimeMs);
+
 
     loraModule.standby();
     // isScanning = false;
@@ -299,7 +306,7 @@ void LoRaManager::handleFlags() {
      * Only start a new transmission when the radio is idle.
      * DATA packets are taken from the FreeRTOS queue.
      */
-    if (!isTransmitting && !waitingForAck) {
+    if (!isTransmitting && !waitingForAck && millis() >= nextTxAllowedMillis) {
         TxMessage message{};
 
         if (txQueue != nullptr &&
@@ -314,7 +321,7 @@ void LoRaManager::handleFlags() {
         }
     }
 
-    if (!isTransmitting && !waitingForAck && heartbeatPending) {
+    if (!isTransmitting && !waitingForAck && heartbeatPending && millis() >= nextTxAllowedMillis) {
         heartbeatPending = false;
         sendHeartbeat(); // Sends a discovery/heartbeat message to broadcast
 

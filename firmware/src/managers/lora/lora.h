@@ -89,6 +89,7 @@ class LoRaManager {
         static uint32_t totalAirTimeMs;
         static unsigned long statsStartTime;
         static void updateDutyCycle(uint32_t currentAirTimeMs);
+        static unsigned long nextTxAllowedMillis;
 
         // Neighbors
         static DiscoveryInfo neighbors[MAX_NEIGHBORS];
