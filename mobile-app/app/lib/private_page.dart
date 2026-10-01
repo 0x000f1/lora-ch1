@@ -42,7 +42,6 @@ class _PrivatePageState extends State<PrivatePage> {
         if (!rawMsg.startsWith("NEI")) return;
         // NEI tag in the first 4 chars no longer needed after check
         debugPrint("rawMSG = $rawMsg");
-        rawMsg = rawMsg.substring(4, rawMsg.length);
         final List<PeerDevice> parsedDevices = [];
         if (rawMsg == "NEI|NO_NEI") {
           // if the device returns NO_NEI, keep current list to mark them as offline until the 10 minute TTL
@@ -51,6 +50,8 @@ class _PrivatePageState extends State<PrivatePage> {
           });
           return;
         }
+        // remove NEI flag from the beginning
+        rawMsg = rawMsg.substring(4, rawMsg.length);
 
         // store devices in a map for up to 10 minutes
         final Map<String, PeerDevice> deviceMap = {
@@ -196,8 +197,12 @@ Widget getSignalIconFromRssi(String rssiStr, int timeStamp) {
   // device is considered offline if its missing for more then 2 minteutes
   bool isOffline = ((currentTime - timeStamp) > hardwareTtl);
 
-  if (isOffline){
-    return const Icon(Icons.signal_cellular_nodata_rounded, color: Colors.black, size: 16);
+  if (isOffline) {
+    return const Icon(
+      Icons.signal_cellular_nodata_rounded,
+      color: Colors.black,
+      size: 16,
+    );
   }
 
   double rssi = double.tryParse(rssiStr) ?? -100;

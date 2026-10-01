@@ -1,7 +1,9 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:nativewrappers/_internal/vm/lib/ffi_allocation_patch.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_blue_plus/flutter_blue_plus.dart';
+import 'package:path/path.dart';
 
 // control characteristic for commands
 BluetoothCharacteristic? _controlChar;
@@ -17,6 +19,10 @@ final _dataStreamController = StreamController<String>.broadcast();
 Stream<String> get controlStream => _controlStreamController.stream;
 Stream<String> get dataStream => _dataStreamController.stream;
 
+// global subscriptions to handle canceling them later
+StreamSubscription? _dataBleSub;
+StreamSubscription? _controlBleSub;
+
 // set up reading "listener"
 Future<void> setupBleCommunication(
   BluetoothCharacteristic control,
@@ -29,22 +35,29 @@ Future<void> setupBleCommunication(
   await _dataChar!.setNotifyValue(true);
   await _controlChar!.setNotifyValue(true);
 
+  // stop previous listeners to prevent duplicates when a device reconnects multiple times
+  await _dataBleSub?.cancel();
+  await _controlBleSub?.cancel();
+
   // store any incoming messages in the ble stream
-  _dataChar!.lastValueStream.listen((value) {
+  _dataBleSub = _dataChar!.lastValueStream.listen((value) {
     if (value.isNotEmpty) {
       _dataStreamController.add(utf8.decode(value));
     }
   });
 
-  _controlChar!.lastValueStream.listen((value) {
+  _controlBleSub = _controlChar!.lastValueStream.listen((value) {
     if (value.isNotEmpty) {
       String rawMsg = utf8.decode(value);
 
       if (rawMsg.startsWith("BAT;")) {
-        batteryLevel.value =
-            int.tryParse(rawMsg.split(";")[1]) ?? batteryLevel.value;
+        final parts = rawMsg.split(";");
+        if (parts.length >= 2) {
+          batteryLevel.value =
+              int.tryParse(rawMsg.split(";")[1]) ?? batteryLevel.value;
+        }
       }
-      _controlStreamController.add(utf8.decode(value));
+      _controlStreamController.add(value.toString());
     }
   });
 }
@@ -65,7 +78,7 @@ Future<void> _setDeviceTime() async {
       final response = controlStream
           .firstWhere((msg) => msg == "TIM_OK")
           .timeout(const Duration(seconds: 2));
-      
+
       sendOnControlChar("SET_TIM;$currentTime");
       // wait for response
       await response;

@@ -50,7 +50,7 @@ class _BroadcastPageState extends State<BroadcastPage> {
         // SENDER_MAC;SENDER_USERNAME;TARGET_MAC;CURRENT_FRAGMENT;TOTAL_FRAGMENTS;TIMESTAMP;RSSI;PAYLOAD
         final parts = rawMsg.split(';');
 
-        if (parts.length >= 5) {
+        if (parts.length >= 8) {
           debugPrint("Recieved message: $rawMsg");
           final senderUsername = parts[1];
           // join message in case there is ';' in it
