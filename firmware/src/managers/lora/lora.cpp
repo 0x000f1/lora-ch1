@@ -8,7 +8,7 @@
 #include <time.h>
 
 #define TAG "LORA"
-#define BAND 433.0
+#define BAND 433.175
 #define BANDWIDTH 125.0
 #define SPREADING_FACTOR 8
 #define CODING_RATE 5
