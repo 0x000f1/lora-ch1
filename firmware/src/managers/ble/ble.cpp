@@ -27,7 +27,7 @@ bool BLEManager::isBLEActive() {
 }
 
 bool BLEManager::isConnected() {
-    return server->getConnectedCount() > 0;
+    return server != nullptr && server->getConnectedCount() > 0;
 }
 
 void BLEManager::stopBLE() {
@@ -72,11 +72,6 @@ class serverStatusCallback : public NimBLEServerCallbacks {
         LOG_I(TAG, "Client connected: %s", connInfo.getAddress().toString().c_str());
         nimBleServer->updateConnParams(connInfo.getConnHandle(), 24, 48, 0, 180);
         BLEManager::stopPairingMode();
-
-        // If there is a stored message, push it to the connected device.
-        if (BLEManager::messageCount > 0) {
-            BLEManager::pushStoredPending = true;
-        }
     }
     // Handle client disconnections and restart advertising to allow new clients to connect.
     void onDisconnect(NimBLEServer* nimBleServer, NimBLEConnInfo& connInfo, int reason) override {
@@ -94,8 +89,14 @@ class controlCharStatusCallbacks : public NimBLECharacteristicCallbacks {
         LOG_I(TAG, "Control Characteristic written by client: %s", cmd);
 
         if (strcmp(cmd, "GET_NEI") == 0) {
+            DiscoveryInfo list[MAX_NEIGHBORS];
             uint8_t count = 0;
-            DiscoveryInfo* list = LoRaManager::getNeighbors(count);
+
+            if (!LoRaManager::getNeighbors(list, MAX_NEIGHBORS, count)) {
+                nimBleChar->setValue("NEI_ERR");
+                nimBleChar->notify();
+                return;
+            }
 
             if (count == 0) {
                 LOG_I(TAG, "No neighbors found.");
@@ -105,9 +106,12 @@ class controlCharStatusCallbacks : public NimBLECharacteristicCallbacks {
                 for (uint8_t i = 0; i < count; i++) {
                     char responseBuffer[128];
                     snprintf(responseBuffer, sizeof(responseBuffer), 
-                                            "%08X;%s;%.2f;%lu|",
+                                            "%08X;%s;%02X%02X%02X;%.2f;%lu|",
                                             list[i].senderAddress, 
                                             list[i].senderUsername,
+                                            list[i].colorR,
+                                            list[i].colorG,
+                                            list[i].colorB,
                                             list[i].rssi, 
                                             list[i].timestamp);
                     response += responseBuffer;
@@ -279,6 +283,14 @@ class dataCharStatusCallbacks : public NimBLECharacteristicCallbacks {
         
         LoRaManager::queueMessage((uint8_t*)payload, payloadLength, targetAddress, currentFragment, totalFragment); // Forward the new value to the LoRa Manager to send it over LoRa.
     }
+
+    void onSubscribe(NimBLECharacteristic* characteristic, NimBLEConnInfo& connInfo, uint16_t subValue) override {
+        LOG_I(TAG, "DATA subscription changed: 0x%04X", subValue);
+
+        if (subValue != 0 && BLEManager::messageCount > 0) {
+            BLEManager::pushStoredPending = true;
+        }
+    }
 };
 
 void BLEManager::pairingTimerCallback(TimerHandle_t xTimer) {
@@ -407,15 +419,31 @@ void BLEManager::storeMessage(const char* message) {
 }
 
 void BLEManager::pushStoredMessages() {
-    if (messageCount > 0 && server != nullptr && server->getConnectedCount() > 0) {
-        LOG_I(TAG, "Pushing %d stored messages to client...", messageCount);
-        for (uint8_t i = 0; i < messageCount; i++) {
-            dataCharacteristic->setValue(std::string(messageBuffer[i]));
-            dataCharacteristic->notify();
-            LOG_I(TAG, "Pushed stored message: %s", messageBuffer[i]);
-            vTaskDelay(pdMS_TO_TICKS(50)); // 50 ms break for BLE stability
+    if (messageCount == 0 || server == nullptr || server->getConnectedCount() == 0) {
+        return;
+    }
+
+    LOG_I(TAG, "Pushing %d stored messages to client...", messageCount);
+
+    uint8_t i = 0;
+    while (i < messageCount) {
+        dataCharacteristic->setValue(std::string(messageBuffer[i]));
+        bool success = dataCharacteristic->notify();
+
+        if (!success) {
+            LOG_W(TAG, "BLE notify failed");
+            return;
         }
-        messageCount = 0; // Clear buffer
+
+        LOG_I(TAG, "Pushed stored message: %s", messageBuffer[i]);
+
+        for (uint8_t j = i; j < messageCount - 1; ++j) {
+            strncpy(messageBuffer[j], messageBuffer[j + 1], sizeof(messageBuffer[j]) - 1);
+            messageBuffer[j][sizeof(messageBuffer[j]) - 1] = '\0';
+        }
+        messageCount--;
+
+        vTaskDelay(pdMS_TO_TICKS(50)); // 50 ms break for BLE stability
     }
 }
 

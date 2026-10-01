@@ -69,7 +69,7 @@ uint32_t SystemManager::generateLoRaID() {
     uint8_t mac[6];
     esp_read_mac(mac, ESP_MAC_WIFI_STA);
     // Last 4 bytes of the MAC are used to generate the LoRa ID
-    uint32_t id = (mac[2] << 24) | (mac[3] << 16) | (mac[4] << 8) | mac[5];
+    uint32_t id = ((uint32_t)mac[2] << 24) | ((uint32_t)mac[3] << 16) | ((uint32_t)mac[4] << 8) | (uint32_t)mac[5];
     return id;
 }
 
@@ -192,9 +192,19 @@ void SystemManager::setUsername(const char* username) {
     safeName.trim(); // Trim the unnecessary characters
     
     if (safeName.length() == 0) safeName = "Guest"; // If input is none, set back to default
+
+    if (safeName.indexOf(';') >= 0 || safeName.indexOf('|') >= 0) {
+        safeName = "Guest";
+    }
+
+    if (safeName.length() > sizeof(cachedUsername) - 1) {
+        safeName.remove(sizeof(cachedUsername) - 1);
+    }
     
     prefs.putString("username", safeName);
+    memset(cachedUsername, 0, sizeof(cachedUsername));
     strncpy(cachedUsername, safeName.c_str(), sizeof(cachedUsername) - 1);
+    cachedUsername[sizeof(cachedUsername) - 1] = '\0';
     LOG_I(TAG, "Username updated in cache: %s", cachedUsername);
 }
 
@@ -207,10 +217,26 @@ void SystemManager::setColor(const char* hexColor) {
     String safeColor = String(hexColor);
     safeColor.trim();
     
-    if (safeColor.length() != 6) safeColor = "0088FF";
+    bool valid = safeColor.length() == 6;
+    if (valid) {
+        for (uint8_t i = 0; i < 6; ++i) {
+            char c = safeColor[i];
+            bool isHex = (c >= '0' && c <= '9') ||
+                         (c >= 'A' && c <= 'F') ||
+                         (c >= 'a' && c <= 'f');
+            if (!isHex) {
+                valid = false;
+                break;
+            }
+        }
+    }
+
+    if (!valid) safeColor = "0088FF";
     
     prefs.putString("color", safeColor);
+    memset(cachedColor, 0, sizeof(cachedColor));
     strncpy(cachedColor, safeColor.c_str(), sizeof(cachedColor) - 1);
+    cachedColor[sizeof(cachedColor) - 1] = '\0';
     LOG_I(TAG, "Color updated in cache: %s", cachedColor);
 }
 

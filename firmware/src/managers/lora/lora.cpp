@@ -32,6 +32,7 @@ volatile bool LoRaManager::heartbeatPending = false;
 uint8_t LoRaManager::currentSequenceNumber = 0; // Initialize sequence number
 uint32_t LoRaManager::totalAirTimeMs = 0;
 unsigned long LoRaManager::statsStartTime = 0;
+unsigned long LoRaManager::nextTxAllowedMillis = 0;
 DiscoveryInfo LoRaManager::neighbors[MAX_NEIGHBORS];
 uint8_t LoRaManager::neighborCount = 0;
 
@@ -41,18 +42,24 @@ uint8_t LoRaManager::retryCount = 0;
 const uint8_t LoRaManager::MAX_RETRIES = 3; // Max 3 retries before drop the package
 volatile bool LoRaManager::waitingForAck = false;
 
-uint8_t LoRaManager::lastPayload[PAYLOAD_SIZE];
+uint8_t LoRaManager::lastPayload[
+    PAYLOAD_SIZE - sizeof(PackageHeader)
+];
+
 size_t LoRaManager::lastPayloadLength = 0;
 uint32_t LoRaManager::lastTargetAddress = 0;
 uint8_t LoRaManager::lastCurrentFragment = 0;
 uint8_t LoRaManager::lastTotalFragment = 0;
+uint8_t LoRaManager::lastSequenceNumber = 0;
 
-volatile bool LoRaManager::txPending = false;
-uint8_t LoRaManager::txPendingPayload[PAYLOAD_SIZE];
-size_t LoRaManager::txPendingLength = 0;
-uint32_t LoRaManager::txPendingTarget = 0;
-uint8_t LoRaManager::txPendingCurrentFrag = 0;
-uint8_t LoRaManager::txPendingTotalFrag = 0;
+QueueHandle_t LoRaManager::txQueue = nullptr;
+
+uint32_t LoRaManager::heartbeatIntervalSeconds = 600;
+
+LoRaManager::ReceivedPacket
+    LoRaManager::receivedCache[MAX_RECEIVED_CACHE];
+
+uint8_t LoRaManager::receivedCacheCount = 0;
 
 // CAD variables
 // TimerHandle_t LoRaManager::cadRxTimer = nullptr;
@@ -75,7 +82,7 @@ bool isTransmitting = false;      // Current state: true = waiting for transmiss
 // bool isScanning = false;          // true = CAD scanning in the background
 
 // Interrupt callback stored in RAM to ensure fast access.
-void ICACHE_RAM_ATTR LoRaManager::setFlag() {
+void IRAM_ATTR LoRaManager::setFlag() {
     actionFlag = true;
 
     // FreeRTOS task wake up from interrupt (instantly wake up on received)
@@ -89,6 +96,16 @@ void ICACHE_RAM_ATTR LoRaManager::setFlag() {
 }
 
 int LoRaManager::setupLoRa() {
+    txQueue = xQueueCreate(
+        8,
+        sizeof(TxMessage)
+    );
+
+    if (txQueue == nullptr) {
+        LOG_E(TAG, "Failed to create TX queue");
+        return -1;
+    }
+
     loraSPI.begin(LORA_SCK, LORA_MISO, LORA_MOSI, LORA_NSS);
     statsStartTime = millis(); // Start the timer for duty cycle statistics.
 
@@ -97,6 +114,10 @@ int LoRaManager::setupLoRa() {
     // CAD Timer
     // cadRxTimer = xTimerCreate("cadRxTimer", pdMS_TO_TICKS(30), pdTRUE, nullptr, cadRxTimerCallback);
     // rxTimeoutTimer = xTimerCreate("rxTimeoutTimer", pdMS_TO_TICKS(1500), pdFALSE, nullptr, rxTimeoutTimerCallback); // If the CAD alert was false
+    if (ackTimer == nullptr) {
+        LOG_E(TAG, "Failed to create ACK timer");
+        return -2;
+    }
 
     LOG_I(TAG, "Initializing SX1278...");
     int state = loraModule.begin(BAND, BANDWIDTH, SPREADING_FACTOR, CODING_RATE, SYNC_WORD, POWER, PREAMBLE_LENGTH, GAIN);
@@ -129,73 +150,143 @@ void LoRaManager::startReceive() {
 }
 
 void LoRaManager::queueMessage(uint8_t* data, size_t length, uint32_t targetAddress, uint8_t currentFragment, uint8_t totalFragment) {
-    if (length > PAYLOAD_SIZE) return;
-    
-    memcpy(txPendingPayload, data, length);
-    txPendingLength = length;
-    txPendingTarget = targetAddress;
-    txPendingCurrentFrag = currentFragment;
-    txPendingTotalFrag = totalFragment;
-    
-    txPending = true;
+    constexpr size_t MAX_DATA_LENGTH = PAYLOAD_SIZE - sizeof(PackageHeader);
+
+    if (data == nullptr && length > 0) {
+        LOG_E(TAG, "queueMessage: NULL data");
+        return;
+    }
+
+    if (length > MAX_DATA_LENGTH) {
+        LOG_W(TAG, "Payload too large: %u > %u", (unsigned)length, (unsigned)MAX_DATA_LENGTH);
+        return;
+    }
+
+    if (txQueue == nullptr) {
+        LOG_E(TAG, "TX queue not initialized");
+        return;
+    }
+
+    TxMessage message{};
+
+    message.length = length;
+    message.targetAddress = targetAddress;
+    message.currentFragment = currentFragment;
+    message.totalFragment = totalFragment;
+
+    if (length > 0) {
+        memcpy(message.data, data, length);
+    }
+
+    if (xQueueSend(txQueue, &message, 0) != pdPASS) {
+        LOG_W(TAG,"TX queue full - message dropped");
+    }
 }
 
-void LoRaManager::sendMessage(uint8_t* data, size_t length, uint32_t targetAddress, uint8_t currentFragment, uint8_t totalFragment, PackageType packageType, bool isRetry) {
+void LoRaManager::sendMessage(uint8_t* data, size_t length, uint32_t targetAddress, uint8_t currentFragment, uint8_t totalFragment, PackageType packageType, bool isRetry, uint8_t sequenceNumber) {
     LOG_I(TAG, "Preparing to send data of length %d", length);
     // if (cadRxTimer != nullptr) xTimerStop(cadRxTimer, 0); // Stop CAD while transmitting
-    
+
+    if (data == nullptr && length > 0) {
+        LOG_E(TAG, "sendMessage: NULL data");
+        return;
+    }
+
     if (length > (PAYLOAD_SIZE - sizeof(PackageHeader))) {
         LOG_E(TAG, "Data length exceeds payload size...");
         return;
     }
 
+    // Do not interrupt a transmission already on the air.
+    if (isTransmitting) {
+        LOG_W(TAG, "TX already active, transmission deferred.");
+        return;
+    }
+
+    /*
+     * A retry must use exactly the same sequence number as the
+     * original transmission. A new DATA packet gets a new sequence.
+     */
+    if (sequenceNumber == 0xFF) {
+        if (isRetry) {
+            sequenceNumber = lastSequenceNumber;
+        } else {
+            sequenceNumber = currentSequenceNumber++;
+        }
+    }
+
     if (packageType == PKG_DATA && targetAddress != BROADCAST_ADDRESS) {
         if (!isRetry) {
             // If the message is new (not resending), save the parameters
-            memcpy(lastPayload, data, length);
+            if (length > 0) {
+                memcpy(lastPayload, data, length);
+            }
             lastPayloadLength = length;
             lastTargetAddress = targetAddress;
             lastCurrentFragment = currentFragment;
             lastTotalFragment = totalFragment;
+            lastSequenceNumber = sequenceNumber;
             retryCount = 0;
         }
+
         waitingForAck = true;
-        if (ackTimer != nullptr) xTimerStart(ackTimer, 0);
+
+        if (ackTimer != nullptr) {
+            xTimerStop(ackTimer, 0);
+            xTimerStart(ackTimer, 0);
+        }
     }
 
-    PackageHeader header;
+    PackageHeader header{};
     header.senderAddress = SystemManager::getLoRaID();
-    memset(header.senderUsername, 0, sizeof(header.senderUsername));
-    strncpy(header.senderUsername, SystemManager::getUsername(), sizeof(header.senderUsername) - 1);
     header.targetAddress = targetAddress;
     header.packageType = packageType;
-    header.sequenceNumber = currentSequenceNumber++;
+    header.sequenceNumber = sequenceNumber;
     header.currentFragment = currentFragment;
     header.totalFragments = totalFragment;
 
     // Combine header into one message buffer
     uint8_t txBuffer[PAYLOAD_SIZE];
     memcpy(txBuffer, &header, sizeof(PackageHeader));
-    memcpy(txBuffer + sizeof(PackageHeader), data, length);
+
+    if (length > 0) {
+        memcpy(txBuffer + sizeof(PackageHeader), data, length);
+    }
 
     // Air Time calculation for statistics and duty cycle measurement
-    float airTime = loraModule.getTimeOnAir(sizeof(PackageHeader) + length) / 1000.0f; // Convert to milliseconds
+    float airTime = loraModule.getTimeOnAir(sizeof(PackageHeader) + length) / 1000.0f;
 
-    LOG_I(TAG, "TX to 0x%08X | Type: %d | Air Time: %.2f ms | Package %d of %d", targetAddress, packageType, airTime, currentFragment, totalFragment);
+    LOG_I(TAG, "TX to 0x%08X | Type: %d | Seq: %d | Air Time: %.2f ms | Package %d of %d",
+          targetAddress, packageType, sequenceNumber, airTime, currentFragment, totalFragment);
 
-    // if (cadRxTimer != nullptr) xTimerStop(cadRxTimer, 0); 
-    
-    loraModule.standby(); 
+    // if (cadRxTimer != nullptr) xTimerStop(cadRxTimer, 0);
+
+    // 10% duty cycle hardware limitation
+    uint32_t requiredOffTimeMs = (uint32_t)(airTime * 9.0f); // In 10 units 1 can used, 9 can't usable
+    nextTxAllowedMillis = millis() + requiredOffTimeMs;
+    LOG_I(TAG, "Duty Cycle (10%%) enforced: TX paused for %lu ms", requiredOffTimeMs);
+
+
+    loraModule.standby();
     // isScanning = false;
     actionFlag = false;
     isTransmitting = true;
 
     int state = loraModule.startTransmit(txBuffer, sizeof(PackageHeader) + length);
-    
+
     if (state != RADIOLIB_ERR_NONE) {
         LOG_E(TAG, "Transmit start failed: %d", state);
+        isTransmitting = false;
+
+        if (packageType == PKG_DATA && targetAddress != BROADCAST_ADDRESS) {
+            waitingForAck = false;
+            if (ackTimer != nullptr) {
+                xTimerStop(ackTimer, 0);
+            }
+        }
+
         startReceive(); // Return to receive mode if transmission fails.
-    }else{
+    } else {
         updateDutyCycle((uint32_t)airTime); // Update duty cycle stats with the current air time.
     }
 }
@@ -211,22 +302,36 @@ void LoRaManager::updateDutyCycle(uint32_t currentAirTimeMs) {
 }
 
 void LoRaManager::handleFlags() {
-    if (txPending) {
-        txPending = false;
-        sendMessage(txPendingPayload, txPendingLength, txPendingTarget, txPendingCurrentFrag, txPendingTotalFrag, PKG_DATA);
+    /*
+     * Only start a new transmission when the radio is idle.
+     * DATA packets are taken from the FreeRTOS queue.
+     */
+    if (!isTransmitting && !waitingForAck && millis() >= nextTxAllowedMillis) {
+        TxMessage message{};
+
+        if (txQueue != nullptr &&
+            xQueueReceive(txQueue, &message, 0) == pdPASS) {
+
+            sendMessage(message.data,
+                        message.length,
+                        message.targetAddress,
+                        message.currentFragment,
+                        message.totalFragment,
+                        PKG_DATA);
+        }
     }
 
-    if (heartbeatPending) {
+    if (!isTransmitting && !waitingForAck && heartbeatPending && millis() >= nextTxAllowedMillis) {
         heartbeatPending = false;
-        sendMessage(nullptr, 0, BROADCAST_ADDRESS, 1, 1, PKG_HEARTBEAT); // Sends a heartbeat message to broadcast
+        sendHeartbeat(); // Sends a discovery/heartbeat message to broadcast
 
         // Check the battery condition (If lower than 15 percent, warn the user)
         BatteryManager::checkLowBattery();
     }
 
-    // Delete the inactive neighbors (That device has been inactive for 120 sec).
+    // Delete the inactive neighbors (That device has been inactive for heartbeat interval).
     unsigned long currentMillis = millis();
-    uint32_t timeoutMs = 120000; // 2 min -> 120 000 ms
+    uint32_t timeoutMs = heartbeatIntervalSeconds * 2500UL;
 
     for (uint8_t i = 0; i < neighborCount;) {
         if (currentMillis - neighbors[i].lastSeenMillis > timeoutMs){
@@ -247,12 +352,12 @@ void LoRaManager::handleFlags() {
             if (retryCount < MAX_RETRIES) {
                 retryCount++;
                 LOG_W(TAG, "ACK timeout! Retrying send message to 0x%08X (Attempt %d/%d)", lastTargetAddress, retryCount, MAX_RETRIES);
-                sendMessage(lastPayload, lastPayloadLength, lastTargetAddress, lastCurrentFragment, lastTotalFragment, PKG_DATA, true);
+                sendMessage(lastPayload, lastPayloadLength, lastTargetAddress, lastCurrentFragment, lastTotalFragment, PKG_DATA, true, lastSequenceNumber);
             } else {
                 LOG_E(TAG, "Max retries reached. Delivery failed to 0x%08X", lastTargetAddress);
                 waitingForAck = false;
                 HapticManager::playEffect(16); // Long haptic feedback to notify about the error.
-                
+
                 // Push BLE message that shows the error.
                 char errorMsg[50];
                 snprintf(errorMsg, sizeof(errorMsg), "ERR_TIMEOUT;%08X", lastTargetAddress);
@@ -294,9 +399,9 @@ void LoRaManager::handleFlags() {
 
         // if (cadResult == RADIOLIB_LORA_DETECTED) {
         //     LOG_I(TAG, "CAD: Activity detected! Waking up receiver...");
-        //     xTimerStop(cadRxTimer, 0);       
-        //     loraModule.startReceive();       
-        //     xTimerStart(rxTimeoutTimer, 0);  
+        //     xTimerStop(cadRxTimer, 0);
+        //     loraModule.startReceive();
+        //     xTimerStart(rxTimeoutTimer, 0);
         // } else {
         //     startReceive(); // Air is empty, go back to sleep
         // }
@@ -313,82 +418,169 @@ void LoRaManager::handleFlags() {
         // if (rxTimeoutTimer != nullptr) xTimerStop(rxTimeoutTimer, 0); // Receive success, delete Watchdog timer
 
         size_t len = loraModule.getPacketLength();
+
+        // Error handle on length greater than the limit
+        if (len > PAYLOAD_SIZE) {
+            LOG_W(TAG, "RX packet too large: %u bytes", (unsigned)len);
+            loraModule.finishReceive();
+            startReceive();
+            return;
+        }
+
         uint8_t rxBuffer[PAYLOAD_SIZE];
 
         int state = loraModule.readData(rxBuffer, len);
 
         if (state == RADIOLIB_ERR_NONE && len >= sizeof(PackageHeader)) {
-            PackageHeader header;
+            PackageHeader header{};
             memcpy(&header, rxBuffer, sizeof(PackageHeader));
 
             uint8_t* payload = rxBuffer + sizeof(PackageHeader);
             size_t payloadLength = len - sizeof(PackageHeader);
 
-            LOG_I(TAG, "RX from 0x%08X, RSSI: %f, Type: %d", header.senderAddress, loraModule.getRSSI(), header.packageType);
-            
-            // Update neighbors list with the sender's address and RSSI
-            updateNeighbor(header.senderAddress, header.senderUsername, loraModule.getRSSI());
+            LOG_I(TAG, "RX from 0x%08X, RSSI: %f, Type: %d",
+                  header.senderAddress, loraModule.getRSSI(), header.packageType);
 
-            // Convert to char array if it's a DATA package and forward to BLE Manager.
-            // Check if the package is sent for BROADCAST or to this device's address.
+            // The received package is for BROADCAST or for this device
             bool packageIsForMe = (header.targetAddress == BROADCAST_ADDRESS ||
-                                    header.targetAddress == (uint32_t)SystemManager::getLoRaID());
+                                   header.targetAddress == (uint32_t)SystemManager::getLoRaID());
 
-            if (!packageIsForMe) LOG_I(TAG, "Ignored package: Different target address! (0x%08X)", header.targetAddress);
+            /*
+             * Heartbeat/discovery is the only packet that carries the
+             * username and color over the air.
+             */
+            if (header.packageType == PKG_HEARTBEAT &&
+                payloadLength == sizeof(DiscoveryPayload)) {
+
+                DiscoveryPayload discovery{};
+                memcpy(&discovery, payload, sizeof(DiscoveryPayload));
+                discovery.username[sizeof(discovery.username) - 1] = '\0';
+
+                updateNeighbor(header.senderAddress,
+                               discovery.username,
+                               discovery.colorR,
+                               discovery.colorG,
+                               discovery.colorB,
+                               loraModule.getRSSI());
+            }
+
+            if (!packageIsForMe) {
+                LOG_I(TAG, "Ignored package: Different target address! (0x%08X)", header.targetAddress);
+            }
             // The received package is for BROADCAST or for this device
             else {
                 // If the message is an ACK package.
-                if (header.packageType == PKG_ACK && waitingForAck && header.senderAddress == lastTargetAddress) {
-                    LOG_I(TAG, "ACK received from 0x%08X! Message delivered successfully.", header.senderAddress);
-                    waitingForAck = false;
-                    if (ackTimer != nullptr) xTimerStop(ackTimer, 0); // Stop the ACK timer on success.
-                    
-                    // Push BLE message that shows the success.
-                    char successMsg[50];
-                    snprintf(successMsg, sizeof(successMsg), "ACK_OK;%08X", header.senderAddress);
-                    BLEManager::pushMessage(successMsg);
+                if (header.packageType == PKG_ACK &&
+                    waitingForAck &&
+                    header.senderAddress == lastTargetAddress &&
+                    payloadLength == sizeof(AckPayload)) {
+
+                    AckPayload ack{};
+                    memcpy(&ack, payload, sizeof(AckPayload));
+
+                    if (ack.sequenceNumber == lastSequenceNumber &&
+                        ack.currentFragment == lastCurrentFragment) {
+
+                        LOG_I(TAG, "ACK received from 0x%08X! Message delivered successfully.", header.senderAddress);
+                        waitingForAck = false;
+
+                        if (ackTimer != nullptr) {
+                            xTimerStop(ackTimer, 0); // Stop the ACK timer on success.
+                        }
+
+                        // Push BLE message that shows the success.
+                        char successMsg[50];
+                        snprintf(successMsg, sizeof(successMsg), "ACK_OK;%08X", header.senderAddress);
+                        BLEManager::pushMessage(successMsg);
+                    } else {
+                        LOG_W(TAG, "ACK mismatch: got Seq:%u Frag:%u, expected Seq:%u Frag:%u",
+                              ack.sequenceNumber, ack.currentFragment,
+                              lastSequenceNumber, lastCurrentFragment);
+                    }
                 }
 
-                if (header.packageType == PKG_DATA && header.targetAddress == (uint32_t)SystemManager::getLoRaID()){
+                if (header.packageType == PKG_DATA &&
+                    header.targetAddress == (uint32_t)SystemManager::getLoRaID()) {
+
+                    bool duplicate = isDuplicatePacket(header.senderAddress,
+                                                       header.sequenceNumber,
+                                                       header.currentFragment);
+
                     // If the message has been received is for this device (P2P communication), send back an ACK type message.
                     LOG_I(TAG, "P2P type message received, sending back ACK to 0x%08X", header.senderAddress);
-                    sendMessage(nullptr, 0, header.senderAddress, 1, 1, PKG_ACK);
-                }
 
-                if (header.packageType == PKG_DATA && payloadLength > 0) {
-                    char formattedString[PAYLOAD_SIZE + 80]; // Extra space for formatting
-                    char payloadString[PAYLOAD_SIZE];
-                    size_t copyLength = (payloadLength < PAYLOAD_SIZE) ? payloadLength : PAYLOAD_SIZE - 1; // Ensure null-termination
-                    
-                    memcpy(payloadString, payload, copyLength);
-                    payloadString[copyLength] = '\0'; // Null-terminate the string
+                    AckPayload ack{};
+                    ack.sequenceNumber = header.sequenceNumber;
+                    ack.currentFragment = header.currentFragment;
 
-                    time_t now;
-                    time(&now);
+                    sendMessage(reinterpret_cast<uint8_t*>(&ack),
+                                sizeof(AckPayload),
+                                header.senderAddress,
+                                header.currentFragment,
+                                header.totalFragments,
+                                PKG_ACK,
+                                false,
+                                header.sequenceNumber);
 
-                    // FAIL-SAFE: 1704067200 = 2024. 01. 1
-                    // If the ESP time is less than the FAIL-SAFE time, there it is outdated. Set it to 0.
-                    long safeTimestamp = (now < 1704067200) ? 0 : (long)now;
+                    /*
+                     * If the ACK was lost, the sender may retransmit the
+                     * same packet. ACK it again, but do not forward the
+                     * duplicate to BLE.
+                     */
+                    if (duplicate) {
+                        LOG_W(TAG, "Duplicate DATA ignored: 0x%08X Seq:%u Frag:%u",
+                              header.senderAddress,
+                              header.sequenceNumber,
+                              header.currentFragment);
+                    } else {
+                        rememberPacket(header.senderAddress,
+                                       header.sequenceNumber,
+                                       header.currentFragment);
+                    }
 
-                    // Check if the target address was broadcast.
-                    bool isBroadcast = (header.targetAddress == BROADCAST_ADDRESS);
+                    if (!duplicate && payloadLength > 0) {
+                        char formattedString[PAYLOAD_SIZE + 80]; // Extra space for formatting
+                        char payloadString[PAYLOAD_SIZE];
+                        size_t copyLength = (payloadLength < PAYLOAD_SIZE) ? payloadLength : PAYLOAD_SIZE - 1; // Ensure null-termination
 
-                    // Format generation: SENDER_ADDRESS;SENDER_USERNAME;TARGET_ADDRESS;CURRENT_FRAGMENT;TOTAL_FRAGMENT;TIMESTAMP;RSSI;PAYLOAD
-                    snprintf(formattedString, sizeof(formattedString), "%08X;%s;%08X;%d;%d;%ld;%.2f;%s",
-                                                                        header.senderAddress,
-                                                                        header.senderUsername,
-                                                                        header.targetAddress,
-                                                                        header.currentFragment,
-                                                                        header.totalFragments,
-                                                                        safeTimestamp,
-                                                                        loraModule.getRSSI(),
-                                                                        payloadString
-                                                                    );
-                    LOG_I(TAG, "Received DATA package: %s", formattedString);
-                    // Play haptics if the message was P2P or a client was connected.
-                    (!BLEManager::isConnected() || !isBroadcast) ? HapticManager::playEffect(52) :
-                    LOG_I(TAG, "Haptics not played, because there is a connected device or the message was broadcast.");
-                    BLEManager::pushMessage(formattedString, isBroadcast); // Forward the message to the BLE Manager to notify connected clients.
+                        memcpy(payloadString, payload, copyLength);
+                        payloadString[copyLength] = '\0'; // Null-terminate the string
+
+                        time_t now;
+                        time(&now);
+
+                        // FAIL-SAFE: 1704067200 = 2024. 01. 1
+                        // If the ESP time is less than the FAIL-SAFE time, there it is outdated. Set it to 0.
+                        long safeTimestamp = (now < 1704067200) ? 0 : (long)now;
+
+                        // Check if the target address was broadcast.
+                        bool isBroadcast = (header.targetAddress == BROADCAST_ADDRESS);
+
+                        // Format generation: SENDER_ADDRESS;SENDER_USERNAME;TARGET_ADDRESS;CURRENT_FRAGMENT;TOTAL_FRAGMENT;TIMESTAMP;RSSI;PAYLOAD
+                        const char* senderUsername = "Unknown";
+                        for (uint8_t i = 0; i < neighborCount; ++i) {
+                            if (neighbors[i].senderAddress == header.senderAddress) {
+                                senderUsername = neighbors[i].senderUsername;
+                                break;
+                            }
+                        }
+
+                        snprintf(formattedString, sizeof(formattedString), "%08X;%s;%08X;%d;%d;%ld;%.2f;%s",
+                                 header.senderAddress,
+                                 senderUsername,
+                                 header.targetAddress,
+                                 header.currentFragment,
+                                 header.totalFragments,
+                                 safeTimestamp,
+                                 loraModule.getRSSI(),
+                                 payloadString);
+
+                        LOG_I(TAG, "Received DATA package: %s", formattedString);
+                        // Play haptics if the message was P2P or a client was connected.
+                        (!BLEManager::isConnected() || !isBroadcast) ? HapticManager::playEffect(52) :
+                        LOG_I(TAG, "Haptics not played, because there is a connected device or the message was broadcast.");
+                        BLEManager::pushMessage(formattedString, isBroadcast); // Forward the message to the BLE Manager to notify connected clients.
+                    }
                 }
             }
         } else if (state == RADIOLIB_ERR_CRC_MISMATCH) {
@@ -403,7 +595,7 @@ void LoRaManager::handleFlags() {
     }
 }
 
-void LoRaManager::updateNeighbor(uint32_t senderAddress, const char* username, float rssi) {
+void LoRaManager::updateNeighbor(uint32_t senderAddress, const char* username, uint8_t colorR, uint8_t colorG, uint8_t colorB, float rssi) {
     time_t now;
     time(&now);
 
@@ -411,12 +603,15 @@ void LoRaManager::updateNeighbor(uint32_t senderAddress, const char* username, f
     // If the ESP time is less than the FAIL-SAFE time, there it is outdated. Set it to 0.
     long safeTimestamp = (now < 1704067200) ? 0 : (long)now;
     unsigned long currentMillis = millis(); // Timestamp used for internal timeout
-    
+
     // Check if the sender is already in the neighbors list
     for (uint8_t i = 0; i < neighborCount; i++) {
         if (neighbors[i].senderAddress == senderAddress) {
             strncpy(neighbors[i].senderUsername, username, sizeof(neighbors[i].senderUsername) - 1);
             neighbors[i].senderUsername[sizeof(neighbors[i].senderUsername) - 1] = '\0';
+            neighbors[i].colorR = colorR;
+            neighbors[i].colorG = colorG;
+            neighbors[i].colorB = colorB;
             neighbors[i].timestamp = safeTimestamp; // Update timestamp (last seen)
             neighbors[i].lastSeenMillis = currentMillis;
             neighbors[i].rssi = rssi; // Update RSSI value (signal strength)
@@ -429,6 +624,9 @@ void LoRaManager::updateNeighbor(uint32_t senderAddress, const char* username, f
         neighbors[neighborCount].senderAddress = senderAddress;
         strncpy(neighbors[neighborCount].senderUsername, username, sizeof(neighbors[neighborCount].senderUsername) - 1);
         neighbors[neighborCount].senderUsername[sizeof(neighbors[neighborCount].senderUsername) - 1] = '\0';
+        neighbors[neighborCount].colorR = colorR;
+        neighbors[neighborCount].colorG = colorG;
+        neighbors[neighborCount].colorB = colorB;
         neighbors[neighborCount].rssi = rssi;
         neighbors[neighborCount].timestamp = safeTimestamp;
         neighbors[neighborCount].lastSeenMillis = currentMillis;
@@ -439,13 +637,105 @@ void LoRaManager::updateNeighbor(uint32_t senderAddress, const char* username, f
     }
 }
 
+bool LoRaManager::getNeighbors(DiscoveryInfo* output, uint8_t maxCount, uint8_t& count) {
+    if (output == nullptr || maxCount == 0) {
+        count = 0;
+        return false;
+    }
+
+    count = neighborCount;
+    if (count > maxCount) {
+        count = maxCount;
+    }
+
+    memcpy(output, neighbors, count * sizeof(DiscoveryInfo));
+    return true;
+}
+
+bool LoRaManager::isDuplicatePacket(uint32_t senderAddress, uint8_t sequenceNumber, uint8_t currentFragment) {
+    for (uint8_t i = 0; i < receivedCacheCount; ++i) {
+        if (receivedCache[i].senderAddress == senderAddress &&
+            receivedCache[i].sequenceNumber == sequenceNumber &&
+            receivedCache[i].currentFragment == currentFragment) {
+            return true;
+        }
+    }
+
+    return false;
+}
+
+void LoRaManager::rememberPacket(uint32_t senderAddress, uint8_t sequenceNumber, uint8_t currentFragment) {
+    if (isDuplicatePacket(senderAddress, sequenceNumber, currentFragment)) {
+        return;
+    }
+
+    ReceivedPacket packet{};
+    packet.senderAddress = senderAddress;
+    packet.sequenceNumber = sequenceNumber;
+    packet.currentFragment = currentFragment;
+
+    if (receivedCacheCount < MAX_RECEIVED_CACHE) {
+        receivedCache[receivedCacheCount++] = packet;
+        return;
+    }
+
+    for (uint8_t i = 1; i < MAX_RECEIVED_CACHE; ++i) {
+        receivedCache[i - 1] = receivedCache[i];
+    }
+
+    receivedCache[MAX_RECEIVED_CACHE - 1] = packet;
+}
+
+void LoRaManager::sendHeartbeat() {
+    DiscoveryPayload discovery{};
+
+    const char* username = SystemManager::getUsername();
+    if (username != nullptr) {
+        strncpy(discovery.username,
+                username,
+                sizeof(discovery.username) - 1);
+    }
+    discovery.username[sizeof(discovery.username) - 1] = '\0';
+
+    const char* color = SystemManager::getColor();
+
+    if (color != nullptr && strlen(color) == 6) {
+        char r[3] = { color[0], color[1], '\0' };
+        char g[3] = { color[2], color[3], '\0' };
+        char b[3] = { color[4], color[5], '\0' };
+
+        discovery.colorR = (uint8_t)strtoul(r, nullptr, 16);
+        discovery.colorG = (uint8_t)strtoul(g, nullptr, 16);
+        discovery.colorB = (uint8_t)strtoul(b, nullptr, 16);
+    } else {
+        discovery.colorR = 0;
+        discovery.colorG = 136;
+        discovery.colorB = 255;
+    }
+
+    sendMessage(reinterpret_cast<uint8_t*>(&discovery),
+                sizeof(DiscoveryPayload),
+                BROADCAST_ADDRESS,
+                1,
+                1,
+                PKG_HEARTBEAT,
+                false);
+}
+
 void LoRaManager::startHeartbeat(uint16_t intervalSeconds) {
+    heartbeatIntervalSeconds = intervalSeconds;
+
     if (heartbeatTimer != nullptr) {
         xTimerStop(heartbeatTimer, 0);
         xTimerDelete(heartbeatTimer, 0);
     }
     heartbeatTimer = xTimerCreate("HeartbeatTimer", pdMS_TO_TICKS(intervalSeconds * 1000), pdTRUE, nullptr, heartbeatTimerCallback);
-    xTimerStart(heartbeatTimer, 0);
+
+    if (heartbeatTimer != nullptr) {
+        xTimerStart(heartbeatTimer, 0);
+        heartbeatPending = true;
+    }
+
     LOG_I(TAG, "Heartbeat started with interval: %d seconds", intervalSeconds);
 }
 
