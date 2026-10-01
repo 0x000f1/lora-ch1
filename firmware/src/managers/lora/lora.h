@@ -11,6 +11,7 @@
 #include <Arduino.h>
 #include <freertos/FreeRTOS.h>
 #include <freertos/timers.h>
+#include <freertos/queue.h>
 #include "protocol/protocol.h"
 
 #define PAYLOAD_SIZE 250
@@ -47,7 +48,8 @@ class LoRaManager {
                                 uint8_t currentFragment = 1,
                                 uint8_t totalFragment = 1,
                                 PackageType packageType = PKG_DATA,
-                                bool isRetry = false);
+                                bool isRetry = false,
+                                uint8_t sequenceNumber = 0xFF);
         /**
          * @brief Queue a message to be sent. (Thread safe from BLE task calls)
          */
@@ -67,10 +69,7 @@ class LoRaManager {
          * @brief Return the list of known neighbors and their RSSI values.
           * @details This function will return the list of known neighbors and their RSSI values.
          */
-        static DiscoveryInfo* getNeighbors(uint8_t &count) {
-            count = neighborCount;
-            return neighbors;
-        };
+        static bool getNeighbors(DiscoveryInfo* output, uint8_t maxCount, uint8_t& count);
         static void setMainTaskHandle(TaskHandle_t handle) {
             mainTaskHandle = handle;
         }
@@ -84,7 +83,8 @@ class LoRaManager {
         static TimerHandle_t heartbeatTimer; // FreeRTOS timer for heartbeat messages
         static volatile bool heartbeatPending; // Flag to show that a heartbeat is pending
         static void heartbeatTimerCallback(TimerHandle_t xTimer);
-        
+        static uint32_t heartbeatIntervalSeconds;
+
         // Air Time and Duty Cycle
         static uint32_t totalAirTimeMs;
         static unsigned long statsStartTime;
@@ -93,7 +93,9 @@ class LoRaManager {
         // Neighbors
         static DiscoveryInfo neighbors[MAX_NEIGHBORS];
         static uint8_t neighborCount;
-        static void updateNeighbor(uint32_t senderAddress, const char* username, float rssi);
+        static void updateNeighbor(uint32_t senderAddress, const char* username, uint8_t colorR, uint8_t colorG, uint8_t colorB, float rssi);
+        static bool isDuplicatePacket(uint32_t senderAddress, uint8_t sequenceNumber, uint8_t currentFragment);
+        static void rememberPacket(uint32_t senderAddress, uint8_t sequenceNumber, uint8_t currentFragment);
 
         // ACK and Resend variables
         static TimerHandle_t ackTimer;
@@ -105,19 +107,34 @@ class LoRaManager {
         static volatile bool waitingForAck;
 
         // Save the last message to the internal memory (If it needed for resend)
-        static uint8_t lastPayload[PAYLOAD_SIZE];
+        static uint8_t lastPayload[PAYLOAD_SIZE - sizeof(PackageHeader)];
         static size_t lastPayloadLength;
         static uint32_t lastTargetAddress;
         static uint8_t lastCurrentFragment;
         static uint8_t lastTotalFragment;
+        static uint8_t lastSequenceNumber;
 
         // Message queueing thread-safe variables
-        static volatile bool txPending;
-        static uint8_t txPendingPayload[PAYLOAD_SIZE];
-        static size_t txPendingLength;
-        static uint32_t txPendingTarget;
-        static uint8_t txPendingCurrentFrag;
-        static uint8_t txPendingTotalFrag;
+        struct TxMessage {
+            uint8_t data[PAYLOAD_SIZE - sizeof(PackageHeader)];
+            size_t length;
+            uint32_t targetAddress;
+            uint8_t currentFragment;
+            uint8_t totalFragment;
+        };
+        static QueueHandle_t txQueue;
+
+        // Duplicate packet cache
+        struct ReceivedPacket {
+            uint32_t senderAddress;
+            uint8_t sequenceNumber;
+            uint8_t currentFragment;
+        };
+        static constexpr uint8_t MAX_RECEIVED_CACHE = 16;
+        static ReceivedPacket receivedCache[MAX_RECEIVED_CACHE];
+        static uint8_t receivedCacheCount;
+
+        static void sendHeartbeat();
 
         // CAD variables
         // static TimerHandle_t cadRxTimer;

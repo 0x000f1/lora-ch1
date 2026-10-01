@@ -21,7 +21,12 @@ void setup() {
     SystemManager::setPowerProfile(PowerProfile::BATTERY_SAVER);
     SystemManager::setupNVS();
     BLEManager::setupBLE();
-    LoRaManager::setupLoRa();
+
+    int loraState = LoRaManager::setupLoRa();
+    if (loraState != 0) {
+        LOG_E(TAG, "LoRa setup failed: %d", loraState);
+    }
+
     HapticManager::setupHaptic();
     ButtonManager::setupButton();
 }
