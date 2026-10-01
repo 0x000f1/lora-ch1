@@ -6,7 +6,7 @@ This project is based on the ESP32-C3 microcontroller that behaves like a bridge
 
 The current hardware is based on the ESP32-C3 microcontroller, interfaced with an RFM98W/SX1278 LoRa module, a DRV2605L haptic driver, and a BQ24075 based charging circuit.
 
-`![PCB Layout](https://raw.githubusercontent.com/0x000f1/lora-ch1/refs/heads/main/docs/lora_ch1.png)`
+![PCB Layout](https://raw.githubusercontent.com/0x000f1/lora-ch1/refs/heads/main/docs/lora_ch1.png)
 
 ### ESP32-C3 GPIO Mapping
 
