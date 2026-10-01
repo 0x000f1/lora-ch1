@@ -55,7 +55,7 @@ Future<void> setupBleCommunication(
               int.tryParse(rawMsg.split(";")[1]) ?? batteryLevel.value;
         }
       }
-      _controlStreamController.add(value.toString());
+      _controlStreamController.add(rawMsg);
     }
   });
 }

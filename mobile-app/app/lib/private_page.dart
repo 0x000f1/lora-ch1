@@ -35,20 +35,13 @@ class _PrivatePageState extends State<PrivatePage> {
 
     // "subscribe" to control stream in ble_service.dart to listen to GET_NEI response
     // NEI|MAC;NEI_USERNAME;RSSI;TIMESTAMP|MAC;etc...
+    // or NEI|NO_NEI for empty neighbors list
     _controlSub = controlStream.listen((rawMsg) {
       if (mounted) {
         // only check for responses starting with NEI
         if (!rawMsg.startsWith("NEI")) return;
-        // NEI tag in the first 4 chars no longer needed after check
         debugPrint("rawMSG = $rawMsg");
-        // final List<PeerDevice> parsedDevices = [];
-        if (rawMsg == "NEI|NO_NEI") {
-          // if the device returns NO_NEI, keep current list to mark them as offline until the 10 minute TTL
-          setState(() {
-            _devices.clear();
-          });
-          return;
-        }
+
         // remove NEI flag from the beginning
         rawMsg = rawMsg.substring(4, rawMsg.length);
 
@@ -65,6 +58,7 @@ class _PrivatePageState extends State<PrivatePage> {
         for (var part in parts) {
           if (part.isEmpty) continue;
           final deviceData = part.split(';');
+          // check if data is impact and bypass NO_NEI response
           if (deviceData.length > 3) {
             debugPrint("Device data: $deviceData");
             final mac = deviceData[0];
