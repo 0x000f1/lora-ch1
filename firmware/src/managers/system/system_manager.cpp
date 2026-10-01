@@ -136,13 +136,25 @@ void SystemManager::setupNVS() {
     checkIfExists("color", generateDefaultColor);
     checkIfExists("haptics", generateDefaultHapticsProfile);
 
-    // Cache populating with error handling
-    strncpy(cachedDeviceName, prefs.getString("device_name", "unknown-device").c_str(), sizeof(cachedDeviceName) - 1);
-    strncpy(cachedServiceUUID, prefs.getString("s_uuid", "00000000-0000-0000-0000-000000000000").c_str(), sizeof(cachedServiceUUID) - 1);
-    strncpy(cachedDataUUID, prefs.getString("c_data_uuid", "00000000-0000-0000-0000-000000000001").c_str(), sizeof(cachedDataUUID) - 1);
-    strncpy(cachedControlUUID, prefs.getString("c_control_uuid", "00000000-0000-0000-0000-000000000002").c_str(), sizeof(cachedControlUUID) - 1);
-    strncpy(cachedUsername, prefs.getString("username", "Guest").c_str(), sizeof(cachedUsername) - 1);
-    strncpy(cachedColor, prefs.getString("color", "0088FF").c_str(), sizeof(cachedColor) - 1);
+    // Cache populating with error handling (Stings keepalive until copied into the cached variable)
+    String loadedDeviceName = prefs.getString("device_name", "unknown-device");
+    strncpy(cachedDeviceName, loadedDeviceName.c_str(), sizeof(cachedDeviceName) - 1);
+
+    String loadedServiceUUID = prefs.getString("s_uuid", "00000000-0000-0000-0000-000000000000");
+    strncpy(cachedServiceUUID, loadedServiceUUID.c_str(), sizeof(cachedServiceUUID) - 1);
+
+    String loadedDataUUID = prefs.getString("c_data_uuid", "00000000-0000-0000-0000-000000000001");
+    strncpy(cachedDataUUID, loadedDataUUID.c_str(), sizeof(cachedDataUUID) - 1);
+
+    String loadedControlUUID = prefs.getString("c_control_uuid", "00000000-0000-0000-0000-000000000002");
+    strncpy(cachedControlUUID, loadedControlUUID.c_str(), sizeof(cachedControlUUID) - 1);
+
+    String loadedUsername = prefs.getString("username", "Guest");
+    strncpy(cachedUsername, loadedUsername.c_str(), sizeof(cachedUsername) - 1);
+
+    String loadedColor = prefs.getString("color", "0088FF");
+    strncpy(cachedColor, loadedColor.c_str(), sizeof(cachedColor) - 1);
+
     cachedLoraID = prefs.getUInt("lora_id", 0);
     cachedHapticsProfile = prefs.getUInt("haptics", 1);
 }
