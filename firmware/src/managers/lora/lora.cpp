@@ -499,28 +499,34 @@ void LoRaManager::handleFlags() {
                     }
                 }
 
+                // Process DATA packets if they are targeted to this device OR are Broadcasts
                 if (header.packageType == PKG_DATA &&
-                    header.targetAddress == (uint32_t)SystemManager::getLoRaID()) {
+                    (header.targetAddress == (uint32_t)SystemManager::getLoRaID() || 
+                     header.targetAddress == BROADCAST_ADDRESS)) {
 
                     bool duplicate = isDuplicatePacket(header.senderAddress,
                                                        header.sequenceNumber,
                                                        header.currentFragment);
 
                     // If the message has been received is for this device (P2P communication), send back an ACK type message.
-                    LOG_I(TAG, "P2P type message received, sending back ACK to 0x%08X", header.senderAddress);
+                    if (header.targetAddress != BROADCAST_ADDRESS) {
+                        LOG_I(TAG, "P2P type message received, sending back ACK to 0x%08X", header.senderAddress);
 
-                    AckPayload ack{};
-                    ack.sequenceNumber = header.sequenceNumber;
-                    ack.currentFragment = header.currentFragment;
+                        AckPayload ack{};
+                        ack.sequenceNumber = header.sequenceNumber;
+                        ack.currentFragment = header.currentFragment;
 
-                    sendMessage(reinterpret_cast<uint8_t*>(&ack),
-                                sizeof(AckPayload),
-                                header.senderAddress,
-                                header.currentFragment,
-                                header.totalFragments,
-                                PKG_ACK,
-                                false,
-                                header.sequenceNumber);
+                        sendMessage(reinterpret_cast<uint8_t*>(&ack),
+                                    sizeof(AckPayload),
+                                    header.senderAddress,
+                                    header.currentFragment,
+                                    header.totalFragments,
+                                    PKG_ACK,
+                                    false,
+                                    header.sequenceNumber);
+                    } else {
+                        LOG_I(TAG, "Broadcast message received, ACK ignored.");
+                    }
 
                     /*
                      * If the ACK was lost, the sender may retransmit the
@@ -556,18 +562,27 @@ void LoRaManager::handleFlags() {
                         // Check if the target address was broadcast.
                         bool isBroadcast = (header.targetAddress == BROADCAST_ADDRESS);
 
-                        // Format generation: SENDER_ADDRESS;SENDER_USERNAME;TARGET_ADDRESS;CURRENT_FRAGMENT;TOTAL_FRAGMENT;TIMESTAMP;RSSI;PAYLOAD
+                        // Format generation: SENDER_ADDRESS;SENDER_USERNAME;COLOR_HEX;TARGET_ADDRESS;CURRENT_FRAGMENT;TOTAL_FRAGMENT;TIMESTAMP;RSSI;PAYLOAD
                         const char* senderUsername = "Unknown";
+                        uint8_t r = 0, g = 136, b = 255; // Default Light Blue color
+
                         for (uint8_t i = 0; i < neighborCount; ++i) {
                             if (neighbors[i].senderAddress == header.senderAddress) {
                                 senderUsername = neighbors[i].senderUsername;
+                                r = neighbors[i].colorR;
+                                g = neighbors[i].colorG;
+                                b = neighbors[i].colorB;
                                 break;
                             }
                         }
 
-                        snprintf(formattedString, sizeof(formattedString), "%08X;%s;%08X;%d;%d;%ld;%.2f;%s",
+                        char colorHex[7];
+                        snprintf(colorHex, sizeof(colorHex), "%02X%02X%02X", r, g, b);
+
+                        snprintf(formattedString, sizeof(formattedString), "%08X;%s;%s;%08X;%d;%d;%ld;%.2f;%s",
                                  header.senderAddress,
                                  senderUsername,
+                                 colorHex,
                                  header.targetAddress,
                                  header.currentFragment,
                                  header.totalFragments,
@@ -733,7 +748,7 @@ void LoRaManager::startHeartbeat(uint16_t intervalSeconds) {
 
     if (heartbeatTimer != nullptr) {
         xTimerStart(heartbeatTimer, 0);
-        // heartbeatPending = true;
+        heartbeatPending = true;
     }
 
     LOG_I(TAG, "Heartbeat started with interval: %d seconds", intervalSeconds);
