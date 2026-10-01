@@ -71,9 +71,9 @@ Actual message sending and receiving takes place on this channel. The payload mu
 
 * **Receiving (LoRa -> App):**
   * The app must subscribe to `NOTIFY` events on this characteristic.
-  * **Format 1 (Standard Data):** `SENDER_MAC;TARGET_MAC;CURRENT_FRAGMENT;TOTAL_FRAGMENTS;TIMESTAMP;RSSI;PAYLOAD`
+  * **Format 1 (Standard Data):** `SENDER_MAC;SENDER_USERNAME;TARGET_MAC;CURRENT_FRAGMENT;TOTAL_FRAGMENTS;TIMESTAMP;RSSI;PAYLOAD`
     * The app can use the `TARGET_MAC` to determine if the received message was a public broadcast (`FFFFFFFF`) or a private P2P message.
-    * Sender username sent from the device NVS.
+    * `SENDER_USERNAME`: The sender's username string automatically resolved from the internal neighbor cache. Returns `Unknown` if the sender is not in the cache.
     * `TIMESTAMP`: The UNIX Epoch time in seconds. If the device clock is not synced via `SET_TIM`, this value returns `0`.
     * `RSSI`: The signal strength of the received LoRa package (e.g., `-78.00`).
   * **Format 2 (Delivery Success):** `ACK_OK;TARGET_MAC`
@@ -116,5 +116,5 @@ This channel is used to query the network status and manage system preferences.
     * *Action:* Restarts the ESP, needs to reconnect after!
     * *Response:* `RST_OK`
   * `FACTORY_RESET`
-    * *Action:* Erases the whole NVS partition, clears color, username, and all settings. The ESP restarts automatically. The LoRa MAC and UUIDs will be regenerated on the next boot.
+    * *Action:* Erases the whole NVS partition, clears color, username, UUIDs, and all settings. The ESP restarts automatically. The LoRa MAC remains unchanged as it is generated from the hardware MAC address.
     * *Response:* `FACTORY_RESET_OK`
