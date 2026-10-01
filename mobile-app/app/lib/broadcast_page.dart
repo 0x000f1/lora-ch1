@@ -45,14 +45,14 @@ class _BroadcastPageState extends State<BroadcastPage> {
 
     _dataSub = dataStream.listen((rawMsg) {
       if (mounted) {
-        // SENDER_MAC;SENDER_USERNAME;TARGET_MAC;CURRENT_FRAGMENT;TOTAL_FRAGMENTS;TIMESTAMP;RSSI;PAYLOAD
+        // SENDER_MAC;SENDER_USERNAME;COLOR_HEX;TARGET_MAC;CURRENT_FRAGMENT;TOTAL_FRAGMENTS;TIMESTAMP;RSSI;PAYLOAD
         final parts = rawMsg.split(';');
 
-        if (parts.length >= 8) {
+        if (parts.length >= 9) {
           debugPrint("Recieved message: $rawMsg");
           final senderUsername = parts[1];
           // join message in case there is ';' in it
-          final payload = parts.sublist(7).join(';');
+          final payload = parts.sublist(8).join(';');
 
           setState(() {
             _messages.add(ChatMessage(text: payload, isMe: false, senderName: senderUsername));

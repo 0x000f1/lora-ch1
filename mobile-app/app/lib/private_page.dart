@@ -8,12 +8,14 @@ class PeerDevice {
   final String rssi;
   final String name;
   final int timeStamp;
+  final String colorHex;
 
   const PeerDevice({
     required this.mac,
     required this.rssi,
     required this.name,
     required this.timeStamp,
+    required this.colorHex,
   });
 }
 
@@ -34,7 +36,7 @@ class _PrivatePageState extends State<PrivatePage> {
     sendOnControlChar("GET_NEI");
 
     // "subscribe" to control stream in ble_service.dart to listen to GET_NEI response
-    // NEI|MAC;NEI_USERNAME;RSSI;TIMESTAMP|MAC;etc...
+    // NEI|MAC;NEI_USERNAME;COLOR_HEX;RSSI;TIMESTAMP|MAC2;...
     // or NEI|NO_NEI for empty neighbors list
     _controlSub = controlStream.listen((rawMsg) {
       if (mounted) {
@@ -59,13 +61,14 @@ class _PrivatePageState extends State<PrivatePage> {
           if (part.isEmpty) continue;
           final deviceData = part.split(';');
           // check if data is impact and bypass NO_NEI response
-          if (deviceData.length > 3) {
+          if (deviceData.length > 4) {
             debugPrint("Device data: $deviceData");
             final mac = deviceData[0];
             final name = deviceData[1];
-            final rssi = deviceData[2];
+            final colorHex = deviceData[2];
+            final rssi = deviceData[3];
 
-            int timeStamp = int.tryParse(deviceData[3]) ?? 0;
+            int timeStamp = int.tryParse(deviceData[4]) ?? 0;
             if (timeStamp < 1000000000) {
               timeStamp = 0; // if its unsynced, treat it as unknown
             }
@@ -75,6 +78,7 @@ class _PrivatePageState extends State<PrivatePage> {
               mac: mac,
               rssi: rssi,
               name: name,
+              colorHex: colorHex,
               timeStamp: timeStamp,
             );
           }
@@ -198,6 +202,7 @@ Widget getSignalIconFromRssi(String rssiStr, int timeStamp) {
   }
 
   double rssi = double.tryParse(rssiStr) ?? -100;
+  debugPrint("Rssi = $rssiStr, str = $rssiStr");
   IconData iconData;
   Color iconColor;
 

@@ -1,12 +1,12 @@
 import 'package:app/ble_service.dart';
 import 'package:app/private_page.dart';
+import 'package:app/settings_page.dart';
 import 'package:flutter/material.dart';
 // https://pub.dev/packages/flutter_floating_bottom_bar
 import 'package:flutter_floating_bottom_bar/flutter_floating_bottom_bar.dart';
 import 'theme.dart';
 import 'bt_sheet.dart';
 import 'broadcast_page.dart';
-
 
 void main() {
   //debugPaintSizeEnabled = true; // see layout bounds in debug mode
@@ -76,7 +76,7 @@ class _HomePageState extends State<HomePage>
                       builder: (context, bat, child) {
                         return Row(
                           children: [
-                            Text("$bat%",),
+                            Text("$bat%"),
                             const SizedBox(width: 4),
                             Icon(
                               bat > 20
@@ -88,7 +88,22 @@ class _HomePageState extends State<HomePage>
                       },
                     ),
 
-                  const SizedBox(width: 4),
+
+                  if (isConnected)
+                    IconButton(
+                      icon: Icon(Icons.settings),
+                      padding: EdgeInsets.zero,
+                      onPressed: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => const SettingsPage(),
+                          ),
+                        );
+                      },
+                      
+                    ),
+
 
                   IconButton(
                     icon: Icon(
@@ -99,7 +114,7 @@ class _HomePageState extends State<HomePage>
                     ),
                     onPressed: () => showBTSheet(context),
                   ),
-                  const SizedBox(width: 10),
+                  const SizedBox(width: 4),
                 ],
               );
             },

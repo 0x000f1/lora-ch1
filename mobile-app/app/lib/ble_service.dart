@@ -94,7 +94,7 @@ Future<void> _setDeviceTime() async {
 
 void _startBatteryUpdates() {
   _batteryTimer?.cancel();
-  _batteryTimer = Timer.periodic(const Duration(seconds: 1), (_) {
+  _batteryTimer = Timer.periodic(const Duration(seconds: 5), (_) {
     sendOnControlChar("GET_BAT");
   });
 }
