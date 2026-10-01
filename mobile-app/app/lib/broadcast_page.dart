@@ -1,9 +1,7 @@
 import 'dart:async';
 import 'package:app/ble_service.dart';
-import 'package:app/bt_sheet.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_blue_plus/flutter_blue_plus.dart';
-import 'theme.dart';
 import 'package:app/widgets.dart';
 
 class ChatMessage {

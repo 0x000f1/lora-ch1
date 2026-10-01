@@ -1,9 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
-import 'dart:nativewrappers/_internal/vm/lib/ffi_allocation_patch.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_blue_plus/flutter_blue_plus.dart';
-import 'package:path/path.dart';
 
 // control characteristic for commands
 BluetoothCharacteristic? _controlChar;
@@ -148,23 +146,28 @@ Future<void> disconnectDevice(BluetoothDevice device) async {
   _foundChars.clear();
 }
 
-// writing
-Future<void> sendOnDataChar(String msg) async {
+// writing: returns true if message went throught, false otherwise
+
+Future<bool> sendOnDataChar(String msg) async {
   // check if the device is connected to avoid errors
-  if (_dataChar == null || !isDeviceConnected.value) return;
+  if (_dataChar == null || !isDeviceConnected.value) return false;
   try {
     await _dataChar!.write(utf8.encode(msg));
+    return true;
   } catch (e) {
-    print(e);
+    debugPrint(e.toString());
+    return false;
   }
 }
 
-Future<void> sendOnControlChar(String msg) async {
-  if (_controlChar == null || !isDeviceConnected.value) return;
+Future<bool> sendOnControlChar(String msg) async {
+  if (_controlChar == null || !isDeviceConnected.value) return false;
   try {
     await _controlChar!.write(utf8.encode(msg));
+    return true;
   } catch (e) {
     debugPrint(e.toString());
+    return false;
   }
 }
 

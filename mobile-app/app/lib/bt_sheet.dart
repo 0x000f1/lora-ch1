@@ -2,7 +2,7 @@ import 'dart:async';
 import 'package:app/ble_service.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_blue_plus/flutter_blue_plus.dart';
-import 'dart:convert';
+
 
 void showBTSheet(BuildContext context) {
   showModalBottomSheet(
@@ -162,7 +162,7 @@ class _BtScanSheetState extends State<_BtScanSheet> {
                   : ListView.separated(
                       itemCount: _devices.length,
                       // horizontal line between list tiles
-                      separatorBuilder: (_, __) => const Divider(),
+                      separatorBuilder: (_, _) => const Divider(),
                       itemBuilder: (context, i) {
                         final device = _devices[i];
                         final isConnectedToThis = FlutterBluePlus

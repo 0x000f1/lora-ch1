@@ -1,14 +1,12 @@
 import 'package:app/ble_service.dart';
 import 'package:app/private_page.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/rendering.dart';
-import 'package:flutter_blue_plus/flutter_blue_plus.dart';
 // https://pub.dev/packages/flutter_floating_bottom_bar
 import 'package:flutter_floating_bottom_bar/flutter_floating_bottom_bar.dart';
 import 'theme.dart';
 import 'bt_sheet.dart';
 import 'broadcast_page.dart';
-import 'package:flutter/rendering.dart';
+
 
 void main() {
   //debugPaintSizeEnabled = true; // see layout bounds in debug mode
@@ -40,9 +38,8 @@ class _HomePageState extends State<HomePage>
     initConnectionListener();
     tabController = TabController(length: 2, vsync: this);
     tabController.animation!.addListener(() {
-      final value = tabController.animation!.value.round();
-      if (value != currentPage) {
-        changePage(value);
+      if (tabController.index != currentPage) {
+        changePage(tabController.index);
       }
     });
     super.initState();

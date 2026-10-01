@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:isolate';
 import 'package:app/ble_service.dart';
 import 'package:flutter/material.dart';
 import 'package:app/private_chat.dart';
@@ -42,7 +41,7 @@ class _PrivatePageState extends State<PrivatePage> {
         if (!rawMsg.startsWith("NEI")) return;
         // NEI tag in the first 4 chars no longer needed after check
         debugPrint("rawMSG = $rawMsg");
-        final List<PeerDevice> parsedDevices = [];
+        // final List<PeerDevice> parsedDevices = [];
         if (rawMsg == "NEI|NO_NEI") {
           // if the device returns NO_NEI, keep current list to mark them as offline until the 10 minute TTL
           setState(() {
@@ -66,14 +65,13 @@ class _PrivatePageState extends State<PrivatePage> {
         for (var part in parts) {
           if (part.isEmpty) continue;
           final deviceData = part.split(';');
-          if (deviceData.isNotEmpty) {
+          if (deviceData.length > 3) {
             debugPrint("Device data: $deviceData");
             final mac = deviceData[0];
             final name = deviceData[1];
             final rssi = deviceData[2];
 
             int timeStamp = int.tryParse(deviceData[3]) ?? 0;
-            debugPrint("[timetest]timeStamp = $timeStamp");
             if (timeStamp < 1000000000) {
               timeStamp = 0; // if its unsynced, treat it as unknown
             }
