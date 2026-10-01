@@ -733,7 +733,7 @@ void LoRaManager::startHeartbeat(uint16_t intervalSeconds) {
 
     if (heartbeatTimer != nullptr) {
         xTimerStart(heartbeatTimer, 0);
-        heartbeatPending = true;
+        // heartbeatPending = true;
     }
 
     LOG_I(TAG, "Heartbeat started with interval: %d seconds", intervalSeconds);
