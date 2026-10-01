@@ -32,13 +32,13 @@ class _PrivatePageState extends State<PrivateChatPage> {
     super.initState();
     _dataSub = dataStream.listen((rawMsg) {
       if (mounted) {
-        //SENDER_MAC;SENDER_USERNAME;TARGET_MAC;CURRENT_FRAGMENT;TOTAL_FRAGMENTS;TIMESTAMP;RSSI;PAYLOAD
+        //SENDER_MAC;SENDER_USERNAME;COLOR_HEX;TARGET_MAC;CURRENT_FRAGMENT;TOTAL_FRAGMENTS;TIMESTAMP;RSSI;PAYLOAD
         final parts = rawMsg.split(';');
-
         if (parts.length >= 8) {
           final senderMac = parts[0];
-          final payload = parts.sublist(7).join(';');
-          if (senderMac == widget.device.mac) {
+          final targetMac = parts[3];
+          final payload = parts.sublist(8).join(';');
+          if (senderMac == widget.device.mac && targetMac != "FFFFFFFF") {
             setState(() {
               _messages.add(PrivateMessage(text: payload, isMe: false));
             });
