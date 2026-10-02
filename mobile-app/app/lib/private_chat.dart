@@ -8,8 +8,9 @@ import 'package:app/widgets.dart';
 class PrivateMessage {
   final String text;
   final bool isMe;
+  final int timeStamp;
 
-  PrivateMessage({required this.text, required this.isMe});
+  PrivateMessage({required this.text, required this.isMe, required this.timeStamp});
 }
 
 // temporary list for storing messages before database is implemented
@@ -38,11 +39,12 @@ class _PrivatePageState extends State<PrivateChatPage> {
         if (parts.length >= 8) {
           final senderMac = parts[0];
           final targetMac = parts[3];
+          final timeStamp = int.tryParse(parts[6]) ?? (DateTime.now().millisecondsSinceEpoch ~/ 1000);
           final payload = parts.sublist(8).join(';');
           if (senderMac == widget.device.mac && targetMac != "FFFFFFFF") {
             AppLogger.log("CHAT", "Recieved private message from ${widget.device.name}");
             setState(() {
-              _messages.add(PrivateMessage(text: payload, isMe: false));
+              _messages.add(PrivateMessage(text: payload, isMe: false, timeStamp: timeStamp));
             });
           }
         }
@@ -73,6 +75,7 @@ class _PrivatePageState extends State<PrivateChatPage> {
                   text: msg.text,
                   senderName: msg.isMe ? "Me" : widget.device.name,
                   isMe: msg.isMe,
+                  timeStamp: msg.timeStamp,
                 );
               },
             ),
@@ -88,7 +91,9 @@ class _PrivatePageState extends State<PrivateChatPage> {
                 AppLogger.log("CHAT", "Sent private message to ${widget.device.name}");
 
                 setState(() {
-                  _messages.add(PrivateMessage(text: text, isMe: true));
+                  _messages.add(
+                    PrivateMessage(text: text, isMe: true, timeStamp: DateTime.now().millisecondsSinceEpoch ~/ 1000),
+                  );
                 });
               }
               _controller.clear();

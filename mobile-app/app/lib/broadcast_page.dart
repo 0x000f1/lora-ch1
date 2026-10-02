@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:developer';
 import 'package:app/ble_service.dart';
 import 'package:app/logger.dart';
 import 'package:flutter/material.dart';
@@ -9,8 +10,9 @@ class ChatMessage {
   final String text;
   final bool isMe;
   final String senderName;
+  final int timestamp;
 
-  ChatMessage({required this.text, required this.isMe, required this.senderName});
+  ChatMessage({required this.text, required this.isMe, required this.senderName, required this.timestamp});
 }
 
 class BroadcastPage extends StatefulWidget {
@@ -35,9 +37,7 @@ class _BroadcastPageState extends State<BroadcastPage> {
   @override
   void initState() {
     super.initState();
-    _connectionSub = FlutterBluePlus.events.onConnectionStateChanged.listen((
-      event,
-    ) {
+    _connectionSub = FlutterBluePlus.events.onConnectionStateChanged.listen((event) {
       if (mounted) {
         // redraw on connect or disconnect
         setState(() {});
@@ -52,11 +52,13 @@ class _BroadcastPageState extends State<BroadcastPage> {
         if (parts.length >= 9) {
           AppLogger.log("CHAT", "Recieved broadcast message: $rawMsg");
           final senderUsername = parts[1];
+          // use internal time if parsing fails
+          final timeStamp = int.tryParse(parts[6]) ?? (DateTime.now().millisecondsSinceEpoch ~/ 1000);
           // join message in case there is ';' in it
           final payload = parts.sublist(8).join(';');
 
           setState(() {
-            _messages.add(ChatMessage(text: payload, isMe: false, senderName: senderUsername));
+            _messages.add(ChatMessage(text: payload, isMe: false, senderName: senderUsername, timestamp: timeStamp));
           });
         }
       }
@@ -81,11 +83,7 @@ class _BroadcastPageState extends State<BroadcastPage> {
             itemCount: _messages.length,
             itemBuilder: (context, index) {
               final msg = _messages[index];
-              return ChatBubble(
-                text: msg.text,
-                senderName: msg.senderName,
-                isMe: msg.isMe,
-              );
+              return ChatBubble(text: msg.text, senderName: msg.senderName, isMe: msg.isMe, timeStamp: msg.timestamp);
             },
           ),
         ),
@@ -105,7 +103,14 @@ class _BroadcastPageState extends State<BroadcastPage> {
           sendBroadcastMsg(text);
 
           setState(() {
-            _messages.add(ChatMessage(text: text, isMe: true, senderName: "Me"));
+            _messages.add(
+              ChatMessage(
+                text: text,
+                isMe: true,
+                senderName: "Me",
+                timestamp: DateTime.now().millisecondsSinceEpoch ~/ 1000,
+              ),
+            );
           });
         }
         _controller.clear();
