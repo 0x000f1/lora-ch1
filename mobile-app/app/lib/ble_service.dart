@@ -106,6 +106,34 @@ Future<bool?> getVibration() async {
   return null;
 }
 
+final ValueNotifier<String> usernameSetting = ValueNotifier("");
+
+Future<bool> setUsername(String newName) async {
+  if (newName.trim().isEmpty) return false;
+  final String command = "SET_USR;$newName";
+  bool success = await sendCommandWithResponse(command, "USR_OK");
+  if (success) {
+    usernameSetting.value = newName;
+    AppLogger.log("SETT", "Username updated to: $newName");
+    return true;
+  }
+  else {
+    AppLogger.log("SETT", "Username failed to update");
+    return false;
+  }
+}
+
+Future<String?> getUsername() async {
+  String? response = await sendCommandAndFetch("GET_USR", "USR");
+  if (response != null) {
+    final parts = response.split(";");
+    if (parts.length >= 2) {
+      return parts[1];
+    }
+  }
+  return null;
+}
+
 void _startBatteryUpdates() {
   _batteryTimer?.cancel();
   _batteryTimer = Timer.periodic(const Duration(seconds: 5), (_) {
@@ -135,6 +163,11 @@ Future<void> _initializeDeviceSettings() async {
   bool? initialVib = await getVibration();
   if (initialVib != null) {
     vibrationSetting.value = initialVib;
+  }
+  
+  String? initialUser = await getUsername();
+  if (initialUser != null) {
+    usernameSetting.value = initialUser;
   }
 }
 
