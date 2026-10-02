@@ -23,10 +23,7 @@ StreamSubscription? _dataBleSub;
 StreamSubscription? _controlBleSub;
 
 // set up reading "listener"
-Future<void> setupBleCommunication(
-  BluetoothCharacteristic control,
-  BluetoothCharacteristic data,
-) async {
+Future<void> setupBleCommunication(BluetoothCharacteristic control, BluetoothCharacteristic data) async {
   _dataChar = data;
   _controlChar = control;
 
@@ -52,8 +49,7 @@ Future<void> setupBleCommunication(
       if (rawMsg.startsWith("BAT;")) {
         final parts = rawMsg.split(";");
         if (parts.length >= 2) {
-          batteryLevel.value =
-              int.tryParse(rawMsg.split(";")[1]) ?? batteryLevel.value;
+          batteryLevel.value = int.tryParse(rawMsg.split(";")[1]) ?? batteryLevel.value;
         }
       }
       _controlStreamController.add(rawMsg);
@@ -64,19 +60,50 @@ Future<void> setupBleCommunication(
 List<BluetoothCharacteristic> _foundChars = [];
 List<BluetoothCharacteristic> get chars => _foundChars;
 final ValueNotifier<bool> isDeviceConnected = ValueNotifier(false);
+
 final ValueNotifier<int> batteryLevel = ValueNotifier(0);
 Timer? _batteryTimer;
 
-Future<void> _setDeviceTime() async {
+Future<bool> _setDeviceTime() async {
   final currentTime = DateTime.now().millisecondsSinceEpoch ~/ 1000;
   final String command = "SET_TIM;$currentTime";
   bool success = await sendCommandWithResponse(command, "TIM_OK");
-  if(success) {
+  if (success) {
     AppLogger.log("[BLE]", "Set time successfully to $currentTime");
-  }
-  else {
+    return true;
+  } else {
     AppLogger.log("[BLE]", "All set time attempts timed out.");
+    return false;
   }
+}
+
+// global variable for storing vibration status
+final ValueNotifier<bool> vibrationSetting = ValueNotifier(true);
+
+// enable/disable vibration with SET_VIB
+Future<bool> setVibration(bool isEnabled) async {
+  final String command = "SET_VIB;${isEnabled ? 1 : 0}";
+  bool success = await sendCommandWithResponse(command, "VIB_OK");
+  if (success) {
+    AppLogger.log("SETT", "Vibration setting ${isEnabled ? "enabled" : "disabled"}");
+    return true;
+  } else {
+    AppLogger.log("SETT", "Failed to set vibration");
+    return false;
+  }
+}
+
+// GET_VIB; response = VIB;{0/1} 0 = haptic off, 1 = haptic on
+Future<bool?> getVibration() async {
+  String? response = await sendCommandAndFetch("GET_VIB", "VIB");
+
+  if (response != null) {
+    final parts = response.split(';');
+    if (parts.length >= 2) {
+      return parts[1] == '1';
+    }
+  }
+  return null;
 }
 
 void _startBatteryUpdates() {
@@ -88,8 +115,7 @@ void _startBatteryUpdates() {
 
 void initConnectionListener() {
   FlutterBluePlus.events.onConnectionStateChanged.listen((event) {
-    bool connected =
-        event.connectionState == BluetoothConnectionState.connected;
+    bool connected = event.connectionState == BluetoothConnectionState.connected;
     isDeviceConnected.value = connected;
     AppLogger.log("BLE", "Device connected state changed: ${isDeviceConnected.value}");
 
@@ -100,6 +126,16 @@ void initConnectionListener() {
       batteryLevel.value = 0;
     }
   });
+}
+
+// initialize/get settings after connecting
+Future<void> _initializeDeviceSettings() async {
+  await _setDeviceTime();
+
+  bool? initialVib = await getVibration();
+  if (initialVib != null) {
+    vibrationSetting.value = initialVib;
+  }
 }
 
 Future<bool> connectAndSetupDevice(BluetoothDevice device) async {
@@ -118,8 +154,8 @@ Future<bool> connectAndSetupDevice(BluetoothDevice device) async {
 
     if (_foundChars.length == 2) {
       await setupBleCommunication(_foundChars[1], _foundChars[0]);
+      await _initializeDeviceSettings();
       AppLogger.log("BLE", "Device connected and channels set up");
-      await _setDeviceTime();
       return true;
     }
     AppLogger.log("BLE", "Failed to find characteristics");
@@ -174,13 +210,11 @@ Future<void> sendPrivateMsg(String targetMac, String msg) async {
   AppLogger.log("CHAT", "Sent private message: $msg");
 }
 
-// send a command on control stream that has an expected response (SET_TIM: TIM_OK) etc..
+// send a SET command on control stream that has an expected response (SET_TIM: TIM_OK) etc..
 Future<bool> sendCommandWithResponse(String command, String expectedReponse) async {
   for (int i = 0; i <= 3; i++) {
     try {
-      final response = controlStream
-          .firstWhere((msg) => msg == expectedReponse)
-          .timeout(Duration(seconds: 3));
+      final response = controlStream.firstWhere((msg) => msg == expectedReponse).timeout(Duration(seconds: 3));
 
       bool sent = await sendOnControlChar(command);
       if (!sent) return false;
@@ -194,4 +228,23 @@ Future<bool> sendCommandWithResponse(String command, String expectedReponse) asy
     }
   }
   return false;
+}
+
+// send a GET request on command stream to get a stored value
+Future<String?> sendCommandAndFetch(String command, String expectedPrefix) async {
+  for (int i = 0; i <= 3; i++) {
+    try {
+      final responseFuture = controlStream
+          .firstWhere((msg) => msg.startsWith(expectedPrefix))
+          .timeout(const Duration(seconds: 3));
+
+      bool sent = await sendOnControlChar(command);
+      if (!sent) return null;
+
+      return await responseFuture;
+    } catch (e) {
+      if (i == 3) return null;
+    }
+  }
+  return null;
 }
