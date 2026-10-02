@@ -54,7 +54,7 @@ uint8_t LoRaManager::lastSequenceNumber = 0;
 
 QueueHandle_t LoRaManager::txQueue = nullptr;
 
-uint32_t LoRaManager::heartbeatIntervalSeconds = 600;
+uint32_t LoRaManager::heartbeatIntervalSeconds = 300;
 
 LoRaManager::ReceivedPacket
     LoRaManager::receivedCache[MAX_RECEIVED_CACHE];
