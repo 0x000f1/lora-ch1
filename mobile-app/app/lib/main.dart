@@ -59,7 +59,8 @@ class _HomePageState extends State<HomePage>
 
   @override
   Widget build(BuildContext context) {
-    debugPrint("Device Connected: $isDeviceConnected");
+
+    
     return Scaffold(
       appBar: AppBar(
         title: const Text("BT Mesh Chat"),

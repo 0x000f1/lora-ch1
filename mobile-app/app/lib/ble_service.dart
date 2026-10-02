@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'package:app/logger.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_blue_plus/flutter_blue_plus.dart';
 
@@ -68,27 +69,13 @@ Timer? _batteryTimer;
 
 Future<void> _setDeviceTime() async {
   final currentTime = DateTime.now().millisecondsSinceEpoch ~/ 1000;
-  debugPrint("Current time= $currentTime");
-  // try 3 times before timing out
-  for (int i = 0; i <= 3; i++) {
-    try {
-      // stream listener first to not miss replies
-      final response = controlStream
-          .firstWhere((msg) => msg == "TIM_OK")
-          .timeout(const Duration(seconds: 2));
-
-      sendOnControlChar("SET_TIM;$currentTime");
-      // wait for response
-      await response;
-
-      debugPrint("Set time successful");
-      return;
-    } catch (e) {
-      debugPrint("[$i] Set time attempt timed out");
-      if (i == 3) {
-        debugPrint("All set time attempts timed out.");
-      }
-    }
+  final String command = "SET_TIM;$currentTime";
+  bool success = await sendCommandWithResponse(command, "TIM_OK");
+  if(success) {
+    AppLogger.log("[BLE]", "Set time successfully to $currentTime");
+  }
+  else {
+    AppLogger.log("[BLE]", "All set time attempts timed out.");
   }
 }
 
@@ -104,12 +91,10 @@ void initConnectionListener() {
     bool connected =
         event.connectionState == BluetoothConnectionState.connected;
     isDeviceConnected.value = connected;
-    debugPrint("Device connected? ${isDeviceConnected.value}");
-    debugPrint("Battery level: ${batteryLevel.value}");
+    AppLogger.log("BLE", "Device connected state changed: ${isDeviceConnected.value}");
 
     if (connected) {
       _startBatteryUpdates();
-      _setDeviceTime();
     } else {
       _batteryTimer?.cancel();
       batteryLevel.value = 0;
@@ -133,10 +118,14 @@ Future<bool> connectAndSetupDevice(BluetoothDevice device) async {
 
     if (_foundChars.length == 2) {
       await setupBleCommunication(_foundChars[1], _foundChars[0]);
+      AppLogger.log("BLE", "Device connected and channels set up");
+      await _setDeviceTime();
       return true;
     }
+    AppLogger.log("BLE", "Failed to find characteristics");
     return false;
   } catch (e) {
+    AppLogger.log("BLE", "Connection error: $e");
     return false;
   }
 }
@@ -153,9 +142,10 @@ Future<bool> sendOnDataChar(String msg) async {
   if (_dataChar == null || !isDeviceConnected.value) return false;
   try {
     await _dataChar!.write(utf8.encode(msg));
+    AppLogger.log("BLE", "Sent on Data char: $msg");
     return true;
   } catch (e) {
-    debugPrint(e.toString());
+    AppLogger.log("BLE", "Error writing to control char: Message: $msg, Error: $e");
     return false;
   }
 }
@@ -164,20 +154,44 @@ Future<bool> sendOnControlChar(String msg) async {
   if (_controlChar == null || !isDeviceConnected.value) return false;
   try {
     await _controlChar!.write(utf8.encode(msg));
+    AppLogger.log("BLE", "Sent on Control char: $msg");
     return true;
   } catch (e) {
-    debugPrint(e.toString());
+    AppLogger.log("BLE", "Error writing to data char: Message: $msg, Error: $e");
     return false;
   }
 }
 
 Future<void> sendBroadcastMsg(String msg) async {
   final formattedMsg = "FFFFFFFF;1;1;$msg";
-  await _dataChar?.write(utf8.encode(formattedMsg));
-  debugPrint("Sent message $formattedMsg");
+  await sendOnDataChar(formattedMsg);
+  AppLogger.log("CHAT", "Sent broadcast message: $msg");
 }
 
 Future<void> sendPrivateMsg(String targetMac, String msg) async {
   final formattedMsg = "$targetMac;1;1;$msg";
   await sendOnDataChar(formattedMsg);
+  AppLogger.log("CHAT", "Sent private message: $msg");
+}
+
+// send a command on control stream that has an expected response (SET_TIM: TIM_OK) etc..
+Future<bool> sendCommandWithResponse(String command, String expectedReponse) async {
+  for (int i = 0; i <= 3; i++) {
+    try {
+      final response = controlStream
+          .firstWhere((msg) => msg == expectedReponse)
+          .timeout(Duration(seconds: 3));
+
+      bool sent = await sendOnControlChar(command);
+      if (!sent) return false;
+
+      await response;
+      return true;
+    } catch (e) {
+      if (i == 3) {
+        return false;
+      }
+    }
+  }
+  return false;
 }

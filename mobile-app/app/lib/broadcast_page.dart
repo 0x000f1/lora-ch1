@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:app/ble_service.dart';
+import 'package:app/logger.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_blue_plus/flutter_blue_plus.dart';
 import 'package:app/widgets.dart';
@@ -49,7 +50,7 @@ class _BroadcastPageState extends State<BroadcastPage> {
         final parts = rawMsg.split(';');
 
         if (parts.length >= 9) {
-          debugPrint("Recieved message: $rawMsg");
+          AppLogger.log("CHAT", "Recieved broadcast message: $rawMsg");
           final senderUsername = parts[1];
           // join message in case there is ';' in it
           final payload = parts.sublist(8).join(';');

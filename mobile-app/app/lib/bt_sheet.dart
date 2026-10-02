@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:app/ble_service.dart';
+import 'package:app/logger.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_blue_plus/flutter_blue_plus.dart';
 
@@ -50,6 +51,8 @@ class _BtScanSheetState extends State<_BtScanSheet> {
     // cancel in case another scan is already running
     _scanSub?.cancel();
 
+    AppLogger.log("BLE", "Starting bluetooth discovery");
+
     // filter all connected devices
     final connected = FlutterBluePlus.connectedDevices
         .where((d) => d.platformName.startsWith("lora-ch1"))
@@ -89,15 +92,18 @@ class _BtScanSheetState extends State<_BtScanSheet> {
 
   Future<void> _connect(BluetoothDevice device, int index) async {
     setState(() => _connectIndex = index);
+    AppLogger.log("BLE", "Attempting connection to device: ${device.platformName}");
 
     // function from ble_service.dart
     bool success = await connectAndSetupDevice(device);
 
     if (mounted) {
       if (success) {
+        AppLogger.log("BLE", "Successfully connected to device: ${device.platformName}");
         Navigator.pop(context);
       } else {
         setState(() => _connectIndex = null);
+        AppLogger.log("BLE", "Connection failed to device: ${device.platformName}");
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text("Connection or channel setup failed")),
         );

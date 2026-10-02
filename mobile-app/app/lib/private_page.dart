@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:app/ble_service.dart';
+import 'package:app/logger.dart';
 import 'package:flutter/material.dart';
 import 'package:app/private_chat.dart';
 
@@ -42,7 +43,7 @@ class _PrivatePageState extends State<PrivatePage> {
       if (mounted) {
         // only check for responses starting with NEI
         if (!rawMsg.startsWith("NEI")) return;
-        debugPrint("rawMSG = $rawMsg");
+        AppLogger.log("MESH", "Raw GET_NEI response: $rawMsg");
 
         // remove NEI flag from the beginning
         rawMsg = rawMsg.substring(4, rawMsg.length);
@@ -62,7 +63,7 @@ class _PrivatePageState extends State<PrivatePage> {
           final deviceData = part.split(';');
           // check if data is impact and bypass NO_NEI response
           if (deviceData.length > 4) {
-            debugPrint("Device data: $deviceData");
+            AppLogger.log("MESH", "Parsed device data: $deviceData");
             final mac = deviceData[0];
             final name = deviceData[1];
             final colorHex = deviceData[2];
@@ -101,7 +102,7 @@ class _PrivatePageState extends State<PrivatePage> {
   @override
   void dispose() {
     _controlSub?.cancel();
-    debugPrint("Control sub canceled");
+    AppLogger.log("BLE", "Control subscription canceled");
     super.dispose();
   }
 
@@ -202,7 +203,7 @@ Widget getSignalIconFromRssi(String rssiStr, int timeStamp) {
   }
 
   double rssi = double.tryParse(rssiStr) ?? -100;
-  debugPrint("Rssi = $rssiStr, str = $rssiStr");
+  AppLogger.log("[MESH]", "RSSI Value: $rssiStr");
   IconData iconData;
   Color iconColor;
 

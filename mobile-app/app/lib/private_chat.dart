@@ -1,3 +1,4 @@
+import 'package:app/logger.dart';
 import 'package:flutter/material.dart';
 import 'package:app/private_page.dart';
 import 'dart:async';
@@ -39,6 +40,7 @@ class _PrivatePageState extends State<PrivateChatPage> {
           final targetMac = parts[3];
           final payload = parts.sublist(8).join(';');
           if (senderMac == widget.device.mac && targetMac != "FFFFFFFF") {
+            AppLogger.log("CHAT", "Recieved private message from ${widget.device.name}");
             setState(() {
               _messages.add(PrivateMessage(text: payload, isMe: false));
             });
@@ -83,6 +85,7 @@ class _PrivatePageState extends State<PrivateChatPage> {
               final text = _controller.text;
               if (text.isNotEmpty) {
                 sendPrivateMsg(widget.device.mac, text);
+                AppLogger.log("CHAT", "Sent private message to ${widget.device.name}");
 
                 setState(() {
                   _messages.add(PrivateMessage(text: text, isMe: true));
