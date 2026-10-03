@@ -1,6 +1,10 @@
 import 'package:flutter/material.dart';
 import 'ble_service.dart';
 
+String colorToHex(Color color) {
+  return color.toARGB32().toRadixString(16).padLeft(8, '0').substring(2).toUpperCase();
+}
+
 // default 9 colors
 final List<Color> _defaultColors = [
   Colors.amber,
@@ -14,54 +18,6 @@ final List<Color> _defaultColors = [
   Colors.green,
 ];
 
-// build a color picker with 9 default colors and a custom color picker
-Widget _buildColorPicker() {
-  return Padding(
-    padding: EdgeInsets.symmetric(horizontal: 15, vertical: 12),
-    child: Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text("Select color:", style: TextStyle(fontSize: 20)),
-        SizedBox(height: 15,),
-        GridView.builder(
-          shrinkWrap: true,
-          physics: NeverScrollableScrollPhysics(),
-          gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-            // 5 colors in 2 rows
-            crossAxisCount: 5,
-            crossAxisSpacing: 10,
-            mainAxisSpacing: 10,
-          ),
-          itemCount: 10,
-          itemBuilder: (context, index) {
-            bool isLast = index == 9;
-
-            return Center(
-              child: SizedBox(
-                height: 50,
-                width: 50,
-                child: Container(
-                  decoration: BoxDecoration(
-                    color: isLast ? Colors.grey.shade200 : _defaultColors[index],
-                    shape: BoxShape.circle,
-                    border: Border.all(color: Colors.black, width: 2),
-                  ),
-                  child: Center(
-                    child: Icon(
-                      isLast ? Icons.palette_rounded : Icons.person_rounded,
-                      color: isLast ? Colors.black54 : Colors.white,
-                    ),
-                  ),
-                ),
-              ),
-            );
-          },
-        ),
-      ],
-    ),
-  );
-}
-
 class SettingsPage extends StatefulWidget {
   const SettingsPage({super.key});
 
@@ -73,6 +29,84 @@ class _SettingsPageState extends State<SettingsPage> {
   // keep track of loading to wait for ble response and request
   bool _isLoading = false;
   bool _isSavingUsername = false;
+  int? _selectedColorIndex;
+
+  // build a color picker with 9 default colors and a custom color picker
+  Widget _buildColorPicker() {
+    return Padding(
+      padding: EdgeInsets.symmetric(horizontal: 15, vertical: 12),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text("Select color:", style: TextStyle(fontSize: 20)),
+          SizedBox(height: 15),
+          GridView.builder(
+            shrinkWrap: true,
+            physics: NeverScrollableScrollPhysics(),
+            gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+              // 5 colors in 2 rows
+              crossAxisCount: 5,
+              crossAxisSpacing: 10,
+              mainAxisSpacing: 10,
+            ),
+            itemCount: 10,
+            itemBuilder: (context, index) {
+              bool isLast = index == 9;
+              bool isSelected = _selectedColorIndex == index;
+
+              return Center(
+                child: SizedBox(
+                  height: 50,
+                  width: 50,
+                  child: GestureDetector(
+                    onTap: _isLoading
+                        ? null
+                        : () async {
+                            if (isLast) return;
+
+                            final hex = colorToHex(_defaultColors[index]);
+
+                            setState(() {
+                              _isLoading = true;
+                              _selectedColorIndex = index;
+                            });
+
+                            final messenger = ScaffoldMessenger.of(context);
+                            bool success = await setColor(hex);
+
+                            if (!success && mounted) {
+                              messenger.showSnackBar(SnackBar(content: Text("Failed to update color.")));
+                            }
+
+                            if (mounted) {
+                              setState(() {
+                                _isLoading = false;
+                              });
+                            }
+                          },
+                    child: Container(
+                      decoration: BoxDecoration(
+                        color: isLast ? Colors.grey.shade200 : _defaultColors[index],
+                        shape: BoxShape.circle,
+                        border: Border.all(color: Colors.black, width: isSelected ? 3 : 2),
+                      ),
+                      child: Center(
+                        child: Icon(
+                          isLast ? Icons.palette_rounded 
+                            : (isSelected ? Icons.check : Icons.person_rounded),
+                          color: isLast ? Colors.black54 : Colors.white,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              );
+            },
+          ),
+        ],
+      ),
+    );
+  }
 
   late final TextEditingController _usernameController;
 
@@ -80,12 +114,27 @@ class _SettingsPageState extends State<SettingsPage> {
   void initState() {
     super.initState();
     _usernameController = TextEditingController(text: usernameSetting.value);
+    _initSelectedColor();
   }
 
   @override
   void dispose() {
     _usernameController.dispose();
     super.dispose();
+  }
+
+  // highlight the current color in the UI
+  void _initSelectedColor() {
+    final currentColorHex = colorSetting.value;
+    if (currentColorHex.isEmpty) return;
+
+    for (int i = 0; i < _defaultColors.length; i++) {
+      final hex = colorToHex(_defaultColors[i]);
+      if (hex == currentColorHex) {
+        _selectedColorIndex = i;
+        break;
+      }
+    }
   }
 
   Future<void> _submitUsername() async {

@@ -199,6 +199,11 @@ Future<void> _initializeDeviceSettings() async {
   if (initialUser != null) {
     usernameSetting.value = initialUser;
   }
+  
+  String? initialColor = await getColor();
+  if(initialColor != null) {
+    colorSetting.value = initialColor;
+  }
 }
 
 Future<bool> connectAndSetupDevice(BluetoothDevice device) async {
