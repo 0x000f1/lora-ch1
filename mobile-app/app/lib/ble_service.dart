@@ -134,6 +134,36 @@ Future<String?> getUsername() async {
   return null;
 }
 
+// device color stored in hex
+final ValueNotifier<String> colorSetting = ValueNotifier("");
+
+Future<bool> setColor(String color) async {
+  if (color.trim().isEmpty) return false;
+  final String command = "SET_COL;$color";
+  bool success = await sendCommandWithResponse(command, "COL_OK");
+  if (success) {
+    colorSetting.value = color;
+    AppLogger.log("SETT", "Color updated to: $color");
+    return true;
+  }
+  else {
+    AppLogger.log("SETT", "Color failed to update");
+    return false;
+  }
+}
+
+Future<String?> getColor() async {
+  String? response = await sendCommandAndFetch("GET_COL", "COL");
+  if (response != null) {
+    final parts = response.split(";");
+    if (parts.length >= 2) {
+      return parts[1];
+    }
+  }
+  return null;
+}
+
+
 void _startBatteryUpdates() {
   _batteryTimer?.cancel();
   _batteryTimer = Timer.periodic(const Duration(seconds: 5), (_) {
