@@ -44,7 +44,7 @@ void BatteryManager::handleBattery() {
 
         // If the level is below 15 percent, AND not charging
         if (batLevel <= 15 && !currentChargingState && !lowBatteryAlerted) {
-            HapticManager::playEffect(10); // Send a haptic signal
+            HapticManager::playEffect(70); // Send a haptic signal
             lowBatteryAlerted = true;
             LOG_W(TAG, "Low battery warning: %d%%", batLevel);
         } else if (batLevel > 20 || currentChargingState) {
