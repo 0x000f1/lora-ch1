@@ -46,16 +46,17 @@ class _BroadcastPageState extends State<BroadcastPage> {
 
     _dataSub = dataStream.listen((rawMsg) {
       if (mounted) {
-        // SENDER_MAC;SENDER_USERNAME;COLOR_HEX;TARGET_MAC;CURRENT_FRAGMENT;TOTAL_FRAGMENTS;TIMESTAMP;RSSI;PAYLOAD
+        // sent from ble stream with fragment info removed:
+        // SENDER_MAC;SENDER_USERNAME;COLOR_HEX;TARGET_MAC;TIMESTAMP;RSSI;PAYLOAD
         final parts = rawMsg.split(';');
 
-        if (parts.length >= 9) {
+        if (parts.length >= 7) {
           AppLogger.log("CHAT", "Recieved broadcast message: $rawMsg");
           final senderUsername = parts[1];
           // use internal time if parsing fails
-          final timeStamp = int.tryParse(parts[6]) ?? (DateTime.now().millisecondsSinceEpoch ~/ 1000);
+          final timeStamp = int.tryParse(parts[4]) ?? (DateTime.now().millisecondsSinceEpoch ~/ 1000);
           // join message in case there is ';' in it
-          final payload = parts.sublist(8).join(';');
+          final payload = parts.sublist(6).join(';');
 
           setState(() {
             _messages.add(ChatMessage(text: payload, isMe: false, senderName: senderUsername, timestamp: timeStamp));

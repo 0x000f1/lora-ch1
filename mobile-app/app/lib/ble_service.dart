@@ -38,7 +38,11 @@ Future<void> setupBleCommunication(BluetoothCharacteristic control, BluetoothCha
   // store any incoming messages in the ble stream
   _dataBleSub = _dataChar!.lastValueStream.listen((value) {
     if (value.isNotEmpty) {
-      _dataStreamController.add(utf8.decode(value));
+      final rawMsg = utf8.decode(value);
+      final assambled = handleIncomingFragments(rawMsg);
+      if (assambled != null) {
+        _dataStreamController.add(assambled);
+      }
     }
   });
 
@@ -236,7 +240,6 @@ Future<void> disconnectDevice(BluetoothDevice device) async {
   _foundChars.clear();
 }
 
-
 // writing: returns true if message went throught, false otherwise
 Future<bool> sendOnDataChar(String msg) async {
   // check if the device is connected to avoid errors
@@ -300,11 +303,10 @@ Future<void> sendMessage(String targetMac, String msg) async {
     final current = i + 1;
     final payload = fragments[i];
     final packet = "$targetMac;$current;$fragmentCount;$payload";
-    
+
     AppLogger.log("BLE", "Sending fragment $current/$fragmentCount ($payload)");
     await sendOnDataChar(packet);
   }
-  
 
   AppLogger.log("CHAT", "Sent message: $msg");
 }
@@ -317,6 +319,45 @@ Future<void> sendBroadcastMsg(String msg) async {
 Future<void> sendPrivateMsg(String targetMac, String msg) async {
   await sendMessage(targetMac, msg);
   AppLogger.log("CHAT", "Sent private message $msg to $targetMac");
+}
+
+final Map<String, String> _incomingBuffers = {};
+String? handleIncomingFragments(String rawData) {
+  final parts = rawData.split(';');
+  if (parts.length < 9) return rawData;
+
+  final senderMac = parts[0];
+  final senderUsername = parts[1];
+  final colorHex = parts[2];
+  final targetMac = parts[3];
+  final currentFragment = int.tryParse(parts[4]);
+  final totalFragments = int.tryParse(parts[5]);
+  final timeStamp = parts[6];
+  final rssi = parts[7];
+  final payload = parts.sublist(8).join(';');
+
+  if (currentFragment == null || totalFragments == null || totalFragments <= 1) {
+    return "$senderMac;$senderUsername;$colorHex;$targetMac;$timeStamp;$rssi;$payload";
+  }
+
+  AppLogger.log("BLE", "Fragment $currentFragment/$totalFragments from $senderMac");
+
+  if (currentFragment == 1) {
+    // on first fragment, override/create entry
+    _incomingBuffers[senderMac] = payload;
+  } else {
+    // append other fragments
+    _incomingBuffers[senderMac] = (_incomingBuffers[senderMac] ?? '') + payload;
+  }
+
+  if (currentFragment == totalFragments) {
+    final completeMessage = _incomingBuffers.remove(senderMac) ?? payload;
+    AppLogger.log("CHAT", "Complete message recieved from $senderMac");
+    // returned with fragment info removed
+    return "$senderMac;$senderUsername;$colorHex;$targetMac;$timeStamp;$rssi;$completeMessage";
+  }
+
+  return null;
 }
 
 // send a SET command on control stream that has an expected response (SET_TIM: TIM_OK) etc..

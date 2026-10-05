@@ -123,6 +123,7 @@ class _HomePageState extends State<HomePage>
         ],
       ),
       body: BottomBar(
+        hideOnScroll: false,
         borderRadius: BorderRadius.circular(25),
         width: MediaQuery.of(context).size.width * 0.55,
         barColor: Colors.grey.shade200,
