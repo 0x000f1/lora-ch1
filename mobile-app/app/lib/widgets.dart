@@ -1,4 +1,7 @@
+import 'dart:math';
+
 import 'package:flutter/material.dart';
+import 'dart:convert';
 import 'package:app/theme.dart';
 
 // SEPERATE FILE FOR WIDGETS THAT BOTH BROADCAST AND PRIVATE PAGE USES
@@ -62,7 +65,7 @@ class ChatBubble extends StatelessWidget {
   }
 }
 
-class ChatInput extends StatelessWidget {
+class ChatInput extends StatefulWidget {
   final TextEditingController controller;
   final VoidCallback onSend;
   final double bottomPadding;
@@ -70,31 +73,72 @@ class ChatInput extends StatelessWidget {
   const ChatInput({super.key, required this.controller, required this.onSend, this.bottomPadding = 16.0});
 
   @override
+  State<ChatInput> createState() => _ChatInputState();
+}
+
+class _ChatInputState extends State<ChatInput> {
+  int _byteCount = 0;
+  static const int maxBytes = 1024; // max size of one message
+  static const int chunkSize = 240; // max size of one fragment
+
+  @override
+  void initState() {
+    super.initState();
+    widget.controller.addListener(_updateByteCount);
+  }
+
+  @override
+  void dispose() {
+    widget.controller.removeListener(_updateByteCount);
+    super.dispose();
+  }
+
+  void _updateByteCount() {
+    final bytes = utf8.encode(widget.controller.text).length;
+    if (bytes != _byteCount) {
+      setState(() {
+        _byteCount = bytes;
+      });
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final isOverLimit = _byteCount > maxBytes;
     return Padding(
-      padding: EdgeInsets.only(left: 16, right: 16, bottom: bottomPadding),
-      child: Row(
+      padding: EdgeInsets.only(left: 16, right: 16, bottom: widget.bottomPadding),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.end,
+        mainAxisSize: MainAxisSize.min,
         children: [
-          Expanded(
-            child: TextField(
-              controller: controller,
-              decoration: InputDecoration(
-                hintText: "Message",
-                hintStyle: const TextStyle(color: Colors.black),
-                filled: true,
-                fillColor: Colors.grey.shade100,
-                border: OutlineInputBorder(borderRadius: BorderRadius.circular(25), borderSide: BorderSide.none),
-                contentPadding: const EdgeInsets.symmetric(horizontal: 20),
+          Row(
+            children: [
+              Expanded(
+                child: TextField(
+                  controller: widget.controller,
+                  decoration: InputDecoration(
+                    hintText: "Message",
+                    hintStyle: const TextStyle(color: Colors.black),
+                    filled: true,
+                    fillColor: Colors.grey.shade100,
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(25), borderSide: BorderSide.none),
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 20),
+                    counter: Text(
+                      "$_byteCount/$maxBytes",
+                      style: TextStyle(fontSize: 10, color: isOverLimit ? Colors.red : Colors.grey),
+                    ),
+                  ),
+                ),
               ),
-            ),
-          ),
-          const SizedBox(width: 8),
-          CircleAvatar(
-            backgroundColor: Colors.blue.shade800,
-            child: IconButton(
-              icon: const Icon(Icons.send, color: Colors.white, size: 20),
-              onPressed: onSend,
-            ),
+              const SizedBox(width: 8),
+              CircleAvatar(
+                backgroundColor: isOverLimit || _byteCount == 0 ? Colors.grey : Colors.blue.shade800,
+                child: IconButton(
+                  icon: const Icon(Icons.send_rounded, color: Colors.white, size: 20),
+                  onPressed: isOverLimit || _byteCount == 0 ? null : widget.onSend,
+                ),
+              ),
+            ],
           ),
         ],
       ),
