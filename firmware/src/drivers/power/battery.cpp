@@ -49,8 +49,8 @@ uint8_t BatteryManager::getBatteryPercentage() {
     // The measured voltage is the half of the battery's.
     float voltageBattery = (adcMilliVolts * 2.0f) / 1000.0f;
 
-    // Calculate the percentage (3.2 - 4.2 V range)
-    float percentageBattery = ((voltageBattery - 3.2f) / (4.2f - 3.2f)) * 100.0f;
+    // Calculate the percentage (3.4 - 4.2 V range)
+    float percentageBattery = ((voltageBattery - 3.4f) / (4.2f - 3.4f)) * 100.0f;
 
     // Handling limits and measurement errors
     if (percentageBattery > 100.0f) percentageBattery = 100.0f;
