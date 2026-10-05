@@ -4,6 +4,10 @@ import 'package:app/logger.dart';
 import 'package:flutter/material.dart';
 import 'package:app/private_chat.dart';
 
+Color hexToColor(String hex) {
+  return Color(int.parse("FF$hex",radix: 16));
+}
+
 class PeerDevice {
   final String mac;
   final String rssi;
@@ -148,7 +152,7 @@ class _PrivatePageState extends State<PrivatePage> {
                       );
                     },
                     leading: CircleAvatar(
-                      backgroundColor: Colors.blue.shade800,
+                      backgroundColor: hexToColor(device.colorHex),
                       child: Icon(Icons.person, color: Colors.white),
                     ),
                     title: Row(
