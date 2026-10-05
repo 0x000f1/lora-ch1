@@ -116,8 +116,7 @@ Future<bool> setUsername(String newName) async {
     usernameSetting.value = newName;
     AppLogger.log("SETT", "Username updated to: $newName");
     return true;
-  }
-  else {
+  } else {
     AppLogger.log("SETT", "Username failed to update");
     return false;
   }
@@ -145,8 +144,7 @@ Future<bool> setColor(String color) async {
     colorSetting.value = color;
     AppLogger.log("SETT", "Color updated to: $color");
     return true;
-  }
-  else {
+  } else {
     AppLogger.log("SETT", "Color failed to update");
     return false;
   }
@@ -162,7 +160,6 @@ Future<String?> getColor() async {
   }
   return null;
 }
-
 
 void _startBatteryUpdates() {
   _batteryTimer?.cancel();
@@ -194,14 +191,14 @@ Future<void> _initializeDeviceSettings() async {
   if (initialVib != null) {
     vibrationSetting.value = initialVib;
   }
-  
+
   String? initialUser = await getUsername();
   if (initialUser != null) {
     usernameSetting.value = initialUser;
   }
-  
+
   String? initialColor = await getColor();
-  if(initialColor != null) {
+  if (initialColor != null) {
     colorSetting.value = initialColor;
   }
 }
@@ -239,8 +236,8 @@ Future<void> disconnectDevice(BluetoothDevice device) async {
   _foundChars.clear();
 }
 
-// writing: returns true if message went throught, false otherwise
 
+// writing: returns true if message went throught, false otherwise
 Future<bool> sendOnDataChar(String msg) async {
   // check if the device is connected to avoid errors
   if (_dataChar == null || !isDeviceConnected.value) return false;
@@ -266,16 +263,60 @@ Future<bool> sendOnControlChar(String msg) async {
   }
 }
 
+// split message into 240 byte sized fragments
+List<String> splitMessage(String text) {
+  final List<String> fragments = [];
+  final StringBuffer currentFragment = StringBuffer();
+  int currentFragmentBytes = 0;
+
+  // in each iteration, check if current character can fit into a fragment without splitting a multi-byte character
+  for (final char in text.characters) {
+    final charBytes = utf8.encode(char).length;
+
+    // reset current fragment if adding a character results in one over 240 bytes
+    if (currentFragmentBytes + charBytes > 240) {
+      fragments.add(currentFragment.toString());
+      currentFragment.clear();
+      currentFragmentBytes = 0;
+    }
+    // append character and update bytecount
+    currentFragment.write(char);
+    currentFragmentBytes += charBytes;
+  }
+
+  // add remaining text into a seperate fragment
+  if (currentFragment.isNotEmpty) {
+    fragments.add(currentFragment.toString());
+  }
+
+  return fragments;
+}
+
+Future<void> sendMessage(String targetMac, String msg) async {
+  final fragments = splitMessage(msg);
+  final fragmentCount = fragments.length;
+  // send all fragments in order
+  for (int i = 0; i < fragmentCount; i++) {
+    final current = i + 1;
+    final payload = fragments[i];
+    final packet = "$targetMac;$current;$fragmentCount;$payload";
+    
+    AppLogger.log("BLE", "Sending fragment $current/$fragmentCount ($payload)");
+    await sendOnDataChar(packet);
+  }
+  
+
+  AppLogger.log("CHAT", "Sent message: $msg");
+}
+
 Future<void> sendBroadcastMsg(String msg) async {
-  final formattedMsg = "FFFFFFFF;1;1;$msg";
-  await sendOnDataChar(formattedMsg);
-  AppLogger.log("CHAT", "Sent broadcast message: $msg");
+  await sendMessage("FFFFFFFF", msg);
+  AppLogger.log("CHAT", "Sent broadcast message $msg");
 }
 
 Future<void> sendPrivateMsg(String targetMac, String msg) async {
-  final formattedMsg = "$targetMac;1;1;$msg";
-  await sendOnDataChar(formattedMsg);
-  AppLogger.log("CHAT", "Sent private message: $msg");
+  await sendMessage(targetMac, msg);
+  AppLogger.log("CHAT", "Sent private message $msg to $targetMac");
 }
 
 // send a SET command on control stream that has an expected response (SET_TIM: TIM_OK) etc..
