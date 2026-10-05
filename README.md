@@ -119,3 +119,6 @@ This channel is used to query the network status and manage system preferences.
   * `FACTORY_RESET`
     * *Action:* Erases the whole NVS partition, clears color, username, UUIDs, and all settings. The ESP restarts automatically. The LoRa MAC remains unchanged as it is generated from the hardware MAC address.
     * *Response:* `FACTORY_RESET_OK`
+  * `FIND`
+    * *Action:* For 5 second, spams the 750 ms Alert 100% haptic vibration.
+    * *Response:* `FIND_OK`

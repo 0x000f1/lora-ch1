@@ -4,6 +4,7 @@
 #include <NimBLEDevice.h>
 #include "managers/lora/lora.h"
 #include "managers/ble/ble.h"
+#include "drivers/ui/haptic.h"
 #include <esp_bt.h>
 #include <sys/time.h>
 
@@ -238,6 +239,27 @@ class controlCharStatusCallbacks : public NimBLECharacteristicCallbacks {
             nimBleChar->notify();
             vTaskDelay(pdMS_TO_TICKS(100));
             SystemManager::factoryReset();
+        }
+        else if (strcmp(cmd, "FIND") == 0) {
+            LOG_I(TAG, "Command received: FIND. Starting 5s haptics.");
+            nimBleChar->setValue("FIND_OK");
+            nimBleChar->notify();
+
+            // Async FreeRTOS thread (non blocking) for 5 sec
+            xTaskCreate([](void* pvParameters) {
+                unsigned long startTime = millis();
+                
+                // for 5 sec (5 000 ms) replay the 15 (750 ms Alert 100%) effect
+                while (millis() - startTime < 5000) {
+                    HapticManager::playEffect(15);
+                    
+                    // Wait 1 sec (750 ms playtime, 250 ms free time)
+                    vTaskDelay(pdMS_TO_TICKS(1000)); 
+                }
+                
+                LOG_I("BLE", "FIND haptics finished.");
+                vTaskDelete(NULL); // Delete the FreeRTOS thread
+            }, "PingTask", 2048, NULL, 1, NULL);
         }
     }
 };
