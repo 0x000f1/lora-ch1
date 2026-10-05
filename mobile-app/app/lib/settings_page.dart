@@ -5,7 +5,7 @@ String colorToHex(Color color) {
   return color.toARGB32().toRadixString(16).padLeft(8, '0').substring(2).toUpperCase();
 }
 
-// default 9 colors
+// default 10 colors
 final List<Color> _defaultColors = [
   Colors.amber,
   Colors.orange,
@@ -13,9 +13,10 @@ final List<Color> _defaultColors = [
   Colors.pink,
   Colors.purple,
   Colors.deepPurple,
-  Colors.indigo,
   Colors.lightBlue,
   Colors.green,
+  Colors.brown,
+  Colors.black,
 ];
 
 class SettingsPage extends StatefulWidget {
@@ -51,7 +52,6 @@ class _SettingsPageState extends State<SettingsPage> {
             ),
             itemCount: 10,
             itemBuilder: (context, index) {
-              bool isLast = index == 9;
               bool isSelected = _selectedColorIndex == index;
 
               return Center(
@@ -62,7 +62,6 @@ class _SettingsPageState extends State<SettingsPage> {
                     onTap: _isLoading
                         ? null
                         : () async {
-                            if (isLast) return;
 
                             final hex = colorToHex(_defaultColors[index]);
 
@@ -86,15 +85,14 @@ class _SettingsPageState extends State<SettingsPage> {
                           },
                     child: Container(
                       decoration: BoxDecoration(
-                        color: isLast ? Colors.grey.shade200 : _defaultColors[index],
+                        color: _defaultColors[index],
                         shape: BoxShape.circle,
                         border: Border.all(color: Colors.black, width: isSelected ? 3 : 2),
                       ),
                       child: Center(
                         child: Icon(
-                          isLast ? Icons.palette_rounded 
-                            : (isSelected ? Icons.check : Icons.person_rounded),
-                          color: isLast ? Colors.black54 : Colors.white,
+                          Icons.person_rounded,
+                          color: Colors.white,
                         ),
                       ),
                     ),
