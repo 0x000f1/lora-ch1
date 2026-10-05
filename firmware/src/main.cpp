@@ -60,11 +60,6 @@ void handleHILCommands() {
             SystemManager::setPowerProfile((PowerProfile)pwr);
             Serial.println("UART:pwr_ok");
         }
-        else if (cmd == "TEST_BAT") {
-            LOG_I("MAIN", "HIL: Forcing Low Battery Check");
-            BatteryManager::checkLowBattery();
-            Serial.println("UART:bat_check_done");
-        }
         else if (cmd == "GET_BAT") {
             uint8_t batLevel = BatteryManager::getBatteryPercentage();
             Serial.printf("UART:BAT;%d\n", batLevel);
@@ -76,6 +71,7 @@ void loop() {
     BLEManager::handleFlags();
     LoRaManager::handleFlags();
     ButtonManager::handleButton();
+    BatteryManager::handleBattery();
     // handleHILCommands();
     ulTaskNotifyTake(pdTRUE, pdMS_TO_TICKS(10));
 }

@@ -9,10 +9,48 @@
 
 PowerProfile BatteryManager::currentProfile = PowerProfile::BALANCED; // Default profile
 
+// Variables for handleBattery
+static bool lastChargingState = false;
+static bool lowBatteryAlerted = false;
+static unsigned long lastBatteryCheckTime = 0;
+const unsigned long BATTERY_CHECK_INTERVAL = 5000;
+
 void BatteryManager::setupBattery() {
     LOG_I(TAG, "Initializing Battery Manager...");
     analogSetPinAttenuation(PIN_BATTERY_ADC, ADC_11db);
-    pinMode(PIN_BATTERY_CHARGE, INPUT);
+    pinMode(PIN_BATTERY_CHARGE, INPUT_PULLUP);
+    lastChargingState = isCharging();
+}
+
+void BatteryManager::handleBattery() {
+    bool currentChargingState = isCharging();
+
+    if (currentChargingState != lastChargingState) {
+        if (currentChargingState) {
+            LOG_I(TAG, "Charger connected.");
+            HapticManager::playEffect(96);
+            lowBatteryAlerted = false;
+        } else {
+            LOG_I(TAG, "Charger disconnected.");
+        }
+        lastChargingState = currentChargingState;
+    }
+
+    unsigned long currentMillis = millis();
+    if (currentMillis - lastBatteryCheckTime >= BATTERY_CHECK_INTERVAL) {
+        lastBatteryCheckTime = currentMillis;
+
+        uint8_t batLevel = getBatteryPercentage();
+
+        // If the level is below 15 percent, AND not charging
+        if (batLevel <= 15 && !currentChargingState && !lowBatteryAlerted) {
+            HapticManager::playEffect(10); // Send a haptic signal
+            lowBatteryAlerted = true;
+            LOG_W(TAG, "Low battery warning: %d%%", batLevel);
+        } else if (batLevel > 20 || currentChargingState) {
+            lowBatteryAlerted = false; // Cancel the alert if any condition changed
+        }
+    }
 }
 
 void BatteryManager::setPowerProfile(PowerProfile profile) {
@@ -57,19 +95,4 @@ uint8_t BatteryManager::getBatteryPercentage() {
     if (percentageBattery < 0.0f) percentageBattery = 0.0f;
 
     return (uint8_t)percentageBattery;
-}
-
-void BatteryManager::checkLowBattery() {
-    uint8_t batLevel = getBatteryPercentage();
-    bool charging = isCharging();
-
-    // If the level is below 15 percent, AND not charging
-    static bool lowBatteryAlerted = false;
-    if (batLevel <= 15 && !charging && !lowBatteryAlerted) {
-        HapticManager::playEffect(7); // Send a haptic signal
-        lowBatteryAlerted = true;
-        LOG_W(TAG, "Low battery warning: %d%%", batLevel);
-    } else if (batLevel > 20 || charging) {
-        lowBatteryAlerted = false; // Cancel the alert if any condition changed
-    }
 }

@@ -324,9 +324,6 @@ void LoRaManager::handleFlags() {
     if (!isTransmitting && !waitingForAck && heartbeatPending && millis() >= nextTxAllowedMillis) {
         heartbeatPending = false;
         sendHeartbeat(); // Sends a discovery/heartbeat message to broadcast
-
-        // Check the battery condition (If lower than 15 percent, warn the user)
-        BatteryManager::checkLowBattery();
     }
 
     // Delete the inactive neighbors (That device has been inactive for heartbeat interval).

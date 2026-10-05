@@ -43,9 +43,9 @@ public:
      */
     static bool isCharging();
     /**
-     * @brief Check if the battery is in low condition, send a haptic signal
+     * @brief Handles low battery notification, connected charger feedback
      */
-    static void checkLowBattery();
+    static void handleBattery();
 private:
     static PowerProfile currentProfile;
 };
