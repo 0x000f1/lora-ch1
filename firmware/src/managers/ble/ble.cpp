@@ -121,12 +121,14 @@ class controlCharStatusCallbacks : public NimBLECharacteristicCallbacks {
         LOG_I(TAG, "Control Characteristic written by client: %s", cmd);
 
         if (strcmp(cmd, "GET_NEI") == 0) {
-            DiscoveryInfo list[MAX_NEIGHBORS];
+            // Stack Overflow fix: Store on Heap
+            DiscoveryInfo* list = new DiscoveryInfo[MAX_NEIGHBORS];
             uint8_t count = 0;
 
             if (!LoRaManager::getNeighbors(list, MAX_NEIGHBORS, count)) {
                 nimBleChar->setValue("NEI_ERR");
                 nimBleChar->notify();
+                delete[] list;
                 return;
             }
 
@@ -162,6 +164,7 @@ class controlCharStatusCallbacks : public NimBLECharacteristicCallbacks {
                 nimBleChar->setValue(response);
             }
             nimBleChar->notify();
+            delete[] list;
         }
         else if (strncmp(cmd, "SET_PWR;", 8) == 0) {
             const char* profileStr = cmd + 8;
