@@ -9,6 +9,46 @@ Future<Database> getDatabase() async {
   return _db!;
 }
 
+Future<int> getUnreadBroadcastCount() async {
+  final db = await getDatabase();
+  final rows = await db.query('messages', columns: ['id'], where: 'is_broadcast = 1 AND is_me = 0 AND is_read = 0');
+  return rows.length;
+}
+
+// returns the count of all peer's unread messages combined
+Future<int> getTotalUnreadPrivateCount() async {
+  final db = await getDatabase();
+  final rows = await db.query('messages', columns: ['id'], where: 'is_broadcast = 0 AND is_me = 0 AND is_read = 0');
+  return rows.length;
+}
+
+// returns unread message count from a single peer
+Future<int> getUnreadPrivateCountForPeer(String peerMac) async {
+  final db = await getDatabase();
+  final rows = await db.query(
+    'messages',
+    columns: ['id'],
+    where: 'peer_mac = ? AND is_broadcast = 0 AND is_me = 0 AND is_read = 0',
+    whereArgs: [peerMac],
+  );
+  return rows.length;
+}
+
+Future<void> markBroadcastMessagesAsRead() async {
+  final db = await getDatabase();
+  await db.update('messages', {'is_read': 1}, where: 'is_broadcast = 1 AND is_me = 0 AND is_read = 0');
+}
+
+Future<void> markPrivateMessagesAsRead(String peerMac) async {
+  final db = await getDatabase();
+  await db.update(
+    'messages',
+    {'is_read': 1},
+    where: 'peer_mac = ? AND is_broadcast = 0 AND is_me = 0 AND is_read = 0',
+    whereArgs: [peerMac]
+  );
+}
+
 Future<void> updateLastMessageStatus(String targetMac, String newStatus) async {
   final db = await getDatabase();
 
@@ -22,12 +62,7 @@ Future<void> updateLastMessageStatus(String targetMac, String newStatus) async {
   );
 
   if (rows.isNotEmpty) {
-    await db.update(
-      'messages',
-      {'status': newStatus},
-      where: 'id = ?',
-      whereArgs: [rows.first['id']],
-    );
+    await db.update('messages', {'status': newStatus}, where: 'id = ?', whereArgs: [rows.first['id']]);
   }
 }
 
@@ -62,6 +97,7 @@ class DbMessage {
   final int timestamp;
   final bool isBroadcast;
   String? status;
+  bool isRead;
 
   DbMessage({
     this.id,
@@ -72,6 +108,7 @@ class DbMessage {
     required this.timestamp,
     required this.isBroadcast,
     this.status,
+    this.isRead = false,
   });
 
   Map<String, dynamic> toMap() {
@@ -84,6 +121,7 @@ class DbMessage {
       'timestamp': timestamp,
       'is_broadcast': isBroadcast ? 1 : 0,
       'status': status,
+      'is_read': isRead ? 1 : 0,
     };
   }
 
@@ -95,7 +133,8 @@ class DbMessage {
       isMe = ((map['is_me'] as int?) ?? 0) == 1,
       timestamp = (map['timestamp'] as int?) ?? 0,
       isBroadcast = ((map['is_broadcast'] as int?) ?? 0) == 1,
-      status = map['status'] as String?;
+      status = map['status'] as String?,
+      isRead = ((map['is_read'] as int?) ?? 0) == 1;
 }
 
 Future<Database> openChatDataBase() async {
@@ -125,14 +164,10 @@ Future<Database> openChatDataBase() async {
         is_me INTEGER,
         timestamp INTEGER,
         is_broadcast INTEGER,
-        status TEXT
+        status TEXT,
+        is_read INTEGER DEFAULT 0
       )
       ''');
-    },
-    onUpgrade: (db, oldVersion, newVersion) async {
-      if (oldVersion < 2) {
-        await db.execute("ALTER TABLE messages ADD COLUMN status TEXT");
-      }
     },
   );
 }

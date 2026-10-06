@@ -73,8 +73,18 @@ List<BluetoothCharacteristic> _foundChars = [];
 List<BluetoothCharacteristic> get chars => _foundChars;
 final ValueNotifier<bool> isDeviceConnected = ValueNotifier(false);
 
+final ValueNotifier<int> unreadPrivateCount = ValueNotifier(0);
+final ValueNotifier<int> unreadBroadcastCount = ValueNotifier(0);
+final ValueNotifier<int> unreadUpdateTrigger = ValueNotifier(0);
+
 final ValueNotifier<int> batteryLevel = ValueNotifier(0);
 Timer? _batteryTimer;
+
+Future<void> refreshUnreadCount() async {
+  unreadPrivateCount.value = await getTotalUnreadPrivateCount();
+  unreadBroadcastCount.value = await getUnreadBroadcastCount();
+  unreadUpdateTrigger.value++;
+}
 
 Future<bool> _setDeviceTime() async {
   final currentTime = DateTime.now().millisecondsSinceEpoch ~/ 1000;
