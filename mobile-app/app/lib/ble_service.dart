@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'package:app/db_service.dart';
 import 'package:app/logger.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_blue_plus/flutter_blue_plus.dart';
@@ -42,6 +43,7 @@ Future<void> setupBleCommunication(BluetoothCharacteristic control, BluetoothCha
       final assambled = handleIncomingFragments(rawMsg);
       if (assambled != null) {
         _dataStreamController.add(assambled);
+        _saveIncomingMessageToDb(assambled);
       }
     }
   });
@@ -358,6 +360,28 @@ String? handleIncomingFragments(String rawData) {
   }
 
   return null;
+}
+
+Future<void> _saveIncomingMessageToDb(String rawMsg) async {
+  final parts = rawMsg.split(';');
+  if (parts.length >= 7) {
+    final senderMac = parts[0];
+    final senderUser = parts[1];
+    final targetMac = parts[3];
+    final timeStamp = int.tryParse(parts[4]) ?? (DateTime.now().millisecondsSinceEpoch ~/ 1000);
+    final payload = parts.sublist(6).join(';');
+    final isBroadcast = targetMac == 'FFFFFFFF';
+
+    final message = DbMessage(
+      peerMac: isBroadcast ? null : senderMac,
+      senderName: senderUser,
+      content: payload,
+      isMe: false,
+      timestamp: timeStamp,
+      isBroadcast: isBroadcast,
+    );
+    await InsertMessage(message);
+  }
 }
 
 // send a SET command on control stream that has an expected response (SET_TIM: TIM_OK) etc..

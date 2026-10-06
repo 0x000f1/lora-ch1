@@ -7,8 +7,6 @@ import 'package:flutter_blue_plus/flutter_blue_plus.dart';
 import 'package:app/widgets.dart';
 import 'package:app/db_service.dart';
 
-
-
 class BroadcastPage extends StatefulWidget {
   final BluetoothDevice? device;
   final ScrollController scrollController;
@@ -26,7 +24,7 @@ class _BroadcastPageState extends State<BroadcastPage> {
   StreamSubscription? _connectionSub;
   // data listener
   StreamSubscription? _dataSub;
-  
+
   final List<DbMessage> _messages = [];
 
   Future<void> _loadMessages() async {
@@ -65,19 +63,16 @@ class _BroadcastPageState extends State<BroadcastPage> {
           // join message in case there is ';' in it
           final payload = parts.sublist(6).join(';');
 
-          // construct and add database instance
-          final message = DbMessage(
-            senderName: senderUsername,
-            content: payload,
-            isMe: false,
-            timestamp: timeStamp,
-            isBroadcast: true,
-          );
-          await InsertMessage(message);
-
-          // add into local list
           setState(() {
-            _messages.add(message);
+            _messages.add(
+              DbMessage(
+                senderName: senderUsername,
+                content: payload,
+                isMe: false,
+                timestamp: timeStamp,
+                isBroadcast: true,
+              ),
+            );
           });
         }
       }
@@ -102,7 +97,12 @@ class _BroadcastPageState extends State<BroadcastPage> {
             itemCount: _messages.length,
             itemBuilder: (context, index) {
               final msg = _messages[index];
-              return ChatBubble(text: msg.content, senderName: msg.senderName, isMe: msg.isMe, timeStamp: msg.timestamp);
+              return ChatBubble(
+                text: msg.content,
+                senderName: msg.senderName,
+                isMe: msg.isMe,
+                timeStamp: msg.timestamp,
+              );
             },
           ),
         ),
@@ -120,6 +120,7 @@ class _BroadcastPageState extends State<BroadcastPage> {
         final outMsg = _controller.text;
         if (outMsg.isNotEmpty) {
           sendBroadcastMsg(outMsg);
+          
           final outgoingMessage = DbMessage(
             senderName: "Me",
             content: outMsg,
@@ -127,6 +128,7 @@ class _BroadcastPageState extends State<BroadcastPage> {
             timestamp: DateTime.now().millisecondsSinceEpoch ~/ 1000,
             isBroadcast: true,
           );
+          
           await InsertMessage(outgoingMessage);
 
           setState(() {

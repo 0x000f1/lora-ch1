@@ -6,9 +6,6 @@ import 'dart:async';
 import 'package:app/ble_service.dart';
 import 'package:app/widgets.dart';
 
-
-
-
 class PrivateChatPage extends StatefulWidget {
   final PeerDevice device;
 
@@ -21,7 +18,7 @@ class PrivateChatPage extends StatefulWidget {
 class _PrivatePageState extends State<PrivateChatPage> {
   final TextEditingController _controller = TextEditingController();
   StreamSubscription? _dataSub;
-  
+
   final List<DbMessage> _messages = [];
 
   Future<void> _loadMessages() async {
@@ -47,17 +44,17 @@ class _PrivatePageState extends State<PrivateChatPage> {
           final payload = parts.sublist(6).join(';');
           if (senderMac == widget.device.mac && targetMac != "FFFFFFFF") {
             AppLogger.log("CHAT", "Recieved private message from ${widget.device.name}");
-            final message = DbMessage(
-              peerMac: widget.device.mac,
-              senderName: widget.device.name,
-              content: payload,
-              isMe: false,
-              timestamp: timeStamp,
-              isBroadcast: false,
-            );
-            await InsertMessage(message);
             setState(() {
-              _messages.add(message);
+              _messages.add(
+                DbMessage(
+                  peerMac: widget.device.mac,
+                  senderName: widget.device.name,
+                  content: payload,
+                  isMe: false,
+                  timestamp: timeStamp,
+                  isBroadcast: false,
+                ),
+              );
             });
           }
         }
