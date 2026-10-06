@@ -168,6 +168,10 @@ class _PrivatePageState extends State<PrivatePage> {
                       "Last Seen: ${_formatLastSeen(device.timeStamp)}",
                       style: TextStyle(color: Colors.black, fontSize: 11),
                     ),
+                    trailing: Badge(
+                      label: const Text('4', style: TextStyle(fontSize: 12)),
+                      backgroundColor: Colors.red.shade300,
+                    ),
                   );
                 },
               )

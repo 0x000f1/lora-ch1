@@ -152,9 +152,13 @@ class _HomePageState extends State<HomePage>
               height: 55,
               width: 55,
               child: Center(
-                child: ImageIcon(
-                  AssetImage('assets/icons/private.png'),
-                  size: 35,
+                child: Badge(
+                  backgroundColor: Colors.red.shade300,
+                  label: const Text('3'),
+                  child: ImageIcon(
+                    AssetImage('assets/icons/private.png'),
+                    size: 35,
+                  ),
                 ),
               ),
             ),
@@ -162,9 +166,13 @@ class _HomePageState extends State<HomePage>
               height: 55,
               width: 55,
               child: Center(
-                child: ImageIcon(
-                  AssetImage('assets/icons/broadcast.png'),
-                  size: 35,
+                child: Badge(
+                  backgroundColor: Colors.red.shade300,
+                  label: Text('2'),
+                  child: ImageIcon(
+                    AssetImage('assets/icons/broadcast.png'),
+                    size: 35,
+                  ),
                 ),
               ),
             ),
