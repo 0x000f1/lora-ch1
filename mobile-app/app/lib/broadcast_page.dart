@@ -5,15 +5,9 @@ import 'package:app/logger.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_blue_plus/flutter_blue_plus.dart';
 import 'package:app/widgets.dart';
+import 'package:app/db_service.dart';
 
-class ChatMessage {
-  final String text;
-  final bool isMe;
-  final String senderName;
-  final int timestamp;
-
-  ChatMessage({required this.text, required this.isMe, required this.senderName, required this.timestamp});
-}
+final List<DbMessage> _messages = [];
 
 class BroadcastPage extends StatefulWidget {
   final BluetoothDevice? device;
@@ -28,15 +22,26 @@ class BroadcastPage extends StatefulWidget {
 class _BroadcastPageState extends State<BroadcastPage> {
   final TextEditingController _controller = TextEditingController();
 
-  final List<ChatMessage> _messages = [];
   // connection listener
   StreamSubscription? _connectionSub;
   // data listener
   StreamSubscription? _dataSub;
 
+  Future<void> _loadMessages() async {
+    // load every broadcast message from database
+    final stored = await getBroadcastMessage();
+    if (mounted) {
+      setState(() {
+        _messages.addAll(stored);
+      });
+    }
+  }
+
   @override
   void initState() {
     super.initState();
+    _loadMessages();
+
     _connectionSub = FlutterBluePlus.events.onConnectionStateChanged.listen((event) {
       if (mounted) {
         // redraw on connect or disconnect
@@ -44,13 +49,13 @@ class _BroadcastPageState extends State<BroadcastPage> {
       }
     });
 
-    _dataSub = dataStream.listen((rawMsg) {
+    _dataSub = dataStream.listen((rawMsg) async {
       if (mounted) {
         // sent from ble stream with fragment info removed:
         // SENDER_MAC;SENDER_USERNAME;COLOR_HEX;TARGET_MAC;TIMESTAMP;RSSI;PAYLOAD
         final parts = rawMsg.split(';');
 
-        if (parts.length >= 7) {
+        if (parts.length >= 7 && parts[3] == 'FFFFFFFF') {
           AppLogger.log("CHAT", "Recieved broadcast message: $rawMsg");
           final senderUsername = parts[1];
           // use internal time if parsing fails
@@ -58,8 +63,19 @@ class _BroadcastPageState extends State<BroadcastPage> {
           // join message in case there is ';' in it
           final payload = parts.sublist(6).join(';');
 
+          // construct and add database instance
+          final message = DbMessage(
+            senderName: senderUsername,
+            content: payload,
+            isMe: false,
+            timestamp: timeStamp,
+            isBroadcast: true,
+          );
+          await InsertMessage(message);
+
+          // add into local list
           setState(() {
-            _messages.add(ChatMessage(text: payload, isMe: false, senderName: senderUsername, timestamp: timeStamp));
+            _messages.add(message);
           });
         }
       }
@@ -84,7 +100,7 @@ class _BroadcastPageState extends State<BroadcastPage> {
             itemCount: _messages.length,
             itemBuilder: (context, index) {
               final msg = _messages[index];
-              return ChatBubble(text: msg.text, senderName: msg.senderName, isMe: msg.isMe, timeStamp: msg.timestamp);
+              return ChatBubble(text: msg.content, senderName: msg.senderName, isMe: msg.isMe, timeStamp: msg.timestamp);
             },
           ),
         ),
@@ -98,20 +114,21 @@ class _BroadcastPageState extends State<BroadcastPage> {
     return ChatInput(
       controller: _controller,
       bottomPadding: 90.0,
-      onSend: () {
-        final text = _controller.text;
-        if (text.isNotEmpty) {
-          sendBroadcastMsg(text);
+      onSend: () async {
+        final outMsg = _controller.text;
+        if (outMsg.isNotEmpty) {
+          sendBroadcastMsg(outMsg);
+          final outgoingMessage = DbMessage(
+            senderName: "Me",
+            content: outMsg,
+            isMe: true,
+            timestamp: DateTime.now().millisecondsSinceEpoch ~/ 1000,
+            isBroadcast: true,
+          );
+          await InsertMessage(outgoingMessage);
 
           setState(() {
-            _messages.add(
-              ChatMessage(
-                text: text,
-                isMe: true,
-                senderName: "Me",
-                timestamp: DateTime.now().millisecondsSinceEpoch ~/ 1000,
-              ),
-            );
+            _messages.add(outgoingMessage);
           });
         }
         _controller.clear();
