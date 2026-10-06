@@ -37,9 +37,15 @@ Future<void> setupBleCommunication(BluetoothCharacteristic control, BluetoothCha
   await _controlBleSub?.cancel();
 
   // store any incoming messages in the ble stream
-  _dataBleSub = _dataChar!.lastValueStream.listen((value) {
+  _dataBleSub = _dataChar!.lastValueStream.listen((value) async {
     if (value.isNotEmpty) {
       final rawMsg = utf8.decode(value);
+      
+      if (rawMsg.startsWith("ACK_OK") || rawMsg.startsWith("ERR_TIMEOUT")) {
+        _dataStreamController.add(rawMsg);
+        return;
+      }
+      
       final assambled = handleIncomingFragments(rawMsg);
       if (assambled != null) {
         _dataStreamController.add(assambled);
@@ -297,30 +303,76 @@ List<String> splitMessage(String text) {
   return fragments;
 }
 
-Future<void> sendMessage(String targetMac, String msg) async {
-  final fragments = splitMessage(msg);
-  final fragmentCount = fragments.length;
-  // send all fragments in order
-  for (int i = 0; i < fragmentCount; i++) {
-    final current = i + 1;
-    final payload = fragments[i];
-    final packet = "$targetMac;$current;$fragmentCount;$payload";
+// returns true if a message got an ack_ok response, false otherwise
+Future<bool> _sendFragmentWithAck(String packet, String targetMac, int payloadBytes) async {
+  // 3,5 seconds + 50ms/byte maximum timeout
+  final timeout = Duration(milliseconds: 3500 + (payloadBytes * 50));
 
-    AppLogger.log("BLE", "Sending fragment $current/$fragmentCount ($payload)");
-    await sendOnDataChar(packet);
+  // start stream before sending data
+  final ackFuture = dataStream
+      .firstWhere(
+        (msg) => msg.startsWith("ACK_OK;$targetMac") || msg.startsWith("ERR_TIMEOUT;$targetMac"),
+      )
+      .timeout(timeout);
+
+  await sendOnDataChar(packet);
+
+  try {
+    final response = await ackFuture;
+    return response.startsWith("ACK_OK");
+  } catch (e) {
+    return false;
+  }
+}
+
+
+Future<bool> sendMessage(String targetMac, String msg) async {
+  final fragments = splitMessage(msg);
+  final isBroadcast = targetMac == 'FFFFFFFF';
+
+  for (int i = 0; i < fragments.length; i++) {
+    final payload = fragments[i];
+    final packet = "$targetMac;${i + 1};${fragments.length};$payload";
+
+    AppLogger.log("BLE", "Sending fragment ${i + 1}/${fragments.length} ($payload)");
+
+    if (isBroadcast) {
+      // no ACK on broadcast
+      await sendOnDataChar(packet);
+      continue;
+    }
+    
+    // send every packet with a seperate ACK check
+    final payloadBytes = utf8.encode(payload).length;
+    final ackReceived = await _sendFragmentWithAck(packet, targetMac, payloadBytes);
+    if (ackReceived) AppLogger.log("BLE", "ACK recieved for fragment ${i+1}/${fragments.length}");
+
+    if (!ackReceived) {
+      AppLogger.log("BLE", "Message failed to send: $msg");
+      await updateLastMessageStatus(targetMac, 'failed');
+      return false;
+    }
+    
+  }
+
+  if (!isBroadcast) {
+    await updateLastMessageStatus(targetMac, 'delivered');
   }
 
   AppLogger.log("CHAT", "Sent message: $msg");
+  return true;
 }
 
-Future<void> sendBroadcastMsg(String msg) async {
-  await sendMessage("FFFFFFFF", msg);
+Future<bool> sendBroadcastMsg(String msg) async {
+  bool success = await sendMessage("FFFFFFFF", msg);
   AppLogger.log("CHAT", "Sent broadcast message $msg");
+  return success;
 }
 
-Future<void> sendPrivateMsg(String targetMac, String msg) async {
-  await sendMessage(targetMac, msg);
+Future<bool> sendPrivateMsg(String targetMac, String msg) async {
+  bool success = await sendMessage(targetMac, msg);
   AppLogger.log("CHAT", "Sent private message $msg to $targetMac");
+  return success;
 }
 
 final Map<String, String> _incomingBuffers = {};

@@ -9,6 +9,28 @@ Future<Database> getDatabase() async {
   return _db!;
 }
 
+Future<void> updateLastMessageStatus(String targetMac, String newStatus) async {
+  final db = await getDatabase();
+
+  final rows = await db.query(
+    'messages',
+    columns: ['id'],
+    where: 'peer_mac = ? AND is_me = 1 AND is_broadcast = 0',
+    whereArgs: [targetMac],
+    orderBy: 'timestamp DESC',
+    limit: 1,
+  );
+
+  if (rows.isNotEmpty) {
+    await db.update(
+      'messages',
+      {'status': newStatus},
+      where: 'id = ?',
+      whereArgs: [rows.first['id']],
+    );
+  }
+}
+
 Future<void> InsertMessage(DbMessage msg) async {
   final db = await getDatabase();
   await db.insert("messages", msg.toMap());
@@ -39,6 +61,7 @@ class DbMessage {
   final bool isMe;
   final int timestamp;
   final bool isBroadcast;
+  String? status;
 
   DbMessage({
     this.id,
@@ -48,6 +71,7 @@ class DbMessage {
     required this.isMe,
     required this.timestamp,
     required this.isBroadcast,
+    this.status,
   });
 
   Map<String, dynamic> toMap() {
@@ -59,6 +83,7 @@ class DbMessage {
       'is_me': isMe ? 1 : 0,
       'timestamp': timestamp,
       'is_broadcast': isBroadcast ? 1 : 0,
+      'status': status,
     };
   }
 
@@ -69,7 +94,8 @@ class DbMessage {
       content = (map['content'] as String?) ?? '',
       isMe = ((map['is_me'] as int?) ?? 0) == 1,
       timestamp = (map['timestamp'] as int?) ?? 0,
-      isBroadcast = ((map['is_broadcast'] as int?) ?? 0) == 1;
+      isBroadcast = ((map['is_broadcast'] as int?) ?? 0) == 1,
+      status = map['status'] as String?;
 }
 
 Future<Database> openChatDataBase() async {
@@ -98,9 +124,15 @@ Future<Database> openChatDataBase() async {
         content TEXT,
         is_me INTEGER,
         timestamp INTEGER,
-        is_broadcast INTEGER
+        is_broadcast INTEGER,
+        status TEXT
       )
       ''');
+    },
+    onUpgrade: (db, oldVersion, newVersion) async {
+      if (oldVersion < 2) {
+        await db.execute("ALTER TABLE messages ADD COLUMN status TEXT");
+      }
     },
   );
 }

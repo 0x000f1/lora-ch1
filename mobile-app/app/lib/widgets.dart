@@ -10,6 +10,7 @@ class ChatBubble extends StatelessWidget {
   final String senderName;
   final bool isMe;
   final int timeStamp;
+  final String? status;
 
   const ChatBubble({
     super.key,
@@ -17,6 +18,7 @@ class ChatBubble extends StatelessWidget {
     required this.senderName,
     required this.isMe,
     required this.timeStamp,
+    required this.status,
   });
 
   String _formatTime(int epochSeconds) {
@@ -24,6 +26,30 @@ class ChatBubble extends StatelessWidget {
     final hour = date.hour.toString().padLeft(2, '0');
     final minute = date.minute.toString().padLeft(2, '0');
     return "$hour:$minute";
+  }
+
+  Widget _buildStatusIcon() {
+    if (!isMe) return const SizedBox.shrink();
+
+    IconData icon;
+    Color color = Colors.grey;
+
+    switch (status) {
+      case 'sent':
+        icon = Icons.check_rounded;
+        color = Colors.black;
+      case 'failed':
+        icon = Icons.error_outline_rounded;
+        color = Colors.red;
+        break;
+      case 'delivered':
+      default:
+        icon = Icons.done_all_rounded;
+        color = Colors.black;
+        break;
+    }
+
+    return Icon(icon, size: 12, color: color);
   }
 
   @override
@@ -57,7 +83,13 @@ class ChatBubble extends StatelessWidget {
           if (timeStr.isNotEmpty)
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 4),
-              child: Text(timeStr, style: const TextStyle(color: Colors.grey, fontSize: 10)),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  _buildStatusIcon(),
+                  Text(timeStr, style: const TextStyle(color: Colors.grey, fontSize: 10)),
+                ],
+              ),
             ),
         ],
       ),
@@ -78,7 +110,7 @@ class ChatInput extends StatefulWidget {
 
 class _ChatInputState extends State<ChatInput> {
   int _byteCount = 0;
-  static const int maxBytes = 1024; // max size of one message
+  static const int maxBytes = 960; // max size of one message (4 full 240 byte fragments)
   static const int chunkSize = 240; // max size of one fragment
 
   @override

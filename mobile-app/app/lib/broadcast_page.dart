@@ -102,6 +102,7 @@ class _BroadcastPageState extends State<BroadcastPage> {
                 senderName: msg.senderName,
                 isMe: msg.isMe,
                 timeStamp: msg.timestamp,
+                status: null,
               );
             },
           ),
@@ -118,24 +119,27 @@ class _BroadcastPageState extends State<BroadcastPage> {
       bottomPadding: 90.0,
       onSend: () async {
         final outMsg = _controller.text;
-        if (outMsg.isNotEmpty) {
-          sendBroadcastMsg(outMsg);
-          
-          final outgoingMessage = DbMessage(
-            senderName: "Me",
-            content: outMsg,
-            isMe: true,
-            timestamp: DateTime.now().millisecondsSinceEpoch ~/ 1000,
-            isBroadcast: true,
-          );
-          
-          await InsertMessage(outgoingMessage);
-
-          setState(() {
-            _messages.add(outgoingMessage);
-          });
-        }
+        if (outMsg.isEmpty) return;
+        
         _controller.clear();
+        
+        sendBroadcastMsg(outMsg);
+
+        final outgoingMessage = DbMessage(
+          senderName: "Me",
+          content: outMsg,
+          isMe: true,
+          timestamp: DateTime.now().millisecondsSinceEpoch ~/ 1000,
+          isBroadcast: true,
+        );
+
+        await InsertMessage(outgoingMessage);
+        
+        if(!mounted) return;
+
+        setState(() {
+          _messages.add(outgoingMessage);
+        });
       },
     );
   }

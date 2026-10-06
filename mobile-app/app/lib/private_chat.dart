@@ -37,11 +37,13 @@ class _PrivatePageState extends State<PrivateChatPage> {
     _dataSub = dataStream.listen((rawMsg) async {
       if (mounted) {
         final parts = rawMsg.split(';');
+
         if (parts.length >= 7) {
           final senderMac = parts[0];
           final targetMac = parts[3];
           final timeStamp = int.tryParse(parts[4]) ?? (DateTime.now().millisecondsSinceEpoch ~/ 1000);
           final payload = parts.sublist(6).join(';');
+
           if (senderMac == widget.device.mac && targetMac != "FFFFFFFF") {
             AppLogger.log("CHAT", "Recieved private message from ${widget.device.name}");
             setState(() {
@@ -86,6 +88,7 @@ class _PrivatePageState extends State<PrivateChatPage> {
                   senderName: msg.isMe ? "Me" : widget.device.name,
                   isMe: msg.isMe,
                   timeStamp: msg.timestamp,
+                  status: msg.status,
                 );
               },
             ),
@@ -96,24 +99,36 @@ class _PrivatePageState extends State<PrivateChatPage> {
             bottomPadding: 16,
             onSend: () async {
               final outMsg = _controller.text;
-              if (outMsg.isNotEmpty) {
-                sendPrivateMsg(widget.device.mac, outMsg);
-                AppLogger.log("CHAT", "Sent private message to ${widget.device.name}");
-                final outMessage = DbMessage(
-                  peerMac: widget.device.mac,
-                  senderName: "Me",
-                  content: outMsg,
-                  isMe: true,
-                  timestamp: DateTime.now().millisecondsSinceEpoch ~/ 1000,
-                  isBroadcast: false,
-                );
-                await InsertMessage(outMessage);
+              if (outMsg.isEmpty) return;
 
-                setState(() {
-                  _messages.add(outMessage);
-                });
-              }
               _controller.clear();
+
+              AppLogger.log("CHAT", "Sent private message to ${widget.device.name}");
+              final outMessage = DbMessage(
+                peerMac: widget.device.mac,
+                senderName: "Me",
+                content: outMsg,
+                isMe: true,
+                timestamp: DateTime.now().millisecondsSinceEpoch ~/ 1000,
+                isBroadcast: false,
+                status: 'sent',
+              );
+
+              await InsertMessage(outMessage);
+
+              if (!mounted) return;
+
+              setState(() {
+                _messages.add(outMessage);
+              });
+
+              bool success = await sendPrivateMsg(widget.device.mac, outMsg);
+
+              if (!mounted) return;
+
+              setState(() {
+                outMessage.status = success ? 'delivered' : 'failed';
+              });
             },
           ),
         ],
