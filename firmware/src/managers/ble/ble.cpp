@@ -149,16 +149,16 @@ class controlCharStatusCallbacks : public NimBLECharacteristicCallbacks {
                     int rssiFrac = (int)(abs(list[i].rssi - rssiInt) * 100);
 
                     snprintf(responseBuffer, sizeof(responseBuffer), 
-                                            "%08X;%s;%02X%02X%02X;%d.%06d;%d.%06d;%d.%02d;%lu|",
+                                            "%08X;%s;%02X%02X%02X;%d.%02d;%lu;%d.%06d;%d.%06d|",
                                             list[i].senderAddress, 
                                             list[i].senderUsername,
                                             list[i].colorR,
                                             list[i].colorG,
                                             list[i].colorB,
-                                            latInt, latFrac, // %.6f
-                                            lonInt, lonFrac, // %.6f
                                             rssiInt, rssiFrac, // %.2f
-                                            list[i].timestamp);
+                                            list[i].timestamp,
+                                            latInt, latFrac, // %.6f
+                                            lonInt, lonFrac); // %.6f
                     response += responseBuffer;
                 }
                 nimBleChar->setValue(response);

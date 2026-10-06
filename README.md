@@ -99,7 +99,7 @@ This channel is used to query the network status and manage system preferences.
     * *Action:* Disables location sharing for privacy. Resets the coordinates to `0.0` and dynamically truncates the LoRa heartbeat payload to save bandwidth.
     * *Response:* `NO_LOC_OK`
   * `GET_NEI`
-    * *Response:* `NEI|MAC;NEI_USERNAME;COLOR_HEX;LATITUDE;LONGITUDE;RSSI;TIMESTAMP|...` (e.g., `NEI|A1B2C3D4;lora-ch1-XXXX;FF0000;47.531600;21.627300;-45.50;32125|...`) or `NEI|NO_NEI` if the list is empty.
+    * *Response:* `NEI|MAC;NEI_USERNAME;COLOR_HEX;RSSI;TIMESTAMP;LATITUDE;LONGITUDE|...` (e.g., `NEI|A1B2C3D4;lora-ch1-XXXX;FF0000;-45.50;32125;47.531600;21.627300|...`) or `NEI|NO_NEI` if the list is empty.
   * `GET_BAT`
     * *Response:* `BAT;Percentage;IsCharging` (e.g., `BAT;87;1` where 1 means charging, 0 means discharging).
   * `SET_USR;Username`
