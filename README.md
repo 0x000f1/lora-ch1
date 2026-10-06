@@ -36,9 +36,10 @@ The current hardware is based on the ESP32-C3 microcontroller, interfaced with a
 * **Fast TX & Continuous RX Architecture:** Optimized for ultra-low latency and high reliability in the prototype phase. By utilizing an optimized preamble (12 symbols), the Time on Air (ToA) is reduced to ~100-132ms (payload dependent), virtually eliminating packet collisions while ensuring zero message drops through continuous background listening. *Thread-safe FreeRTOS implementation prevents conflicts between BLE and LoRa tasks*.
 * **Offline Message Buffer:** Safely stores up to 32 incoming direct (P2P) messages in the RAM if the phone is disconnected. Upon BLE reconnection, all buffered messages are instantly pushed to the app. Public Broadcasts are ignored for offline storage to preserve memory.
 * **Smart Neighbour Discovery:** Automatic heartbeat messages are sent out to advertise the active device among other users, storing the RSSI, last active timestamp, and the user's custom RGB UI color. The system automatically cleans up "dead" or out-of-range nodes after a timeout period based on the active power profile.
+* **Location Sharing & Privacy:** Broadcasts the user's GPS coordinates (Latitude and Longitude) to the mesh network via Heartbeat messages. If the user disables location sharing (Privacy Mode), the system dynamically truncates the binary payload by 8 bytes to conserve precious LoRa airtime and battery life.
 * **Haptic & UI Feedback:** Integrated DRV2605L haptic motor driver and hardware button with debouncing. Provides distinct physical feedback for button presses, incoming LoRa messages, and an automatic low battery warning (triggered below 15% while discharging).
 * **BLE Security (Just Works):** Implements physical button-press validation to activate BLE advertising (Pairing Mode) for 60 seconds, preventing unauthorized external connections.
-* **Dynamic NVS Management:** The device name, UUIDs, unique LoRa ID, haptic profile, and user preferences (Username, UI Color) are generated on the first startup and safely stored in the Non-Volatile Storage (NVS).
+* **Dynamic NVS Management:** The device name, UUIDs, unique LoRa ID, haptic profile, and user preferences (Username, UI Color, Location) are generated on the first startup and safely stored in the Non-Volatile Storage (NVS).
 * **Duty Cycle Monitoring:** Tracks and logs the Time on Air (ToA) and calculates the current duty cycle percentage to assist with regulatory compliance (e.g., the 10% limit on 433MHz in Europe).
 * **Automated Power Management:** Supports 3 different power profiles (`BATTERY_SAVER`, `BALANCED`, `PERFORMANCE`) that dynamically scale the CPU frequency (80MHz or 160MHz) and adjust heartbeat intervals (10 min, 5 min, and 1 min respectively). The device defaults to `BATTERY_SAVER` on boot. Pressing the hardware button temporarily wakes the system into `BALANCED` mode for BLE communication.
 * **Real Battery Monitoring:** Built-in hardware ADC integration calculates real battery percentage, and monitors the active charging status via the BQ24075 charging IC's open-drain output (GPIO 20).
@@ -89,8 +90,16 @@ This channel is used to query the network status and manage system preferences.
   * `SET_TIM;UnixSeconds`
     * *Action:* Syncs the ESP32's internal RTC to the real-world UNIX epoch time (e.g., `SET_TIM;1715423000`). Must be sent immediately after connecting.
     * *Response:* `TIM_OK`
+  * `SET_LOC;Latitude;Longitude`
+    * *Action:* Updates the device's internal location cache with the phone's GPS coordinates to be broadcasted via LoRa (e.g., `SET_LOC;47.5316;21.6273`).
+    * *Response:* `LOC_OK` or `LOC_ERR`
+  * `GET_LOC`
+    * *Response:* `LOC;Latitude;Longitude` (e.g., `LOC;47.531600;21.627300`).
+  * `NO_LOC`
+    * *Action:* Disables location sharing for privacy. Resets the coordinates to `0.0` and dynamically truncates the LoRa heartbeat payload to save bandwidth.
+    * *Response:* `NO_LOC_OK`
   * `GET_NEI`
-    * *Response:* `NEI|MAC;NEI_USERNAME;COLOR_HEX;RSSI;TIMESTAMP|MAC;NEI_USERNAME;COLOR_HEX;RSSI;TIMESTAMP|` (e.g., `NEI|A1B2C3D4;lora-ch1-XXXX;FF0000;-45.50;32125|...`) or `NEI|NO_NEI` if the list is empty. Note: The `COLOR_HEX` is a 6-character string representing the neighbor's RGB preference.
+    * *Response:* `NEI|MAC;NEI_USERNAME;COLOR_HEX;LATITUDE;LONGITUDE;RSSI;TIMESTAMP|...` (e.g., `NEI|A1B2C3D4;lora-ch1-XXXX;FF0000;47.531600;21.627300;-45.50;32125|...`) or `NEI|NO_NEI` if the list is empty.
   * `GET_BAT`
     * *Response:* `BAT;Percentage;IsCharging` (e.g., `BAT;87;1` where 1 means charging, 0 means discharging).
   * `SET_USR;Username`
