@@ -1,3 +1,4 @@
+import 'package:app/db_service.dart';
 import 'package:app/logger.dart';
 import 'package:flutter/material.dart';
 import 'package:app/private_page.dart';
@@ -5,16 +6,8 @@ import 'dart:async';
 import 'package:app/ble_service.dart';
 import 'package:app/widgets.dart';
 
-class PrivateMessage {
-  final String text;
-  final bool isMe;
-  final int timeStamp;
 
-  PrivateMessage({required this.text, required this.isMe, required this.timeStamp});
-}
 
-// temporary list for storing messages before database is implemented
-final List<PrivateMessage> _messages = [];
 
 class PrivateChatPage extends StatefulWidget {
   final PeerDevice device;
@@ -28,11 +21,23 @@ class PrivateChatPage extends StatefulWidget {
 class _PrivatePageState extends State<PrivateChatPage> {
   final TextEditingController _controller = TextEditingController();
   StreamSubscription? _dataSub;
+  
+  final List<DbMessage> _messages = [];
+
+  Future<void> _loadMessages() async {
+    final stored = await getPrivateMessages(widget.device.mac);
+    if (mounted) {
+      setState(() {
+        _messages.addAll(stored);
+      });
+    }
+  }
 
   @override
   void initState() {
     super.initState();
-    _dataSub = dataStream.listen((rawMsg) {
+    _loadMessages();
+    _dataSub = dataStream.listen((rawMsg) async {
       if (mounted) {
         final parts = rawMsg.split(';');
         if (parts.length >= 7) {
@@ -42,8 +47,17 @@ class _PrivatePageState extends State<PrivateChatPage> {
           final payload = parts.sublist(6).join(';');
           if (senderMac == widget.device.mac && targetMac != "FFFFFFFF") {
             AppLogger.log("CHAT", "Recieved private message from ${widget.device.name}");
+            final message = DbMessage(
+              peerMac: widget.device.mac,
+              senderName: widget.device.name,
+              content: payload,
+              isMe: false,
+              timestamp: timeStamp,
+              isBroadcast: false,
+            );
+            await InsertMessage(message);
             setState(() {
-              _messages.add(PrivateMessage(text: payload, isMe: false, timeStamp: timeStamp));
+              _messages.add(message);
             });
           }
         }
@@ -71,10 +85,10 @@ class _PrivatePageState extends State<PrivateChatPage> {
               itemBuilder: (context, index) {
                 final msg = _messages[index];
                 return ChatBubble(
-                  text: msg.text,
+                  text: msg.content,
                   senderName: msg.isMe ? "Me" : widget.device.name,
                   isMe: msg.isMe,
-                  timeStamp: msg.timeStamp,
+                  timeStamp: msg.timestamp,
                 );
               },
             ),
@@ -83,16 +97,23 @@ class _PrivatePageState extends State<PrivateChatPage> {
           ChatInput(
             controller: _controller,
             bottomPadding: 16,
-            onSend: () {
-              final text = _controller.text;
-              if (text.isNotEmpty) {
-                sendPrivateMsg(widget.device.mac, text);
+            onSend: () async {
+              final outMsg = _controller.text;
+              if (outMsg.isNotEmpty) {
+                sendPrivateMsg(widget.device.mac, outMsg);
                 AppLogger.log("CHAT", "Sent private message to ${widget.device.name}");
+                final outMessage = DbMessage(
+                  peerMac: widget.device.mac,
+                  senderName: "Me",
+                  content: outMsg,
+                  isMe: true,
+                  timestamp: DateTime.now().millisecondsSinceEpoch ~/ 1000,
+                  isBroadcast: false,
+                );
+                await InsertMessage(outMessage);
 
                 setState(() {
-                  _messages.add(
-                    PrivateMessage(text: text, isMe: true, timeStamp: DateTime.now().millisecondsSinceEpoch ~/ 1000),
-                  );
+                  _messages.add(outMessage);
                 });
               }
               _controller.clear();

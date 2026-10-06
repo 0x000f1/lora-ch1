@@ -7,7 +7,7 @@ import 'package:flutter_blue_plus/flutter_blue_plus.dart';
 import 'package:app/widgets.dart';
 import 'package:app/db_service.dart';
 
-final List<DbMessage> _messages = [];
+
 
 class BroadcastPage extends StatefulWidget {
   final BluetoothDevice? device;
@@ -26,6 +26,8 @@ class _BroadcastPageState extends State<BroadcastPage> {
   StreamSubscription? _connectionSub;
   // data listener
   StreamSubscription? _dataSub;
+  
+  final List<DbMessage> _messages = [];
 
   Future<void> _loadMessages() async {
     // load every broadcast message from database
