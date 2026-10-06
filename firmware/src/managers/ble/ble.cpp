@@ -10,6 +10,37 @@
 
 #define TAG "BLE" 
 
+// String -> Float converter
+// The FreeRTOS crash handle, avoids atof() 
+float parseToFloat(const char* s) {
+    float res = 0.0f;
+    float fact = 1.0f;
+    bool point_seen = false;
+    int sign = 1;
+
+    if (*s == '-') {
+        sign = -1;
+        s++;
+    }
+
+    for (int i = 0; s[i]; i++) {
+        if (s[i] == '.') {
+            point_seen = true;
+            continue;
+        }
+        if (s[i] >= '0' && s[i] <= '9') {
+            int d = s[i] - '0';
+            if (point_seen) {
+                fact /= 10.0f;
+                res = res + d * fact;
+            } else {
+                res = res * 10.0f + d;
+            }
+        }
+    }
+    return res * sign;
+}
+
 static NimBLEServer* server = nullptr;
 static NimBLECharacteristic* dataCharacteristic = nullptr;
 static NimBLECharacteristic* controlCharacteristic = nullptr;
@@ -105,15 +136,26 @@ class controlCharStatusCallbacks : public NimBLECharacteristicCallbacks {
             } else {
                 std::string response = "NEI|";
                 for (uint8_t i = 0; i < count; i++) {
-                    char responseBuffer[128];
+                    char responseBuffer[150];
+
+                    // Remove the %f (mutex crash)
+                    int latInt = (int)list[i].latitude;
+                    int latFrac = (int)(abs(list[i].latitude - latInt) * 1000000);
+                    int lonInt = (int)list[i].longitude;
+                    int lonFrac = (int)(abs(list[i].longitude - lonInt) * 1000000);
+                    int rssiInt = (int)list[i].rssi;
+                    int rssiFrac = (int)(abs(list[i].rssi - rssiInt) * 100);
+
                     snprintf(responseBuffer, sizeof(responseBuffer), 
-                                            "%08X;%s;%02X%02X%02X;%.2f;%lu|",
+                                            "%08X;%s;%02X%02X%02X;%d.%06d;%d.%06d;%d.%02d;%lu|",
                                             list[i].senderAddress, 
                                             list[i].senderUsername,
                                             list[i].colorR,
                                             list[i].colorG,
                                             list[i].colorB,
-                                            list[i].rssi, 
+                                            latInt, latFrac, // %.6f
+                                            lonInt, lonFrac, // %.6f
+                                            rssiInt, rssiFrac, // %.2f
                                             list[i].timestamp);
                     response += responseBuffer;
                 }
@@ -260,6 +302,61 @@ class controlCharStatusCallbacks : public NimBLECharacteristicCallbacks {
                 LOG_I("BLE", "FIND haptics finished.");
                 vTaskDelete(NULL); // Delete the FreeRTOS thread
             }, "PingTask", 2048, NULL, 1, NULL);
+        }
+        else if (strncmp(cmd, "SET_LOC;", 8) == 0) {
+            // Format: SET_LOC;47.5316;21.6273
+            // If location not enabled (NO_LOC): SET_LOC;0.0;0.0
+            const char* payloadStr = cmd + 8;
+            
+            char locBuffer[50];
+            strncpy(locBuffer, payloadStr, sizeof(locBuffer) - 1);
+            locBuffer[sizeof(locBuffer) - 1] = '\0';
+
+            char* separator = strchr(locBuffer, ';');
+            if (separator != nullptr) {
+                *separator = '\0';
+                float lat = parseToFloat(locBuffer);
+                float lon = parseToFloat(separator + 1);
+                
+                SystemManager::setLocation(lat, lon);
+                
+                // Remove the %f (mutex crash)
+                int latInt = (int)lat;
+                int latFrac = (int)(abs(lat - latInt) * 1000000);
+                int lonInt = (int)lon;
+                int lonFrac = (int)(abs(lon - lonInt) * 1000000);
+
+                LOG_I(TAG, "Location updated via BLE: Lat: %d.%06d, Lon: %d.%06d", latInt, latFrac, lonInt, lonFrac);
+                nimBleChar->setValue("LOC_OK");
+            } else {
+                LOG_W(TAG, "Invalid location format received.");
+                nimBleChar->setValue("LOC_ERR");
+            }
+            nimBleChar->notify();
+        }
+        else if (strcmp(cmd, "GET_LOC") == 0) {
+            float lat, lon;
+            SystemManager::getLocation(lat, lon);
+            
+            int latInt = (int)lat;
+            int latFrac = (int)(abs(lat - latInt) * 1000000);
+            int lonInt = (int)lon;
+            int lonFrac = (int)(abs(lon - lonInt) * 1000000);
+
+            char response[64];
+            // Remove the %f (mutex crash)
+            snprintf(response, sizeof(response), "LOC;%d.%06d;%d.%06d", latInt, latFrac, lonInt, lonFrac);
+            
+            nimBleChar->setValue(std::string(response));
+            nimBleChar->notify();
+            LOG_I(TAG, "Sent current location to client: %d.%06d, %d.%06d", latInt, latFrac, lonInt, lonFrac);
+        }
+        else if (strcmp(cmd, "NO_LOC") == 0) {
+            SystemManager::setLocation(0.0f, 0.0f);
+            
+            nimBleChar->setValue("NO_LOC_OK");
+            nimBleChar->notify();
+            LOG_I(TAG, "Location sharing disabled via BLE (coordinates set to 0.0).");
         }
     }
 };

@@ -41,6 +41,8 @@ struct DiscoveryPayload {
     uint8_t colorR; // Red color component
     uint8_t colorG; // Green color component
     uint8_t colorB; // Blue color component
+    float latitude; // Geo latitude
+    float longitude; // Geo longitude
 } __attribute__((packed));
 
 // Structure for neighbor information
@@ -50,6 +52,8 @@ struct DiscoveryInfo {
     uint8_t colorR; // Red color component
     uint8_t colorG; // Green color component
     uint8_t colorB; // Blue color component
+    float latitude; // Geo latitude
+    float longitude; // Geo longitude
     unsigned long timestamp; // Last seen timestamp
     unsigned long lastSeenMillis; // Last seen in millis for timeout
     float rssi; // RSSI value of the last received message

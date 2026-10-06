@@ -94,7 +94,7 @@ class LoRaManager {
         // Neighbors
         static DiscoveryInfo neighbors[MAX_NEIGHBORS];
         static uint8_t neighborCount;
-        static void updateNeighbor(uint32_t senderAddress, const char* username, uint8_t colorR, uint8_t colorG, uint8_t colorB, float rssi);
+        static void updateNeighbor(uint32_t senderAddress, const char* username, uint8_t colorR, uint8_t colorG, uint8_t colorB, float latitude, float longitude, float rssi);
         static bool isDuplicatePacket(uint32_t senderAddress, uint8_t sequenceNumber, uint8_t currentFragment);
         static void rememberPacket(uint32_t senderAddress, uint8_t sequenceNumber, uint8_t currentFragment);
 

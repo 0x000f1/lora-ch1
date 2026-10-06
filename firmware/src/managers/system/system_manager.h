@@ -28,6 +28,8 @@ public:
     static const char* getUsername(); // Retrieves the username saved from NVS.
     static void setColor(const char* hexColor); // Sets the user favorite color.
     static const char* getColor(); // Retrieves the favorite color saved from NVS.
+    static void setLocation(float lat, float lon); // Sets the user location coordinates.
+    static void getLocation(float &lat, float &lon); // Retrieves the user location from NVS.
 
     static void reboot(); // Reboots the ESP controller, keep all the NVS data.
     static void factoryReset(); // Erase the whole NVS partition, full clean boot.
@@ -41,6 +43,8 @@ private:
     static char cachedColor[10];
     static uint32_t cachedLoraID;
     static uint32_t cachedHapticsProfile;
+    static float cachedLatitude;
+    static float cachedLongitude;
 
     static String generateUUID();       // Helper function to generate a random UUID (version 4).
     static String generateDeviceName(); // Helper function to generate a device name based on Prefix + MAC address.
@@ -48,9 +52,11 @@ private:
     // Default generators for user preferences
     static String generateDefaultUsername(); 
     static String generateDefaultColor();
+    static float generateDefaultCoordinate();
     static uint32_t generateDefaultHapticsProfile();
     static void checkIfExists(const char* key, String (*generator)()); // Checks if a key - value pair exists in NVS, if not generates and stores it.
     static void checkIfExists(const char* key, uint32_t (*generator)()); // Overloaded function for uint32_t values.
+    static void checkIfExists(const char* key, float (*generator)()); // Overloaded function for float values.
 };
 
 #endif

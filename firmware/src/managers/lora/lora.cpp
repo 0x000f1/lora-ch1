@@ -444,13 +444,17 @@ void LoRaManager::handleFlags() {
 
             /*
              * Heartbeat/discovery is the only packet that carries the
-             * username and color over the air.
+             * username, color and optionally coordinates over the air.
              */
             if (header.packageType == PKG_HEARTBEAT &&
-                payloadLength == sizeof(DiscoveryPayload)) {
+                (payloadLength == sizeof(DiscoveryPayload) || payloadLength == sizeof(DiscoveryPayload) - 8)) {
 
                 DiscoveryPayload discovery{};
-                memcpy(&discovery, payload, sizeof(DiscoveryPayload));
+                // Set 0.0 by default, if location sharing turned off.
+                discovery.latitude = 0.0f;
+                discovery.longitude = 0.0f;
+
+                memcpy(&discovery, payload, payloadLength);
                 discovery.username[sizeof(discovery.username) - 1] = '\0';
 
                 updateNeighbor(header.senderAddress,
@@ -458,6 +462,8 @@ void LoRaManager::handleFlags() {
                                discovery.colorR,
                                discovery.colorG,
                                discovery.colorB,
+                               discovery.latitude,
+                               discovery.longitude,
                                loraModule.getRSSI());
             }
 
@@ -607,7 +613,7 @@ void LoRaManager::handleFlags() {
     }
 }
 
-void LoRaManager::updateNeighbor(uint32_t senderAddress, const char* username, uint8_t colorR, uint8_t colorG, uint8_t colorB, float rssi) {
+void LoRaManager::updateNeighbor(uint32_t senderAddress, const char* username, uint8_t colorR, uint8_t colorG, uint8_t colorB, float latitude, float longitude, float rssi) {
     time_t now;
     time(&now);
 
@@ -624,6 +630,8 @@ void LoRaManager::updateNeighbor(uint32_t senderAddress, const char* username, u
             neighbors[i].colorR = colorR;
             neighbors[i].colorG = colorG;
             neighbors[i].colorB = colorB;
+            neighbors[i].latitude = latitude;
+            neighbors[i].longitude = longitude;
             neighbors[i].timestamp = safeTimestamp; // Update timestamp (last seen)
             neighbors[i].lastSeenMillis = currentMillis;
             neighbors[i].rssi = rssi; // Update RSSI value (signal strength)
@@ -639,6 +647,8 @@ void LoRaManager::updateNeighbor(uint32_t senderAddress, const char* username, u
         neighbors[neighborCount].colorR = colorR;
         neighbors[neighborCount].colorG = colorG;
         neighbors[neighborCount].colorB = colorB;
+        neighbors[neighborCount].latitude = latitude;
+        neighbors[neighborCount].longitude = longitude;
         neighbors[neighborCount].rssi = rssi;
         neighbors[neighborCount].timestamp = safeTimestamp;
         neighbors[neighborCount].lastSeenMillis = currentMillis;
@@ -725,8 +735,18 @@ void LoRaManager::sendHeartbeat() {
         discovery.colorB = 255;
     }
 
+    float lat, lon;
+    SystemManager::getLocation(lat, lon);
+
+    discovery.latitude = lat;
+    discovery.longitude = lon;
+
+    // Calculate the package length (If NO_LOC ran, dont send the 8 byte 0)
+    size_t payloadSizeToTransmit = sizeof(DiscoveryPayload);
+    if (lat == 0.0f && lon == 0.0f) payloadSizeToTransmit -= 8;
+
     sendMessage(reinterpret_cast<uint8_t*>(&discovery),
-                sizeof(DiscoveryPayload),
+                payloadSizeToTransmit,
                 BROADCAST_ADDRESS,
                 1,
                 1,

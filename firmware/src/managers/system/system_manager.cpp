@@ -22,6 +22,8 @@ char SystemManager::cachedUsername[32] = {0};
 char SystemManager::cachedColor[10] = {0};
 uint32_t SystemManager::cachedLoraID = 0;
 uint32_t SystemManager::cachedHapticsProfile = 0;
+float SystemManager::cachedLatitude = 0.0f;
+float SystemManager::cachedLongitude = 0.0f;
 
 void SystemManager::reboot() {
     LOG_W(TAG, "Rebooting device...");
@@ -85,6 +87,10 @@ uint32_t SystemManager::generateDefaultHapticsProfile() {
     return 1; // On first boot default the haptics is On
 }
 
+float SystemManager::generateDefaultCoordinate() {
+    return 0.0f; // Default coordinate: 0.0 (NO_LOC)
+}
+
 void SystemManager::checkIfExists(const char* key, String (*generator)()) {
     if (!prefs.isKey(key)) {
         String newVal = generator();
@@ -102,6 +108,16 @@ void SystemManager::checkIfExists(const char* key, uint32_t (*generator)()) {
         LOG_I(TAG, "%s generated: 0x%08X", key, newVal);
     } else {
         LOG_I(TAG, "%s loaded: 0x%08X", key, prefs.getUInt(key));
+    }
+}
+
+void SystemManager::checkIfExists(const char* key, float (*generator)()) {
+    if (!prefs.isKey(key)) {
+        float newVal = generator();
+        prefs.putFloat(key, newVal);
+        LOG_I(TAG, "%s generated: %f", key, newVal);
+    } else {
+        LOG_I(TAG, "%s loaded: %f", key, prefs.getFloat(key));
     }
 }
 
@@ -135,6 +151,8 @@ void SystemManager::setupNVS() {
     checkIfExists("username", generateDefaultUsername);
     checkIfExists("color", generateDefaultColor);
     checkIfExists("haptics", generateDefaultHapticsProfile);
+    checkIfExists("lat", generateDefaultCoordinate);
+    checkIfExists("lon", generateDefaultCoordinate);
 
     // Cache populating with error handling (Stings keepalive until copied into the cached variable)
     String loadedDeviceName = prefs.getString("device_name", "unknown-device");
@@ -157,6 +175,9 @@ void SystemManager::setupNVS() {
 
     cachedLoraID = prefs.getUInt("lora_id", 0);
     cachedHapticsProfile = prefs.getUInt("haptics", 1);
+
+    cachedLatitude = prefs.getFloat("lat", 0.0f);
+    cachedLongitude = prefs.getFloat("lon", 0.0f);
 }
 
 // Getter methods from RAM with empty value handling
@@ -255,4 +276,19 @@ void SystemManager::setColor(const char* hexColor) {
 const char* SystemManager::getColor() {
     // Return the saved color, if NaN return 0088FF
     return (cachedColor[0] == '\0') ? "0088FF" : cachedColor;
+}
+
+void SystemManager::setLocation(float lat, float lon) {
+    prefs.putFloat("lat", lat);
+    prefs.putFloat("lon", lon);
+
+    cachedLatitude = lat;
+    cachedLongitude = lon;
+
+    LOG_I(TAG, "Location updated.");
+}
+
+void SystemManager::getLocation(float &lat, float &lon) {
+    lat = cachedLatitude;
+    lon = cachedLongitude;
 }
