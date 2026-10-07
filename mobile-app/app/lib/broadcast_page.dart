@@ -10,8 +10,14 @@ import 'package:app/db_service.dart';
 class BroadcastPage extends StatefulWidget {
   final BluetoothDevice? device;
   final ScrollController scrollController;
+  final bool isActive;
 
-  const BroadcastPage({super.key, this.device, required this.scrollController});
+  const BroadcastPage({
+    super.key, 
+    this.device, 
+    required this.scrollController,
+    required this.isActive,
+    });
 
   @override
   State<BroadcastPage> createState() => _BroadcastPageState();
@@ -74,6 +80,11 @@ class _BroadcastPageState extends State<BroadcastPage> {
               ),
             );
           });
+          
+          if(widget.isActive) {
+            await markBroadcastMessagesAsRead();
+            await refreshUnreadCount();
+          }
         }
       }
     });
@@ -102,7 +113,7 @@ class _BroadcastPageState extends State<BroadcastPage> {
                 senderName: msg.senderName,
                 isMe: msg.isMe,
                 timeStamp: msg.timestamp,
-                status: null,
+                status: msg.status,
               );
             },
           ),
@@ -123,7 +134,7 @@ class _BroadcastPageState extends State<BroadcastPage> {
         
         _controller.clear();
         
-        sendBroadcastMsg(outMsg);
+        final success = await sendBroadcastMsg(outMsg);
 
         final outgoingMessage = DbMessage(
           senderName: "Me",
@@ -131,6 +142,7 @@ class _BroadcastPageState extends State<BroadcastPage> {
           isMe: true,
           timestamp: DateTime.now().millisecondsSinceEpoch ~/ 1000,
           isBroadcast: true,
+          status: success ? 'delivered' : 'failed',
         );
 
         await InsertMessage(outgoingMessage);

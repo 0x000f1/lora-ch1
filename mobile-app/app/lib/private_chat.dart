@@ -29,11 +29,17 @@ class _PrivatePageState extends State<PrivateChatPage> {
       });
     }
   }
+  
+  Future<void> _initializeChat() async {
+    await _loadMessages();
+    await markPrivateMessagesAsRead(widget.device.mac);
+    await refreshUnreadCount();
+  }
 
   @override
   void initState() {
     super.initState();
-    _loadMessages();
+    _initializeChat();
     _dataSub = dataStream.listen((rawMsg) async {
       if (mounted) {
         final parts = rawMsg.split(';');

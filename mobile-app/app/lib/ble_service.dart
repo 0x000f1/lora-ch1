@@ -48,8 +48,8 @@ Future<void> setupBleCommunication(BluetoothCharacteristic control, BluetoothCha
       
       final assambled = handleIncomingFragments(rawMsg);
       if (assambled != null) {
+        await _saveIncomingMessageToDb(assambled);
         _dataStreamController.add(assambled);
-        _saveIncomingMessageToDb(assambled);
       }
     }
   });
@@ -73,16 +73,21 @@ List<BluetoothCharacteristic> _foundChars = [];
 List<BluetoothCharacteristic> get chars => _foundChars;
 final ValueNotifier<bool> isDeviceConnected = ValueNotifier(false);
 
+// total number of unread private messages from all peers
 final ValueNotifier<int> unreadPrivateCount = ValueNotifier(0);
+// total number of unread broadcast messages
 final ValueNotifier<int> unreadBroadcastCount = ValueNotifier(0);
+// trigger to notify listeners
 final ValueNotifier<int> unreadUpdateTrigger = ValueNotifier(0);
 
 final ValueNotifier<int> batteryLevel = ValueNotifier(0);
 Timer? _batteryTimer;
 
 Future<void> refreshUnreadCount() async {
+  // query database for unread counts
   unreadPrivateCount.value = await getTotalUnreadPrivateCount();
   unreadBroadcastCount.value = await getUnreadBroadcastCount();
+  // increment to trigger listeners
   unreadUpdateTrigger.value++;
 }
 
@@ -347,8 +352,12 @@ Future<bool> sendMessage(String targetMac, String msg) async {
     AppLogger.log("BLE", "Sending fragment ${i + 1}/${fragments.length} ($payload)");
 
     if (isBroadcast) {
-      // no ACK on broadcast
-      await sendOnDataChar(packet);
+      // no ACK on broadcast so treat it as delivered if BLE sends it
+      final success = await sendOnDataChar(packet);
+      if (!success) {
+        AppLogger.log("BLE", "Failed to send broadcast fragment ${i + 1}/${fragments.length}");
+        return false;
+      }
       continue;
     }
     
@@ -441,8 +450,10 @@ Future<void> _saveIncomingMessageToDb(String rawMsg) async {
       isMe: false,
       timestamp: timeStamp,
       isBroadcast: isBroadcast,
+      isRead: false
     );
     await InsertMessage(message);
+    await refreshUnreadCount();
   }
 }
 

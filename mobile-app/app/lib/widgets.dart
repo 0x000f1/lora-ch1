@@ -33,15 +33,21 @@ class ChatBubble extends StatelessWidget {
 
     IconData icon;
     Color color = Colors.grey;
-
+    
     switch (status) {
+      // message sent, and peer didnt recieve it yet
       case 'sent':
         icon = Icons.check_rounded;
         color = Colors.black;
+        break;
+      // message sent, and either peer failed to recieve it, or BLE failed to send it
+      // on broadcast messages, this only fails if BLE failed to send it
       case 'failed':
         icon = Icons.error_outline_rounded;
         color = Colors.red;
         break;
+      // messege sent, and peer recieved it
+      // on broadcast messages, this is set by default if BLE sends it
       case 'delivered':
       default:
         icon = Icons.done_all_rounded;
@@ -111,7 +117,6 @@ class ChatInput extends StatefulWidget {
 class _ChatInputState extends State<ChatInput> {
   int _byteCount = 0;
   static const int maxBytes = 960; // max size of one message (4 full 240 byte fragments)
-  static const int chunkSize = 240; // max size of one fragment
 
   @override
   void initState() {

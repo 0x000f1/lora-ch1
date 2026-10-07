@@ -3,9 +3,10 @@ import 'package:app/ble_service.dart';
 import 'package:app/logger.dart';
 import 'package:flutter/material.dart';
 import 'package:app/private_chat.dart';
+import 'package:app/db_service.dart';
 
 Color hexToColor(String hex) {
-  return Color(int.parse("FF$hex",radix: 16));
+  return Color(int.parse("FF$hex", radix: 16));
 }
 
 class PeerDevice {
@@ -143,13 +144,15 @@ class _PrivatePageState extends State<PrivatePage> {
                 itemBuilder: (context, index) {
                   final device = _devices[index];
                   return ListTile(
-                    onTap: () {
-                      Navigator.push(
+                    onTap: () async {
+                      await Navigator.push(
                         context,
                         MaterialPageRoute(
                           builder: (context) => PrivateChatPage(device: device),
                         ),
                       );
+                      // only refresh unread count after returning from private chat page
+                      await refreshUnreadCount();
                     },
                     leading: CircleAvatar(
                       backgroundColor: hexToColor(device.colorHex),
@@ -168,9 +171,22 @@ class _PrivatePageState extends State<PrivatePage> {
                       "Last Seen: ${_formatLastSeen(device.timeStamp)}",
                       style: TextStyle(color: Colors.black, fontSize: 11),
                     ),
-                    trailing: Badge(
-                      label: const Text('4', style: TextStyle(fontSize: 12)),
-                      backgroundColor: Colors.red.shade300,
+
+                    trailing: ValueListenableBuilder<int>(
+                      valueListenable: unreadUpdateTrigger,
+                      builder: (context, _, _) {
+                        return FutureBuilder<int>(
+                          future: getUnreadPrivateCountForPeer(device.mac),
+                          builder: (context, snapshot) {
+                            final count = snapshot.data ?? 0;
+                            return Badge(
+                              isLabelVisible: count > 0,
+                              label: Text('$count'),
+                              backgroundColor: Colors.red.shade300,
+                            );
+                          },
+                        );
+                      },
                     ),
                   );
                 },

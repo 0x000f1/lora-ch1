@@ -1,4 +1,5 @@
 import 'package:app/ble_service.dart';
+import 'package:app/db_service.dart';
 import 'package:app/private_page.dart';
 import 'package:app/settings_page.dart';
 import 'package:flutter/material.dart';
@@ -27,14 +28,15 @@ class HomePage extends StatefulWidget {
   State<HomePage> createState() => _HomePageState();
 }
 
-class _HomePageState extends State<HomePage>
-    with SingleTickerProviderStateMixin {
+class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin {
   // late: will be initialized before first use (in initState())
   late TabController tabController;
   int currentPage = 0;
 
   @override
   void initState() {
+    super.initState();
+    
     initConnectionListener();
     tabController = TabController(length: 2, vsync: this);
     tabController.animation!.addListener(() {
@@ -42,13 +44,18 @@ class _HomePageState extends State<HomePage>
         changePage(tabController.index);
       }
     });
-    super.initState();
+    
+    refreshUnreadCount();
   }
 
-  void changePage(int newPage) {
+  void changePage(int newPage) async {
     setState(() {
       currentPage = newPage;
     });
+    if (newPage == 1) {
+      await markBroadcastMessagesAsRead();
+      await refreshUnreadCount();
+    }
   }
 
   @override
@@ -59,8 +66,6 @@ class _HomePageState extends State<HomePage>
 
   @override
   Widget build(BuildContext context) {
-
-    
     return Scaffold(
       appBar: AppBar(
         title: const Text("BT Mesh Chat"),
@@ -79,38 +84,24 @@ class _HomePageState extends State<HomePage>
                           children: [
                             Text("$bat%"),
                             const SizedBox(width: 4),
-                            Icon(
-                              bat > 20
-                                  ? Icons.battery_full_rounded
-                                  : Icons.battery_alert_rounded,
-                            ),
+                            Icon(bat > 20 ? Icons.battery_full_rounded : Icons.battery_alert_rounded),
                           ],
                         );
                       },
                     ),
-
 
                   if (isConnected)
                     IconButton(
                       icon: Icon(Icons.settings),
                       padding: EdgeInsets.zero,
                       onPressed: () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (context) => const SettingsPage(),
-                          ),
-                        );
+                        Navigator.push(context, MaterialPageRoute(builder: (context) => const SettingsPage()));
                       },
-                      
                     ),
-
 
                   IconButton(
                     icon: Icon(
-                      isConnected
-                          ? Icons.bluetooth_connected_rounded
-                          : Icons.bluetooth_rounded,
+                      isConnected ? Icons.bluetooth_connected_rounded : Icons.bluetooth_rounded,
                       color: Colors.black,
                     ),
                     onPressed: () => showBTSheet(context),
@@ -134,16 +125,16 @@ class _HomePageState extends State<HomePage>
           children: [
             //const Center(child: Text("Private Chats")),
             PrivatePage(scrollController: controller),
-            BroadcastPage(scrollController: controller),
+            BroadcastPage(
+              scrollController: controller,
+              isActive: currentPage == 1,
+              ),
           ],
         ),
         child: TabBar(
           indicatorAnimation: TabIndicatorAnimation.elastic,
           indicatorPadding: EdgeInsetsGeometry.only(top: 7, bottom: 7),
-          indicator: BoxDecoration(
-            color: Colors.black26,
-            borderRadius: BorderRadius.circular(20),
-          ),
+          indicator: BoxDecoration(color: Colors.black26, borderRadius: BorderRadius.circular(20)),
           unselectedLabelColor: Colors.blue.shade800,
           labelColor: Colors.blue.shade800,
           controller: tabController,
@@ -152,13 +143,16 @@ class _HomePageState extends State<HomePage>
               height: 55,
               width: 55,
               child: Center(
-                child: Badge(
-                  backgroundColor: Colors.red.shade300,
-                  label: const Text('3'),
-                  child: ImageIcon(
-                    AssetImage('assets/icons/private.png'),
-                    size: 35,
-                  ),
+                child: ValueListenableBuilder<int>(
+                  valueListenable: unreadPrivateCount,
+                  builder: (context, count, child) {
+                    return Badge(
+                      isLabelVisible: count > 0,
+                      backgroundColor: Colors.red.shade300,
+                      label: Text("$count"),
+                      child: ImageIcon(AssetImage('assets/icons/private.png'), size: 35),
+                    );
+                  },
                 ),
               ),
             ),
@@ -166,13 +160,16 @@ class _HomePageState extends State<HomePage>
               height: 55,
               width: 55,
               child: Center(
-                child: Badge(
-                  backgroundColor: Colors.red.shade300,
-                  label: Text('2'),
-                  child: ImageIcon(
-                    AssetImage('assets/icons/broadcast.png'),
-                    size: 35,
-                  ),
+                child: ValueListenableBuilder<int>(
+                  valueListenable: unreadBroadcastCount,
+                  builder: (context, count, child) {
+                    return Badge(
+                      isLabelVisible: count > 0,
+                      backgroundColor: Colors.red.shade300,
+                      label: Text("$count"),
+                      child: ImageIcon(AssetImage('assets/icons/broadcast.png'), size: 35),
+                    );
+                  },
                 ),
               ),
             ),
