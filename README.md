@@ -72,12 +72,14 @@ Actual message sending and receiving takes place on this channel. The payload mu
 
 * **Receiving (LoRa -> App):**
   * The app must subscribe to `NOTIFY` events on this characteristic.
-  * **Format 1 (Standard Data):** `SENDER_MAC;SENDER_USERNAME;COLOR_HEX;TARGET_MAC;CURRENT_FRAGMENT;TOTAL_FRAGMENTS;TIMESTAMP;RSSI;PAYLOAD`
+  * **Format 1 (Standard Data):** `SENDER_MAC;SENDER_USERNAME;COLOR_HEX;TARGET_MAC;CURRENT_FRAGMENT;TOTAL_FRAGMENTS;SQN_NUM;RSSI;SNR;TIMESTAMP;PAYLOAD`
     * The app can use the `TARGET_MAC` to determine if the received message was a public broadcast (`FFFFFFFF`) or a private P2P message.
     * `SENDER_USERNAME`: The sender's username string automatically resolved from the internal neighbor cache. Returns `Unknown` if the sender is not in the cache.
     * `COLOR_HEX`: The sender's custom UI color (e.g., `FF0000`) resolved from the cache. Defaults to `0088FF` if unknown.
     * `TIMESTAMP`: The UNIX Epoch time in seconds. If the device clock is not synced via `SET_TIM`, this value returns `0`.
     * `RSSI`: The signal strength of the received LoRa package (e.g., `-78.00`).
+    * `SQN_NUM`: The sequence number of the received LoRa package.
+    * `SNR`: The signal-to-noise ratio of the received LoRa package (e.g., `-7.50`).
   * **Format 2 (Delivery Success):** `ACK_OK;TARGET_MAC`
     * Sent to the app when a previously sent P2P message is successfully acknowledged by the receiver.
   * **Format 3 (Delivery Failed):** `ERR_TIMEOUT;TARGET_MAC`
@@ -99,7 +101,7 @@ This channel is used to query the network status and manage system preferences.
     * *Action:* Disables location sharing for privacy. Resets the coordinates to `0.0` and dynamically truncates the LoRa heartbeat payload to save bandwidth.
     * *Response:* `NO_LOC_OK`
   * `GET_NEI`
-    * *Response:* `NEI|MAC;NEI_USERNAME;COLOR_HEX;RSSI;TIMESTAMP;LATITUDE;LONGITUDE|...` (e.g., `NEI|A1B2C3D4;lora-ch1-XXXX;FF0000;-45.50;32125;47.531600;21.627300|...`) or `NEI|NO_NEI` if the list is empty.
+    * *Response:* `NEI|MAC;NEI_USERNAME;COLOR_HEX;SQN_NUM;RSSI;SNR;TIMESTAMP;LATITUDE;LONGITUDE|...` (e.g., `NEI|A1B2C3D4;lora-ch1-XXXX;FF0000;12;-45.50;7.25;32125;47.531600;21.627300|...`) or `NEI|NO_NEI` if the list is empty.
   * `GET_BAT`
     * *Response:* `BAT;Percentage;IsCharging` (e.g., `BAT;87;1` where 1 means charging, 0 means discharging).
   * `SET_USR;Username`

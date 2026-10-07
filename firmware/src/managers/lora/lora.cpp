@@ -464,7 +464,9 @@ void LoRaManager::handleFlags() {
                                discovery.colorB,
                                discovery.latitude,
                                discovery.longitude,
-                               loraModule.getRSSI());
+                               (unsigned)header.sequenceNumber,
+                               loraModule.getRSSI(),
+                               loraModule.getSNR());
             }
 
             if (!packageIsForMe) {
@@ -565,7 +567,7 @@ void LoRaManager::handleFlags() {
                         // Check if the target address was broadcast.
                         bool isBroadcast = (header.targetAddress == BROADCAST_ADDRESS);
 
-                        // Format generation: SENDER_ADDRESS;SENDER_USERNAME;COLOR_HEX;TARGET_ADDRESS;CURRENT_FRAGMENT;TOTAL_FRAGMENT;TIMESTAMP;RSSI;PAYLOAD
+                        // Format: SENDER_ADDRESS;SENDER_USERNAME;COLOR_HEX;TARGET_ADDRESS;CURRENT_FRAGMENT;TOTAL_FRAGMENT;SQN_NUM;RSSI;SNR;TIMESTAMP;PAYLOAD
                         const char* senderUsername = "Unknown";
                         uint8_t r = 0, g = 136, b = 255; // Default Light Blue color
 
@@ -582,15 +584,17 @@ void LoRaManager::handleFlags() {
                         char colorHex[7];
                         snprintf(colorHex, sizeof(colorHex), "%02X%02X%02X", r, g, b);
 
-                        snprintf(formattedString, sizeof(formattedString), "%08X;%s;%s;%08X;%d;%d;%ld;%.2f;%s",
+                        snprintf(formattedString, sizeof(formattedString), "%08X;%s;%s;%08X;%d;%d;%u;%.2f;%.2f;%ld;%s",
                                  header.senderAddress,
                                  senderUsername,
                                  colorHex,
                                  header.targetAddress,
                                  header.currentFragment,
                                  header.totalFragments,
-                                 safeTimestamp,
+                                 header.sequenceNumber,
                                  loraModule.getRSSI(),
+                                 loraModule.getSNR(),
+                                 safeTimestamp,
                                  payloadString);
 
                         LOG_I(TAG, "Received DATA package: %s", formattedString);
@@ -613,7 +617,7 @@ void LoRaManager::handleFlags() {
     }
 }
 
-void LoRaManager::updateNeighbor(uint32_t senderAddress, const char* username, uint8_t colorR, uint8_t colorG, uint8_t colorB, float latitude, float longitude, float rssi) {
+void LoRaManager::updateNeighbor(uint32_t senderAddress, const char* username, uint8_t colorR, uint8_t colorG, uint8_t colorB, float latitude, float longitude, uint8_t sequenceNumber, float rssi, float snr) {
     time_t now;
     time(&now);
 
@@ -630,11 +634,13 @@ void LoRaManager::updateNeighbor(uint32_t senderAddress, const char* username, u
             neighbors[i].colorR = colorR;
             neighbors[i].colorG = colorG;
             neighbors[i].colorB = colorB;
+            neighbors[i].sequenceNumber = sequenceNumber;
             neighbors[i].latitude = latitude;
             neighbors[i].longitude = longitude;
             neighbors[i].timestamp = safeTimestamp; // Update timestamp (last seen)
             neighbors[i].lastSeenMillis = currentMillis;
             neighbors[i].rssi = rssi; // Update RSSI value (signal strength)
+            neighbors[i].snr = snr; // Update SNR value (signal-to-noise ratio)
             return;
         }
     }
@@ -647,9 +653,11 @@ void LoRaManager::updateNeighbor(uint32_t senderAddress, const char* username, u
         neighbors[neighborCount].colorR = colorR;
         neighbors[neighborCount].colorG = colorG;
         neighbors[neighborCount].colorB = colorB;
+        neighbors[neighborCount].sequenceNumber = sequenceNumber;
         neighbors[neighborCount].latitude = latitude;
         neighbors[neighborCount].longitude = longitude;
         neighbors[neighborCount].rssi = rssi;
+        neighbors[neighborCount].snr = snr;
         neighbors[neighborCount].timestamp = safeTimestamp;
         neighbors[neighborCount].lastSeenMillis = currentMillis;
         neighborCount++;

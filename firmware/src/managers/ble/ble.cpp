@@ -147,15 +147,19 @@ class controlCharStatusCallbacks : public NimBLECharacteristicCallbacks {
                     int lonFrac = (int)(abs(list[i].longitude - lonInt) * 1000000);
                     int rssiInt = (int)list[i].rssi;
                     int rssiFrac = (int)(abs(list[i].rssi - rssiInt) * 100);
+                    int snrInt = (int)list[i].snr;
+                    int snrFrac = (int)(abs(list[i].snr - snrInt) * 100);
 
                     snprintf(responseBuffer, sizeof(responseBuffer), 
-                                            "%08X;%s;%02X%02X%02X;%d.%02d;%lu;%d.%06d;%d.%06d|",
+                                            "%08X;%s;%02X%02X%02X;%u;%d.%02d;%d.%02d;%lu;%d.%06d;%d.%06d|",
                                             list[i].senderAddress, 
                                             list[i].senderUsername,
                                             list[i].colorR,
                                             list[i].colorG,
                                             list[i].colorB,
+                                            (unsigned)list[i].sequenceNumber,
                                             rssiInt, rssiFrac, // %.2f
+                                            snrInt, snrFrac, // %.2f
                                             list[i].timestamp,
                                             latInt, latFrac, // %.6f
                                             lonInt, lonFrac); // %.6f
