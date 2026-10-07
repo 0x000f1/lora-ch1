@@ -8,8 +8,11 @@ import 'package:flutter_floating_bottom_bar/flutter_floating_bottom_bar.dart';
 import 'theme.dart';
 import 'bt_sheet.dart';
 import 'broadcast_page.dart';
+import 'map_page.dart';
 
-void main() {
+Future<void> main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  await initializeOfflineMap();
   //debugPaintSizeEnabled = true; // see layout bounds in debug mode
   runApp(const MainApp());
 }
@@ -28,7 +31,8 @@ class HomePage extends StatefulWidget {
   State<HomePage> createState() => _HomePageState();
 }
 
-class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin {
+class _HomePageState extends State<HomePage>
+    with SingleTickerProviderStateMixin {
   // late: will be initialized before first use (in initState())
   late TabController tabController;
   int currentPage = 0;
@@ -36,15 +40,15 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
   @override
   void initState() {
     super.initState();
-    
+
     initConnectionListener();
-    tabController = TabController(length: 2, vsync: this);
+    tabController = TabController(length: 3, vsync: this);
     tabController.animation!.addListener(() {
       if (tabController.index != currentPage) {
         changePage(tabController.index);
       }
     });
-    
+
     refreshUnreadCount();
   }
 
@@ -84,7 +88,11 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
                           children: [
                             Text("$bat%"),
                             const SizedBox(width: 4),
-                            Icon(bat > 20 ? Icons.battery_full_rounded : Icons.battery_alert_rounded),
+                            Icon(
+                              bat > 20
+                                  ? Icons.battery_full_rounded
+                                  : Icons.battery_alert_rounded,
+                            ),
                           ],
                         );
                       },
@@ -95,13 +103,20 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
                       icon: Icon(Icons.settings),
                       padding: EdgeInsets.zero,
                       onPressed: () {
-                        Navigator.push(context, MaterialPageRoute(builder: (context) => const SettingsPage()));
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => const SettingsPage(),
+                          ),
+                        );
                       },
                     ),
 
                   IconButton(
                     icon: Icon(
-                      isConnected ? Icons.bluetooth_connected_rounded : Icons.bluetooth_rounded,
+                      isConnected
+                          ? Icons.bluetooth_connected_rounded
+                          : Icons.bluetooth_rounded,
                       color: Colors.black,
                     ),
                     onPressed: () => showBTSheet(context),
@@ -128,13 +143,17 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
             BroadcastPage(
               scrollController: controller,
               isActive: currentPage == 1,
-              ),
+            ),
+            const MapPage(),
           ],
         ),
         child: TabBar(
           indicatorAnimation: TabIndicatorAnimation.elastic,
           indicatorPadding: EdgeInsetsGeometry.only(top: 7, bottom: 7),
-          indicator: BoxDecoration(color: Colors.black26, borderRadius: BorderRadius.circular(20)),
+          indicator: BoxDecoration(
+            color: Colors.black26,
+            borderRadius: BorderRadius.circular(20),
+          ),
           unselectedLabelColor: Colors.blue.shade800,
           labelColor: Colors.blue.shade800,
           controller: tabController,
@@ -150,7 +169,10 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
                       isLabelVisible: count > 0,
                       backgroundColor: Colors.red.shade300,
                       label: Text("$count"),
-                      child: ImageIcon(AssetImage('assets/icons/private.png'), size: 35),
+                      child: ImageIcon(
+                        AssetImage('assets/icons/private.png'),
+                        size: 35,
+                      ),
                     );
                   },
                 ),
@@ -167,11 +189,19 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
                       isLabelVisible: count > 0,
                       backgroundColor: Colors.red.shade300,
                       label: Text("$count"),
-                      child: ImageIcon(AssetImage('assets/icons/broadcast.png'), size: 35),
+                      child: ImageIcon(
+                        AssetImage('assets/icons/broadcast.png'),
+                        size: 35,
+                      ),
                     );
                   },
                 ),
               ),
+            ),
+            const SizedBox(
+              height: 55,
+              width: 55,
+              child: Center(child: Icon(Icons.map_outlined, size: 35)),
             ),
           ],
         ),
