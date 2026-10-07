@@ -15,6 +15,9 @@ class PeerDevice {
   final String name;
   final int timeStamp;
   final String colorHex;
+  
+  final double? latitude;
+  final double? longitude;
 
   const PeerDevice({
     required this.mac,
@@ -22,6 +25,8 @@ class PeerDevice {
     required this.name,
     required this.timeStamp,
     required this.colorHex,
+    this.latitude,
+    this.longitude,
   });
 }
 
@@ -69,15 +74,17 @@ class _PrivatePageState extends State<PrivatePage> {
           // check if data is impact and bypass NO_NEI response
           if (deviceData.length > 4) {
             AppLogger.log("MESH", "Parsed device data: $deviceData");
+            final hasLocationData = parts.length > 7;
             final mac = deviceData[0];
             final name = deviceData[1];
             final colorHex = deviceData[2];
             final rssi = deviceData[3];
-
             int timeStamp = int.tryParse(deviceData[4]) ?? 0;
             if (timeStamp < 1000000000) {
               timeStamp = 0; // if its unsynced, treat it as unknown
             }
+            final latitude = hasLocationData ? double.tryParse(deviceData[5]) : null;
+            final longitude = hasLocationData ? double.tryParse(deviceData[6]) : null;
 
             // add/update devices
             deviceMap[mac] = PeerDevice(
@@ -86,6 +93,8 @@ class _PrivatePageState extends State<PrivatePage> {
               name: name,
               colorHex: colorHex,
               timeStamp: timeStamp,
+              latitude: latitude,
+              longitude: longitude,
             );
           }
         }

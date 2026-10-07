@@ -4,6 +4,7 @@ import 'package:app/db_service.dart';
 import 'package:app/logger.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_blue_plus/flutter_blue_plus.dart';
+import 'package:geolocator/geolocator.dart';
 
 // control characteristic for commands
 BluetoothCharacteristic? _controlChar;
@@ -24,7 +25,10 @@ StreamSubscription? _dataBleSub;
 StreamSubscription? _controlBleSub;
 
 // set up reading "listener"
-Future<void> setupBleCommunication(BluetoothCharacteristic control, BluetoothCharacteristic data) async {
+Future<void> setupBleCommunication(
+  BluetoothCharacteristic control,
+  BluetoothCharacteristic data,
+) async {
   _dataChar = data;
   _controlChar = control;
 
@@ -40,12 +44,12 @@ Future<void> setupBleCommunication(BluetoothCharacteristic control, BluetoothCha
   _dataBleSub = _dataChar!.lastValueStream.listen((value) async {
     if (value.isNotEmpty) {
       final rawMsg = utf8.decode(value);
-      
+
       if (rawMsg.startsWith("ACK_OK") || rawMsg.startsWith("ERR_TIMEOUT")) {
         _dataStreamController.add(rawMsg);
         return;
       }
-      
+
       final assambled = handleIncomingFragments(rawMsg);
       if (assambled != null) {
         await _saveIncomingMessageToDb(assambled);
@@ -61,7 +65,8 @@ Future<void> setupBleCommunication(BluetoothCharacteristic control, BluetoothCha
       if (rawMsg.startsWith("BAT;")) {
         final parts = rawMsg.split(";");
         if (parts.length >= 2) {
-          batteryLevel.value = int.tryParse(rawMsg.split(";")[1]) ?? batteryLevel.value;
+          batteryLevel.value =
+              int.tryParse(rawMsg.split(";")[1]) ?? batteryLevel.value;
         }
       }
       _controlStreamController.add(rawMsg);
@@ -82,6 +87,70 @@ final ValueNotifier<int> unreadUpdateTrigger = ValueNotifier(0);
 
 final ValueNotifier<int> batteryLevel = ValueNotifier(0);
 Timer? _batteryTimer;
+
+Timer? _locationTimer;
+
+Future<bool> _isPermissionsGranted() async {
+  final serviceEnabled = await Geolocator.isLocationServiceEnabled();
+  if (!serviceEnabled) {
+    AppLogger.log("LOC", "Location services are disabled.");
+    return false;
+  }
+
+  LocationPermission permission = await Geolocator.checkPermission();
+  if (permission == LocationPermission.denied ||
+      permission == LocationPermission.deniedForever) {
+    permission = await Geolocator.requestPermission();
+    if (permission == LocationPermission.denied ||
+        permission == LocationPermission.deniedForever) {
+      AppLogger.log("LOC", "Location permissions are disabled.");
+      return false;
+    }
+  }
+  return true;
+}
+
+Future<bool> _sendCurrentLocation() async {
+  final bool permissionsGranted = await _isPermissionsGranted();
+  if (!permissionsGranted) {
+    return false;
+  }
+
+  try {
+    Position position = await Geolocator.getCurrentPosition(
+      locationSettings: const LocationSettings(accuracy: LocationAccuracy.high),
+    );
+    final String command = "SET_LOC;${position.latitude};${position.longitude}";
+    
+    bool success = await sendCommandWithResponse(command, "LOC_OK");
+    if (success) {
+      AppLogger.log(
+        "LOC",
+        "Location sent successfully: ${position.latitude}, ${position.longitude}",
+      );
+      return true;
+    } else {
+      AppLogger.log("LOC", "Failed to send location");
+      return false;
+    }
+    
+  } catch (e) {
+    AppLogger.log("LOC", "Error getting location: $e");
+    return false;
+  }
+}
+
+
+Future<void> _startLocationUpdates() async {
+  final bool permissionsGranted = await _isPermissionsGranted();
+  if (!permissionsGranted) return;
+
+  _locationTimer?.cancel();
+  _locationTimer = Timer.periodic(const Duration(seconds: 25), (_) async {
+    await _sendCurrentLocation();
+  });
+}
+
 
 Future<void> refreshUnreadCount() async {
   // query database for unread counts
@@ -112,7 +181,10 @@ Future<bool> setVibration(bool isEnabled) async {
   final String command = "SET_VIB;${isEnabled ? 1 : 0}";
   bool success = await sendCommandWithResponse(command, "VIB_OK");
   if (success) {
-    AppLogger.log("SETT", "Vibration setting ${isEnabled ? "enabled" : "disabled"}");
+    AppLogger.log(
+      "SETT",
+      "Vibration setting ${isEnabled ? "enabled" : "disabled"}",
+    );
     return true;
   } else {
     AppLogger.log("SETT", "Failed to set vibration");
@@ -197,16 +269,24 @@ void _startBatteryUpdates() {
 
 void initConnectionListener() {
   FlutterBluePlus.events.onConnectionStateChanged.listen((event) {
-    bool connected = event.connectionState == BluetoothConnectionState.connected;
+    bool connected =
+        event.connectionState == BluetoothConnectionState.connected;
     isDeviceConnected.value = connected;
-    AppLogger.log("BLE", "Device connected state changed: ${isDeviceConnected.value}");
+    AppLogger.log(
+      "BLE",
+      "Device connected state changed: ${isDeviceConnected.value}",
+    );
 
     if (connected) {
       _startBatteryUpdates();
+      _startLocationUpdates();
     } else {
       _batteryTimer?.cancel();
       batteryLevel.value = 0;
+      _locationTimer?.cancel();
+      _locationTimer = null;
     }
+    
   });
 }
 
@@ -272,7 +352,10 @@ Future<bool> sendOnDataChar(String msg) async {
     AppLogger.log("BLE", "Sent on Data char: $msg");
     return true;
   } catch (e) {
-    AppLogger.log("BLE", "Error writing to control char: Message: $msg, Error: $e");
+    AppLogger.log(
+      "BLE",
+      "Error writing to control char: Message: $msg, Error: $e",
+    );
     return false;
   }
 }
@@ -284,7 +367,10 @@ Future<bool> sendOnControlChar(String msg) async {
     AppLogger.log("BLE", "Sent on Control char: $msg");
     return true;
   } catch (e) {
-    AppLogger.log("BLE", "Error writing to data char: Message: $msg, Error: $e");
+    AppLogger.log(
+      "BLE",
+      "Error writing to data char: Message: $msg, Error: $e",
+    );
     return false;
   }
 }
@@ -319,14 +405,20 @@ List<String> splitMessage(String text) {
 }
 
 // returns true if a message got an ack_ok response, false otherwise
-Future<bool> _sendFragmentWithAck(String packet, String targetMac, int payloadBytes) async {
+Future<bool> _sendFragmentWithAck(
+  String packet,
+  String targetMac,
+  int payloadBytes,
+) async {
   // 3,5 seconds + 50ms/byte maximum timeout
   final timeout = Duration(milliseconds: 3500 + (payloadBytes * 50));
 
   // start stream before sending data
   final ackFuture = dataStream
       .firstWhere(
-        (msg) => msg.startsWith("ACK_OK;$targetMac") || msg.startsWith("ERR_TIMEOUT;$targetMac"),
+        (msg) =>
+            msg.startsWith("ACK_OK;$targetMac") ||
+            msg.startsWith("ERR_TIMEOUT;$targetMac"),
       )
       .timeout(timeout);
 
@@ -340,7 +432,6 @@ Future<bool> _sendFragmentWithAck(String packet, String targetMac, int payloadBy
   }
 }
 
-
 Future<bool> sendMessage(String targetMac, String msg) async {
   final fragments = splitMessage(msg);
   final isBroadcast = targetMac == 'FFFFFFFF';
@@ -349,29 +440,43 @@ Future<bool> sendMessage(String targetMac, String msg) async {
     final payload = fragments[i];
     final packet = "$targetMac;${i + 1};${fragments.length};$payload";
 
-    AppLogger.log("BLE", "Sending fragment ${i + 1}/${fragments.length} ($payload)");
+    AppLogger.log(
+      "BLE",
+      "Sending fragment ${i + 1}/${fragments.length} ($payload)",
+    );
 
     if (isBroadcast) {
       // no ACK on broadcast so treat it as delivered if BLE sends it
       final success = await sendOnDataChar(packet);
       if (!success) {
-        AppLogger.log("BLE", "Failed to send broadcast fragment ${i + 1}/${fragments.length}");
+        AppLogger.log(
+          "BLE",
+          "Failed to send broadcast fragment ${i + 1}/${fragments.length}",
+        );
         return false;
       }
       continue;
     }
-    
+
     // send every packet with a seperate ACK check
     final payloadBytes = utf8.encode(payload).length;
-    final ackReceived = await _sendFragmentWithAck(packet, targetMac, payloadBytes);
-    if (ackReceived) AppLogger.log("BLE", "ACK recieved for fragment ${i+1}/${fragments.length}");
+    final ackReceived = await _sendFragmentWithAck(
+      packet,
+      targetMac,
+      payloadBytes,
+    );
+    if (ackReceived) {
+      AppLogger.log(
+        "BLE",
+        "ACK recieved for fragment ${i + 1}/${fragments.length}",
+      );
+    }
 
     if (!ackReceived) {
       AppLogger.log("BLE", "Message failed to send: $msg");
       await updateLastMessageStatus(targetMac, 'failed');
       return false;
     }
-    
   }
 
   if (!isBroadcast) {
@@ -409,11 +514,16 @@ String? handleIncomingFragments(String rawData) {
   final rssi = parts[7];
   final payload = parts.sublist(8).join(';');
 
-  if (currentFragment == null || totalFragments == null || totalFragments <= 1) {
+  if (currentFragment == null ||
+      totalFragments == null ||
+      totalFragments <= 1) {
     return "$senderMac;$senderUsername;$colorHex;$targetMac;$timeStamp;$rssi;$payload";
   }
 
-  AppLogger.log("BLE", "Fragment $currentFragment/$totalFragments from $senderMac");
+  AppLogger.log(
+    "BLE",
+    "Fragment $currentFragment/$totalFragments from $senderMac",
+  );
 
   if (currentFragment == 1) {
     // on first fragment, override/create entry
@@ -439,7 +549,9 @@ Future<void> _saveIncomingMessageToDb(String rawMsg) async {
     final senderMac = parts[0];
     final senderUser = parts[1];
     final targetMac = parts[3];
-    final timeStamp = int.tryParse(parts[4]) ?? (DateTime.now().millisecondsSinceEpoch ~/ 1000);
+    final timeStamp =
+        int.tryParse(parts[4]) ??
+        (DateTime.now().millisecondsSinceEpoch ~/ 1000);
     final payload = parts.sublist(6).join(';');
     final isBroadcast = targetMac == 'FFFFFFFF';
 
@@ -450,7 +562,7 @@ Future<void> _saveIncomingMessageToDb(String rawMsg) async {
       isMe: false,
       timestamp: timeStamp,
       isBroadcast: isBroadcast,
-      isRead: false
+      isRead: false,
     );
     await InsertMessage(message);
     await refreshUnreadCount();
@@ -458,10 +570,15 @@ Future<void> _saveIncomingMessageToDb(String rawMsg) async {
 }
 
 // send a SET command on control stream that has an expected response (SET_TIM: TIM_OK) etc..
-Future<bool> sendCommandWithResponse(String command, String expectedReponse) async {
+Future<bool> sendCommandWithResponse(
+  String command,
+  String expectedReponse,
+) async {
   for (int i = 0; i <= 3; i++) {
     try {
-      final response = controlStream.firstWhere((msg) => msg == expectedReponse).timeout(Duration(seconds: 3));
+      final response = controlStream
+          .firstWhere((msg) => msg == expectedReponse)
+          .timeout(Duration(seconds: 3));
 
       bool sent = await sendOnControlChar(command);
       if (!sent) return false;
@@ -478,7 +595,10 @@ Future<bool> sendCommandWithResponse(String command, String expectedReponse) asy
 }
 
 // send a GET request on command stream to get a stored value
-Future<String?> sendCommandAndFetch(String command, String expectedPrefix) async {
+Future<String?> sendCommandAndFetch(
+  String command,
+  String expectedPrefix,
+) async {
   for (int i = 0; i <= 3; i++) {
     try {
       final responseFuture = controlStream
