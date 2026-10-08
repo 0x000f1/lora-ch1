@@ -17,6 +17,7 @@ class PrivateChatPage extends StatefulWidget {
 
 class _PrivatePageState extends State<PrivateChatPage> {
   final TextEditingController _controller = TextEditingController();
+  final ScrollController _scrollController = ScrollController();
   StreamSubscription? _dataSub;
 
   final List<DbMessage> _messages = [];
@@ -27,13 +28,30 @@ class _PrivatePageState extends State<PrivateChatPage> {
       setState(() {
         _messages.addAll(stored);
       });
+      _scrollToBottom();
     }
   }
-  
+
   Future<void> _initializeChat() async {
     await _loadMessages();
     await markPrivateMessagesAsRead(widget.device.mac);
     await refreshUnreadCount();
+  }
+
+  void _scrollToBottom() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (_scrollController.hasClients) {
+        _scrollController.jumpTo(0.0);
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _dataSub?.cancel();
+    _controller.dispose();
+    _scrollController.dispose();
+    super.dispose();
   }
 
   @override
@@ -47,11 +65,16 @@ class _PrivatePageState extends State<PrivateChatPage> {
         if (parts.length >= 7) {
           final senderMac = parts[0];
           final targetMac = parts[3];
-          final timeStamp = int.tryParse(parts[4]) ?? (DateTime.now().millisecondsSinceEpoch ~/ 1000);
+          final timeStamp =
+              int.tryParse(parts[4]) ??
+              (DateTime.now().millisecondsSinceEpoch ~/ 1000);
           final payload = parts.sublist(6).join(';');
 
           if (senderMac == widget.device.mac && targetMac != "FFFFFFFF") {
-            AppLogger.log("CHAT", "Recieved private message from ${widget.device.name}");
+            AppLogger.log(
+              "CHAT",
+              "Recieved private message from ${widget.device.name}",
+            );
             setState(() {
               _messages.add(
                 DbMessage(
@@ -71,13 +94,6 @@ class _PrivatePageState extends State<PrivateChatPage> {
   }
 
   @override
-  void dispose() {
-    _dataSub?.cancel();
-    _controller.dispose();
-    super.dispose();
-  }
-
-  @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: Text(widget.device.name)),
@@ -85,10 +101,13 @@ class _PrivatePageState extends State<PrivateChatPage> {
         children: [
           Expanded(
             child: ListView.builder(
+              controller: _scrollController,
+              reverse: true,
               padding: const EdgeInsets.all(16),
               itemCount: _messages.length,
               itemBuilder: (context, index) {
-                final msg = _messages[index];
+                // build messages in reverse so scrollcontroller can jump to bottom while loading messages
+                final msg = _messages[_messages.length - 1 - index];
                 return ChatBubble(
                   text: msg.content,
                   senderName: msg.isMe ? "Me" : widget.device.name,
@@ -109,7 +128,10 @@ class _PrivatePageState extends State<PrivateChatPage> {
 
               _controller.clear();
 
-              AppLogger.log("CHAT", "Sent private message to ${widget.device.name}");
+              AppLogger.log(
+                "CHAT",
+                "Sent private message to ${widget.device.name}",
+              );
               final outMessage = DbMessage(
                 peerMac: widget.device.mac,
                 senderName: "Me",

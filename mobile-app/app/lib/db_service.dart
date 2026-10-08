@@ -11,14 +11,22 @@ Future<Database> getDatabase() async {
 
 Future<int> getUnreadBroadcastCount() async {
   final db = await getDatabase();
-  final rows = await db.query('messages', columns: ['id'], where: 'is_broadcast = 1 AND is_me = 0 AND is_read = 0');
+  final rows = await db.query(
+    'messages',
+    columns: ['id'],
+    where: 'is_broadcast = 1 AND is_me = 0 AND is_read = 0',
+  );
   return rows.length;
 }
 
 // returns the count of all peer's unread messages combined
 Future<int> getTotalUnreadPrivateCount() async {
   final db = await getDatabase();
-  final rows = await db.query('messages', columns: ['id'], where: 'is_broadcast = 0 AND is_me = 0 AND is_read = 0');
+  final rows = await db.query(
+    'messages',
+    columns: ['id'],
+    where: 'is_broadcast = 0 AND is_me = 0 AND is_read = 0',
+  );
   return rows.length;
 }
 
@@ -36,7 +44,9 @@ Future<int> getUnreadPrivateCountForPeer(String peerMac) async {
 
 Future<void> markBroadcastMessagesAsRead() async {
   final db = await getDatabase();
-  await db.update('messages', {'is_read': 1}, where: 'is_broadcast = 1 AND is_me = 0 AND is_read = 0');
+  await db.update('messages', {
+    'is_read': 1,
+  }, where: 'is_broadcast = 1 AND is_me = 0 AND is_read = 0');
 }
 
 Future<void> markPrivateMessagesAsRead(String peerMac) async {
@@ -45,8 +55,24 @@ Future<void> markPrivateMessagesAsRead(String peerMac) async {
     'messages',
     {'is_read': 1},
     where: 'peer_mac = ? AND is_broadcast = 0 AND is_me = 0 AND is_read = 0',
-    whereArgs: [peerMac]
+    whereArgs: [peerMac],
   );
+}
+
+Future<int?> getLastMessageTimeFromPeer(String peerMac) async {
+  final db = await getDatabase();
+  final rows = await db.query(
+    'messages',
+    columns: ['timestamp'],
+    where: 'peer_mac = ? AND is_broadcast = 0',
+    whereArgs: [peerMac],
+    orderBy: 'timestamp DESC',
+    limit: 1,
+  );
+
+  if (rows.isEmpty) return null;
+
+  return rows.first['timestamp'] as int?;
 }
 
 Future<void> updateLastMessageStatus(String targetMac, String newStatus) async {
@@ -62,7 +88,12 @@ Future<void> updateLastMessageStatus(String targetMac, String newStatus) async {
   );
 
   if (rows.isNotEmpty) {
-    await db.update('messages', {'status': newStatus}, where: 'id = ?', whereArgs: [rows.first['id']]);
+    await db.update(
+      'messages',
+      {'status': newStatus},
+      where: 'id = ?',
+      whereArgs: [rows.first['id']],
+    );
   }
 }
 
@@ -73,7 +104,11 @@ Future<void> InsertMessage(DbMessage msg) async {
 
 Future<List<DbMessage>> getBroadcastMessage() async {
   final db = await getDatabase();
-  final rows = await db.query('messages', where: 'is_broadcast = 1', orderBy: 'timestamp ASC');
+  final rows = await db.query(
+    'messages',
+    where: 'is_broadcast = 1',
+    orderBy: 'timestamp ASC',
+  );
   return rows.map((row) => DbMessage.fromMap(row)).toList();
 }
 
@@ -174,7 +209,17 @@ Future<Database> openChatDataBase() async {
 
 Future<void> savePeer(DbPeer peer) async {
   final db = await getDatabase();
-  await db.insert('peers', peer.toMap(), conflictAlgorithm: ConflictAlgorithm.replace);
+  await db.insert(
+    'peers',
+    peer.toMap(),
+    conflictAlgorithm: ConflictAlgorithm.replace,
+  );
+}
+
+Future<List<DbPeer>> getSavedPeers() async {
+  final db = await getDatabase();
+  final rows = await db.query('peers', orderBy: 'last_seen DESC');
+  return rows.map((row) => DbPeer.fromMap(row)).toList();
 }
 
 class DbPeer {
@@ -184,10 +229,22 @@ class DbPeer {
   final String? rssi;
   final int? lastSeen;
 
-  DbPeer({required this.mac, required this.name, this.colorHex, this.rssi, this.lastSeen});
+  DbPeer({
+    required this.mac,
+    required this.name,
+    this.colorHex,
+    this.rssi,
+    this.lastSeen,
+  });
 
   Map<String, dynamic> toMap() {
-    return {'mac': mac, 'name': name, 'color_hex': colorHex, 'rssi': rssi, 'last_seen': lastSeen};
+    return {
+      'mac': mac,
+      'name': name,
+      'color_hex': colorHex,
+      'rssi': rssi,
+      'last_seen': lastSeen,
+    };
   }
 
   DbPeer.fromMap(Map<String, dynamic> map)

@@ -121,7 +121,7 @@ Future<bool> _sendCurrentLocation() async {
       locationSettings: const LocationSettings(accuracy: LocationAccuracy.high),
     );
     final String command = "SET_LOC;${position.latitude};${position.longitude}";
-    
+
     bool success = await sendCommandWithResponse(command, "LOC_OK");
     if (success) {
       AppLogger.log(
@@ -133,13 +133,11 @@ Future<bool> _sendCurrentLocation() async {
       AppLogger.log("LOC", "Failed to send location");
       return false;
     }
-    
   } catch (e) {
     AppLogger.log("LOC", "Error getting location: $e");
     return false;
   }
 }
-
 
 Future<void> _startLocationUpdates() async {
   final bool permissionsGranted = await _isPermissionsGranted();
@@ -150,7 +148,6 @@ Future<void> _startLocationUpdates() async {
     await _sendCurrentLocation();
   });
 }
-
 
 Future<void> refreshUnreadCount() async {
   // query database for unread counts
@@ -205,6 +202,28 @@ Future<bool?> getVibration() async {
   return null;
 }
 
+Future<bool> factoryResetDevice() async {
+  bool success = await sendCommandWithResponse("FACTORY_RESET", "FACTORY_RESET_OK");
+  if (success) {
+    AppLogger.log("SETT", "Factory reset command sent successfully");
+    return true;
+  } else {
+    AppLogger.log("SETT", "Failed to send factory reset command");
+    return false;
+  }
+}
+
+Future<bool> restartDevice() async {
+  bool success = await sendCommandWithResponse("RST", "RST_OK");
+  if (success) {
+    AppLogger.log("SETT", "Device restart command sent successfully");
+    return true;
+  } else {
+    AppLogger.log("SETT", "Failed to send device restart command");
+    return false;
+  }
+}
+
 final ValueNotifier<String> usernameSetting = ValueNotifier("");
 
 Future<bool> setUsername(String newName) async {
@@ -220,6 +239,8 @@ Future<bool> setUsername(String newName) async {
     return false;
   }
 }
+
+
 
 Future<String?> getUsername() async {
   String? response = await sendCommandAndFetch("GET_USR", "USR");
@@ -286,7 +307,6 @@ void initConnectionListener() {
       _locationTimer?.cancel();
       _locationTimer = null;
     }
-    
   });
 }
 
@@ -361,7 +381,14 @@ Future<bool> sendOnDataChar(String msg) async {
 }
 
 Future<bool> sendOnControlChar(String msg) async {
-  if (_controlChar == null || !isDeviceConnected.value) return false;
+  if (_controlChar == null) {
+    AppLogger.log("BLE", "Cannot send $msg: control characteristic is null");
+    return false;
+  }
+  if (!isDeviceConnected.value) {
+    AppLogger.log("BLE", "Cannot send $msg: device is disconnected");
+    return false;
+  }
   try {
     await _controlChar!.write(utf8.encode(msg));
     AppLogger.log("BLE", "Sent on Control char: $msg");
@@ -580,10 +607,21 @@ Future<bool> sendCommandWithResponse(
           .firstWhere((msg) => msg == expectedReponse)
           .timeout(Duration(seconds: 3));
 
-      bool sent = await sendOnControlChar(command);
+      // if command is RST it drops the BLE connection immediately
+      bool sent = await sendOnControlChar(command).timeout(
+        const Duration(seconds: 2),
+        onTimeout: () {
+          AppLogger.log("BLE", "Timed out writing control command: $command");
+          return false;
+        },
+      );
       if (!sent) return false;
 
-      await response;
+      final String responseString = await response;
+      AppLogger.log(
+        "BLE",
+        "Recieved reponse: $responseString for command $command",
+      );
       return true;
     } catch (e) {
       if (i == 3) {
