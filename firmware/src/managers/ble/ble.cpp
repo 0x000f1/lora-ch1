@@ -274,9 +274,21 @@ class controlCharStatusCallbacks : public NimBLECharacteristicCallbacks {
         else if (strcmp(cmd, "RST") == 0) {
             LOG_I(TAG, "Command received: RST. Restarting.");
             nimBleChar->setValue("RST_OK");
-            nimBleChar->notify();
-            vTaskDelay(pdMS_TO_TICKS(100));
-            SystemManager::reboot();
+            if (!nimBleChar->notify()) {
+                LOG_W(TAG, "Failed to notify RST_OK.");
+            }
+
+            // Do not block the NimBLE host task while waiting for the notification.
+            BaseType_t taskCreated = xTaskCreate([](void* pvParameters) {
+                vTaskDelay(pdMS_TO_TICKS(1000));
+                SystemManager::reboot();
+                vTaskDelete(NULL);
+            }, "RebootTask", 2048, NULL, 1, NULL);
+
+            if (taskCreated != pdPASS) {
+                LOG_E(TAG, "Failed to create delayed reboot task.");
+                SystemManager::reboot();
+            }
         }
         else if (strcmp(cmd, "FACTORY_RESET") == 0) {
             LOG_W(TAG, "Command received: FACTORY_RESET. Erasing NVS then restart.");
