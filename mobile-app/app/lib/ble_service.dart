@@ -26,22 +26,19 @@ StreamSubscription? _controlBleSub;
 
 // set up reading "listener"
 Future<void> setupBleCommunication(
+  BluetoothDevice device,
   BluetoothCharacteristic control,
   BluetoothCharacteristic data,
 ) async {
   _dataChar = data;
   _controlChar = control;
 
-  // "subscribe" to characteristics
-  await _dataChar!.setNotifyValue(true);
-  await _controlChar!.setNotifyValue(true);
-
   // stop previous listeners to prevent duplicates when a device reconnects multiple times
   await _dataBleSub?.cancel();
   await _controlBleSub?.cancel();
 
   // store any incoming messages in the ble stream
-  _dataBleSub = _dataChar!.lastValueStream.listen((value) async {
+  _dataBleSub = _dataChar!.onValueReceived.listen((value) async {
     if (value.isNotEmpty) {
       final rawMsg = utf8.decode(value);
 
@@ -58,20 +55,25 @@ Future<void> setupBleCommunication(
     }
   });
 
-  _controlBleSub = _controlChar!.lastValueStream.listen((value) {
-    if (value.isNotEmpty) {
-      String rawMsg = utf8.decode(value);
+  _controlBleSub = _controlChar!.onValueReceived.listen((value) {
+    if (value.isEmpty) return;
+    String rawMsg = utf8.decode(value);
 
-      if (rawMsg.startsWith("BAT;")) {
-        final parts = rawMsg.split(";");
-        if (parts.length >= 2) {
-          batteryLevel.value =
-              int.tryParse(rawMsg.split(";")[1]) ?? batteryLevel.value;
-        }
+    if (rawMsg.startsWith("BAT;")) {
+      final parts = rawMsg.split(";");
+      if (parts.length >= 2) {
+        batteryLevel.value =
+            int.tryParse(rawMsg.split(";")[1]) ?? batteryLevel.value;
       }
-      _controlStreamController.add(rawMsg);
     }
+    _controlStreamController.add(rawMsg);
   });
+  
+  device.cancelWhenDisconnected(_controlBleSub!);
+
+  // "subscribe" to characteristics
+  await _dataChar!.setNotifyValue(true);
+  await _controlChar!.setNotifyValue(true);
 }
 
 List<BluetoothCharacteristic> _foundChars = [];
@@ -203,7 +205,10 @@ Future<bool?> getVibration() async {
 }
 
 Future<bool> factoryResetDevice() async {
-  bool success = await sendCommandWithResponse("FACTORY_RESET", "FACTORY_RESET_OK");
+  bool success = await sendCommandWithResponse(
+    "FACTORY_RESET",
+    "FACTORY_RESET_OK",
+  );
   if (success) {
     AppLogger.log("SETT", "Factory reset command sent successfully");
     return true;
@@ -225,9 +230,22 @@ Future<bool> restartDevice() async {
 }
 
 final ValueNotifier<String> usernameSetting = ValueNotifier("");
+final _validUserNameRegex = RegExp(r'^[\p{L}0-9_\-\. ]+$', unicode: true);
 
 Future<bool> setUsername(String newName) async {
-  if (newName.trim().isEmpty) return false;
+  final trimmed = newName.trim();
+  if (trimmed.isEmpty) return false;
+  
+  if(!_validUserNameRegex.hasMatch(trimmed)){
+    AppLogger.log("SETT", "Username contains invalid characters: $trimmed");
+    return false;
+  }
+  
+  if(trimmed.length > 16) {
+    AppLogger.log("SETT", "Username exceeds 16 limit: $trimmed");
+    return false;
+  }
+  
   final String command = "SET_USR;$newName";
   bool success = await sendCommandWithResponse(command, "USR_OK");
   if (success) {
@@ -239,8 +257,6 @@ Future<bool> setUsername(String newName) async {
     return false;
   }
 }
-
-
 
 Future<String?> getUsername() async {
   String? response = await sendCommandAndFetch("GET_USR", "USR");
@@ -345,7 +361,7 @@ Future<bool> connectAndSetupDevice(BluetoothDevice device) async {
     }
 
     if (_foundChars.length == 2) {
-      await setupBleCommunication(_foundChars[1], _foundChars[0]);
+      await setupBleCommunication(device, _foundChars[1], _foundChars[0]);
       await _initializeDeviceSettings();
       AppLogger.log("BLE", "Device connected and channels set up");
       return true;

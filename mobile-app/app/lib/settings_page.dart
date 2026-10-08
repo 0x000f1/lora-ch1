@@ -135,46 +135,80 @@ class _SettingsPageState extends State<SettingsPage> {
 
   void _showUserNameInput() {
     _usernameController.text = usernameSetting.value;
+    final validUserNameRegex = RegExp(r'^[\p{L}0-9_\-\. ]+$', unicode: true);
+    String? errorMessage;
     showDialog(
       context: context,
       builder: (dialogContext) {
-        return AlertDialog(
-          title: Text("Edit Username", style: TextStyle(fontSize: 18)),
-          content: TextField(
-            controller: _usernameController,
-            autofocus: true,
-            maxLength: 16,
-            decoration: InputDecoration(
-              labelText: "Username",
-              border: OutlineInputBorder(),
-              counterText: "",
-            ),
-          ),
-          actionsPadding: EdgeInsets.fromLTRB(16, 0, 16, 12),
-          actions: [
-            Row(
-              children: [
-                TextButton(
-                  onPressed: () => Navigator.of(dialogContext).pop(),
-                  child: const Text(
-                    "Cancel",
-                    style: TextStyle(color: Colors.redAccent),
-                  ),
-                ),
-                const Spacer(),
-                TextButton(
-                  onPressed: () async {
-                    final success = await _submitUsername();
-
-                    if (success && dialogContext.mounted) {
-                      Navigator.of(dialogContext).pop();
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            return AlertDialog(
+              insetPadding: EdgeInsets.symmetric(horizontal: 16),
+              title: Text("Edit Username", style: TextStyle(fontSize: 18)),
+              content: SizedBox(
+                width: 500,
+                child: TextField(
+                  controller: _usernameController,
+                  autofocus: true,
+                  maxLength: 16,
+                  onChanged: (value) {
+                    // reset errormessage on each input
+                    if (errorMessage != null) {
+                      setDialogState(() {
+                        errorMessage = null;
+                      });
                     }
                   },
-                  child: const Text("Submit"),
+                  decoration: InputDecoration(
+                    labelText: "Username",
+                    border: OutlineInputBorder(),
+                    counterText: "",
+                    errorText: errorMessage,
+                  ),
+                ),
+              ),
+              actionsPadding: EdgeInsets.fromLTRB(16, 0, 16, 12),
+              actions: [
+                Row(
+                  children: [
+                    TextButton(
+                      onPressed: () => Navigator.of(dialogContext).pop(),
+                      child: const Text(
+                        "Cancel",
+                        style: TextStyle(color: Colors.redAccent),
+                      ),
+                    ),
+                    const Spacer(),
+                    TextButton(
+                      onPressed: () async {
+                        final input = _usernameController.text.trim();
+                        
+                        if(input.isEmpty) {
+                          setDialogState(() {
+                            errorMessage = "Username cannot be empty";
+                          });
+                          return;
+                        }
+                        
+                        if(!validUserNameRegex.hasMatch(input)) {
+                          setDialogState(() {
+                            errorMessage = "Username contains invalid characters.";
+                          });
+                        }
+                        
+                        final success = await _submitUsername();
+            
+                        if (success && dialogContext.mounted) {
+                          Navigator.of(dialogContext).pop();
+                        }
+                      },
+                      child: const Text("Submit"),
+                    ),
+                  ],
                 ),
               ],
-            ),
-          ],
+            );
+          }
         );
       },
     );

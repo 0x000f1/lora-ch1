@@ -69,7 +69,7 @@ class _PrivatePageState extends State<PrivateChatPage> {
               int.tryParse(parts[4]) ??
               (DateTime.now().millisecondsSinceEpoch ~/ 1000);
           final payload = parts.sublist(6).join(';');
-
+          AppLogger.log("CHAT", rawMsg);
           if (senderMac == widget.device.mac && targetMac != "FFFFFFFF") {
             AppLogger.log(
               "CHAT",
