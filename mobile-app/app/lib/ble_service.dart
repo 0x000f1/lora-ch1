@@ -54,6 +54,7 @@ Future<void> setupBleCommunication(
       }
     }
   });
+  device.cancelWhenDisconnected(_dataBleSub!);
 
   _controlBleSub = _controlChar!.onValueReceived.listen((value) {
     if (value.isEmpty) return;
@@ -62,13 +63,12 @@ Future<void> setupBleCommunication(
     if (rawMsg.startsWith("BAT;")) {
       final parts = rawMsg.split(";");
       if (parts.length >= 2) {
-        batteryLevel.value =
-            int.tryParse(rawMsg.split(";")[1]) ?? batteryLevel.value;
+        batteryLevel.value = int.tryParse(rawMsg.split(";")[1]) ?? batteryLevel.value;
       }
     }
     _controlStreamController.add(rawMsg);
   });
-  
+
   device.cancelWhenDisconnected(_controlBleSub!);
 
   // "subscribe" to characteristics
@@ -100,11 +100,9 @@ Future<bool> _isPermissionsGranted() async {
   }
 
   LocationPermission permission = await Geolocator.checkPermission();
-  if (permission == LocationPermission.denied ||
-      permission == LocationPermission.deniedForever) {
+  if (permission == LocationPermission.denied || permission == LocationPermission.deniedForever) {
     permission = await Geolocator.requestPermission();
-    if (permission == LocationPermission.denied ||
-        permission == LocationPermission.deniedForever) {
+    if (permission == LocationPermission.denied || permission == LocationPermission.deniedForever) {
       AppLogger.log("LOC", "Location permissions are disabled.");
       return false;
     }
@@ -126,10 +124,7 @@ Future<bool> _sendCurrentLocation() async {
 
     bool success = await sendCommandWithResponse(command, "LOC_OK");
     if (success) {
-      AppLogger.log(
-        "LOC",
-        "Location sent successfully: ${position.latitude}, ${position.longitude}",
-      );
+      AppLogger.log("LOC", "Location sent successfully: ${position.latitude}, ${position.longitude}");
       return true;
     } else {
       AppLogger.log("LOC", "Failed to send location");
@@ -180,10 +175,7 @@ Future<bool> setVibration(bool isEnabled) async {
   final String command = "SET_VIB;${isEnabled ? 1 : 0}";
   bool success = await sendCommandWithResponse(command, "VIB_OK");
   if (success) {
-    AppLogger.log(
-      "SETT",
-      "Vibration setting ${isEnabled ? "enabled" : "disabled"}",
-    );
+    AppLogger.log("SETT", "Vibration setting ${isEnabled ? "enabled" : "disabled"}");
     return true;
   } else {
     AppLogger.log("SETT", "Failed to set vibration");
@@ -205,10 +197,7 @@ Future<bool?> getVibration() async {
 }
 
 Future<bool> factoryResetDevice() async {
-  bool success = await sendCommandWithResponse(
-    "FACTORY_RESET",
-    "FACTORY_RESET_OK",
-  );
+  bool success = await sendCommandWithResponse("FACTORY_RESET", "FACTORY_RESET_OK");
   if (success) {
     AppLogger.log("SETT", "Factory reset command sent successfully");
     return true;
@@ -235,17 +224,17 @@ final _validUserNameRegex = RegExp(r'^[\p{L}0-9_\-\. ]+$', unicode: true);
 Future<bool> setUsername(String newName) async {
   final trimmed = newName.trim();
   if (trimmed.isEmpty) return false;
-  
-  if(!_validUserNameRegex.hasMatch(trimmed)){
+
+  if (!_validUserNameRegex.hasMatch(trimmed)) {
     AppLogger.log("SETT", "Username contains invalid characters: $trimmed");
     return false;
   }
-  
-  if(trimmed.length > 16) {
+
+  if (trimmed.length > 16) {
     AppLogger.log("SETT", "Username exceeds 16 limit: $trimmed");
     return false;
   }
-  
+
   final String command = "SET_USR;$newName";
   bool success = await sendCommandWithResponse(command, "USR_OK");
   if (success) {
@@ -306,13 +295,9 @@ void _startBatteryUpdates() {
 
 void initConnectionListener() {
   FlutterBluePlus.events.onConnectionStateChanged.listen((event) {
-    bool connected =
-        event.connectionState == BluetoothConnectionState.connected;
+    bool connected = event.connectionState == BluetoothConnectionState.connected;
     isDeviceConnected.value = connected;
-    AppLogger.log(
-      "BLE",
-      "Device connected state changed: ${isDeviceConnected.value}",
-    );
+    AppLogger.log("BLE", "Device connected state changed: ${isDeviceConnected.value}");
 
     if (connected) {
       _startBatteryUpdates();
@@ -322,6 +307,7 @@ void initConnectionListener() {
       batteryLevel.value = 0;
       _locationTimer?.cancel();
       _locationTimer = null;
+      _fragBuffers.clear();
     }
   });
 }
@@ -377,6 +363,7 @@ Future<bool> connectAndSetupDevice(BluetoothDevice device) async {
 Future<void> disconnectDevice(BluetoothDevice device) async {
   await device.disconnect();
   _foundChars.clear();
+  _fragBuffers.clear();
 }
 
 // writing: returns true if message went throught, false otherwise
@@ -388,10 +375,7 @@ Future<bool> sendOnDataChar(String msg) async {
     AppLogger.log("BLE", "Sent on Data char: $msg");
     return true;
   } catch (e) {
-    AppLogger.log(
-      "BLE",
-      "Error writing to control char: Message: $msg, Error: $e",
-    );
+    AppLogger.log("BLE", "Error writing to control char: Message: $msg, Error: $e");
     return false;
   }
 }
@@ -410,10 +394,7 @@ Future<bool> sendOnControlChar(String msg) async {
     AppLogger.log("BLE", "Sent on Control char: $msg");
     return true;
   } catch (e) {
-    AppLogger.log(
-      "BLE",
-      "Error writing to data char: Message: $msg, Error: $e",
-    );
+    AppLogger.log("BLE", "Error writing to data char: Message: $msg, Error: $e");
     return false;
   }
 }
@@ -448,21 +429,13 @@ List<String> splitMessage(String text) {
 }
 
 // returns true if a message got an ack_ok response, false otherwise
-Future<bool> _sendFragmentWithAck(
-  String packet,
-  String targetMac,
-  int payloadBytes,
-) async {
+Future<bool> _sendFragmentWithAck(String packet, String targetMac, int payloadBytes) async {
   // 3,5 seconds + 50ms/byte maximum timeout
   final timeout = Duration(milliseconds: 3500 + (payloadBytes * 50));
 
   // start stream before sending data
   final ackFuture = dataStream
-      .firstWhere(
-        (msg) =>
-            msg.startsWith("ACK_OK;$targetMac") ||
-            msg.startsWith("ERR_TIMEOUT;$targetMac"),
-      )
+      .firstWhere((msg) => msg.startsWith("ACK_OK;$targetMac") || msg.startsWith("ERR_TIMEOUT;$targetMac"))
       .timeout(timeout);
 
   await sendOnDataChar(packet);
@@ -483,19 +456,13 @@ Future<bool> sendMessage(String targetMac, String msg) async {
     final payload = fragments[i];
     final packet = "$targetMac;${i + 1};${fragments.length};$payload";
 
-    AppLogger.log(
-      "BLE",
-      "Sending fragment ${i + 1}/${fragments.length} ($payload)",
-    );
+    AppLogger.log("BLE", "Sending fragment ${i + 1}/${fragments.length} ($payload)");
 
     if (isBroadcast) {
       // no ACK on broadcast so treat it as delivered if BLE sends it
       final success = await sendOnDataChar(packet);
       if (!success) {
-        AppLogger.log(
-          "BLE",
-          "Failed to send broadcast fragment ${i + 1}/${fragments.length}",
-        );
+        AppLogger.log("BLE", "Failed to send broadcast fragment ${i + 1}/${fragments.length}");
         return false;
       }
       continue;
@@ -503,16 +470,9 @@ Future<bool> sendMessage(String targetMac, String msg) async {
 
     // send every packet with a seperate ACK check
     final payloadBytes = utf8.encode(payload).length;
-    final ackReceived = await _sendFragmentWithAck(
-      packet,
-      targetMac,
-      payloadBytes,
-    );
+    final ackReceived = await _sendFragmentWithAck(packet, targetMac, payloadBytes);
     if (ackReceived) {
-      AppLogger.log(
-        "BLE",
-        "ACK recieved for fragment ${i + 1}/${fragments.length}",
-      );
+      AppLogger.log("BLE", "ACK recieved for fragment ${i + 1}/${fragments.length}");
     }
 
     if (!ackReceived) {
@@ -541,8 +501,10 @@ Future<bool> sendPrivateMsg(String targetMac, String msg) async {
   AppLogger.log("CHAT", "Sent private message $msg to $targetMac");
   return success;
 }
+// buffer for incoming fragments, key: mac
+final Map<String, List<String?>> _fragBuffers = {};
 
-final Map<String, String> _incomingBuffers = {};
+// only returns when every fragment arrives
 String? handleIncomingFragments(String rawData) {
   final parts = rawData.split(';');
   if (parts.length < 9) return rawData;
@@ -557,34 +519,31 @@ String? handleIncomingFragments(String rawData) {
   final rssi = parts[7];
   final payload = parts.sublist(8).join(';');
 
-  if (currentFragment == null ||
-      totalFragments == null ||
-      totalFragments <= 1) {
+  if (currentFragment == null || totalFragments == null || currentFragment < 1 || currentFragment > totalFragments) {
+    return null;
+  }
+  
+  // send single fragment message instantly
+  if(totalFragments <= 1) {
     return "$senderMac;$senderUsername;$colorHex;$targetMac;$timeStamp;$rssi;$payload";
   }
-
-  AppLogger.log(
-    "BLE",
-    "Fragment $currentFragment/$totalFragments from $senderMac",
-  );
-
-  if (currentFragment == 1) {
-    // on first fragment, override/create entry
-    _incomingBuffers[senderMac] = payload;
-  } else {
-    // append other fragments
-    _incomingBuffers[senderMac] = (_incomingBuffers[senderMac] ?? '') + payload;
+  
+  // create "slot" for each fragment in advance
+  final slots = _fragBuffers[senderMac] ??= List.filled(totalFragments, null);
+  slots[currentFragment - 1] = payload;
+  
+  // wait on missing fragment
+  if (slots.contains(null)) {
+    return null;
   }
 
-  if (currentFragment == totalFragments) {
-    final completeMessage = _incomingBuffers.remove(senderMac) ?? payload;
-    AppLogger.log("CHAT", "Complete message recieved from $senderMac");
-    // returned with fragment info removed
-    return "$senderMac;$senderUsername;$colorHex;$targetMac;$timeStamp;$rssi;$completeMessage";
-  }
+  // clear buffer after all fragments arrive
+  _fragBuffers.remove(senderMac);
+  final completeMessage = slots.join();
 
-  return null;
+  return "$senderMac;$senderUsername;$colorHex;$targetMac;$timeStamp;$rssi;$completeMessage";
 }
+
 
 Future<void> _saveIncomingMessageToDb(String rawMsg) async {
   final parts = rawMsg.split(';');
@@ -592,9 +551,7 @@ Future<void> _saveIncomingMessageToDb(String rawMsg) async {
     final senderMac = parts[0];
     final senderUser = parts[1];
     final targetMac = parts[3];
-    final timeStamp =
-        int.tryParse(parts[4]) ??
-        (DateTime.now().millisecondsSinceEpoch ~/ 1000);
+    final timeStamp = int.tryParse(parts[4]) ?? (DateTime.now().millisecondsSinceEpoch ~/ 1000);
     final payload = parts.sublist(6).join(';');
     final isBroadcast = targetMac == 'FFFFFFFF';
 
@@ -613,15 +570,10 @@ Future<void> _saveIncomingMessageToDb(String rawMsg) async {
 }
 
 // send a SET command on control stream that has an expected response (SET_TIM: TIM_OK) etc..
-Future<bool> sendCommandWithResponse(
-  String command,
-  String expectedReponse,
-) async {
+Future<bool> sendCommandWithResponse(String command, String expectedReponse) async {
   for (int i = 0; i <= 3; i++) {
     try {
-      final response = controlStream
-          .firstWhere((msg) => msg == expectedReponse)
-          .timeout(Duration(seconds: 3));
+      final response = controlStream.firstWhere((msg) => msg == expectedReponse).timeout(Duration(seconds: 3));
 
       // if command is RST it drops the BLE connection immediately
       bool sent = await sendOnControlChar(command).timeout(
@@ -634,10 +586,7 @@ Future<bool> sendCommandWithResponse(
       if (!sent) return false;
 
       final String responseString = await response;
-      AppLogger.log(
-        "BLE",
-        "Recieved reponse: $responseString for command $command",
-      );
+      AppLogger.log("BLE", "Recieved reponse: $responseString for command $command");
       return true;
     } catch (e) {
       if (i == 3) {
@@ -649,10 +598,7 @@ Future<bool> sendCommandWithResponse(
 }
 
 // send a GET request on command stream to get a stored value
-Future<String?> sendCommandAndFetch(
-  String command,
-  String expectedPrefix,
-) async {
+Future<String?> sendCommandAndFetch(String command, String expectedPrefix) async {
   for (int i = 0; i <= 3; i++) {
     try {
       final responseFuture = controlStream
