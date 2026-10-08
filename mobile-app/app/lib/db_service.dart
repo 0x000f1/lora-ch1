@@ -75,31 +75,21 @@ Future<int?> getLastMessageTimeFromPeer(String peerMac) async {
   return rows.first['timestamp'] as int?;
 }
 
-Future<void> updateLastMessageStatus(String targetMac, String newStatus) async {
+Future<void> markMessageDelivery(int id, bool isDelivered) async {
   final db = await getDatabase();
-
-  final rows = await db.query(
+  await db.update(
     'messages',
-    columns: ['id'],
-    where: 'peer_mac = ? AND is_me = 1 AND is_broadcast = 0',
-    whereArgs: [targetMac],
-    orderBy: 'timestamp DESC',
-    limit: 1,
+    {'status': isDelivered ? 'delivered' : 'failed'},
+    where: 'id = ?',
+    whereArgs: [id],
   );
-
-  if (rows.isNotEmpty) {
-    await db.update(
-      'messages',
-      {'status': newStatus},
-      where: 'id = ?',
-      whereArgs: [rows.first['id']],
-    );
-  }
 }
 
-Future<void> InsertMessage(DbMessage msg) async {
+
+Future<int> InsertMessage(DbMessage msg) async {
   final db = await getDatabase();
-  await db.insert("messages", msg.toMap());
+  // returns id of the message inserted
+  return await db.insert("messages", msg.toMap());
 }
 
 Future<List<DbMessage>> getBroadcastMessage() async {

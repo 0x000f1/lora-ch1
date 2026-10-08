@@ -477,13 +477,8 @@ Future<bool> sendMessage(String targetMac, String msg) async {
 
     if (!ackReceived) {
       AppLogger.log("BLE", "Message failed to send: $msg");
-      await updateLastMessageStatus(targetMac, 'failed');
       return false;
     }
-  }
-
-  if (!isBroadcast) {
-    await updateLastMessageStatus(targetMac, 'delivered');
   }
 
   AppLogger.log("CHAT", "Sent message: $msg");
@@ -501,6 +496,7 @@ Future<bool> sendPrivateMsg(String targetMac, String msg) async {
   AppLogger.log("CHAT", "Sent private message $msg to $targetMac");
   return success;
 }
+
 // buffer for incoming fragments, key: mac
 final Map<String, List<String?>> _fragBuffers = {};
 
@@ -522,16 +518,16 @@ String? handleIncomingFragments(String rawData) {
   if (currentFragment == null || totalFragments == null || currentFragment < 1 || currentFragment > totalFragments) {
     return null;
   }
-  
+
   // send single fragment message instantly
-  if(totalFragments <= 1) {
+  if (totalFragments <= 1) {
     return "$senderMac;$senderUsername;$colorHex;$targetMac;$timeStamp;$rssi;$payload";
   }
-  
+
   // create "slot" for each fragment in advance
   final slots = _fragBuffers[senderMac] ??= List.filled(totalFragments, null);
   slots[currentFragment - 1] = payload;
-  
+
   // wait on missing fragment
   if (slots.contains(null)) {
     return null;
@@ -543,7 +539,6 @@ String? handleIncomingFragments(String rawData) {
 
   return "$senderMac;$senderUsername;$colorHex;$targetMac;$timeStamp;$rssi;$completeMessage";
 }
-
 
 Future<void> _saveIncomingMessageToDb(String rawMsg) async {
   final parts = rawMsg.split(';');

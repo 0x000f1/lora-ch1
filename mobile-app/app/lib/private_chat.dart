@@ -142,7 +142,7 @@ class _PrivatePageState extends State<PrivateChatPage> {
                 status: 'sent',
               );
 
-              await InsertMessage(outMessage);
+              final messageId = await InsertMessage(outMessage);
 
               if (!mounted) return;
 
@@ -157,6 +157,8 @@ class _PrivatePageState extends State<PrivateChatPage> {
               setState(() {
                 outMessage.status = success ? 'delivered' : 'failed';
               });
+              
+              await markMessageDelivery(messageId, success);
             },
           ),
         ],
