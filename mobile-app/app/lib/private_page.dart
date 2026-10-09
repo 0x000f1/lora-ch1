@@ -69,7 +69,7 @@ class _PrivatePageState extends State<PrivatePage> {
     sendOnControlChar("GET_NEI");
 
     // "subscribe" to control stream in ble_service.dart to listen to GET_NEI response
-    // NEI|MAC;NEI_USERNAME;COLOR_HEX;RSSI;TIMESTAMP|MAC2;...
+    // NEI|MAC;NEI_USERNAME;COLOR_HEX;SQN_NUM;RSSI;SNR;TIMESTAMP;LATITUDE;LONGITUDE|...
     // or NEI|NO_NEI for empty neighbors list
     _controlSub = controlStream.listen((rawMsg) async {
       if (mounted) {
@@ -85,7 +85,9 @@ class _PrivatePageState extends State<PrivatePage> {
         }
 
         // store devices in a map for up to 10 minutes
-        final Map<String, PeerDevice> deviceMap = {for (var d in _devices) d.mac: d};
+        final Map<String, PeerDevice> deviceMap = {
+          for (var d in _devices) d.mac: d,
+        };
 
         // Split message after recieving it
         final parts = rawMsg.split('|');
@@ -93,20 +95,34 @@ class _PrivatePageState extends State<PrivatePage> {
           if (part.isEmpty) continue;
           final deviceData = part.split(';');
           // check if data is impact and bypass NO_NEI response
-          if (deviceData.length >= 7) {
+          if (deviceData.length >= 9) {
             AppLogger.log("MESH", "Parsed device data: $deviceData");
             final mac = deviceData[0];
             final name = deviceData[1];
             final colorHex = deviceData[2];
-            final rssi = deviceData[3];
-            int timeStamp = int.tryParse(deviceData[4]) ?? 0;
+            final rssi = deviceData[4];
+            int timeStamp = int.tryParse(deviceData[6]) ?? 0;
             if (timeStamp < 1000000000) {
               timeStamp = 0; // if its unsynced, treat it as unknown
             }
-            final latitude = double.tryParse(deviceData[5]) ?? 0;
-            final longitude = double.tryParse(deviceData[6]) ?? 0;
+            final latitude = double.tryParse(deviceData[7]) ?? 0;
+            final longitude = double.tryParse(deviceData[8]) ?? 0;
+            if (latitude >= -90 &&
+                latitude <= 90 &&
+                longitude >= -180 &&
+                longitude <= 180) {
+              updateLogNeighborLocation(mac, latitude, longitude);
+            }
 
-            await savePeer(DbPeer(mac: mac, name: name, colorHex: colorHex, rssi: rssi, lastSeen: timeStamp));
+            await savePeer(
+              DbPeer(
+                mac: mac,
+                name: name,
+                colorHex: colorHex,
+                rssi: rssi,
+                lastSeen: timeStamp,
+              ),
+            );
 
             // add/update devices
             deviceMap[mac] = PeerDevice(
@@ -124,7 +140,9 @@ class _PrivatePageState extends State<PrivatePage> {
         // get the last message sent/recieved for each peer
         final Map<String, int?> lastMessageTime = {};
         for (final device in _devices) {
-          lastMessageTime[device.mac] = await getLastMessageTimeFromPeer(device.mac);
+          lastMessageTime[device.mac] = await getLastMessageTimeFromPeer(
+            device.mac,
+          );
         }
 
         // sort them by last message sent
@@ -192,7 +210,10 @@ class _PrivatePageState extends State<PrivatePage> {
                             ? () async {
                                 await Navigator.push(
                                   context,
-                                  MaterialPageRoute(builder: (context) => PrivateChatPage(device: device)),
+                                  MaterialPageRoute(
+                                    builder: (context) =>
+                                        PrivateChatPage(device: device),
+                                  ),
                                 );
                                 // only refresh unread count after returning from private chat page
                                 await refreshUnreadCount();
@@ -204,13 +225,24 @@ class _PrivatePageState extends State<PrivatePage> {
                         ),
                         title: Row(
                           children: [
-                            getSignalIconFromRssi(device.rssi, device.timeStamp),
-                            Text(device.name, style: TextStyle(color: isConnected ? Colors.white : Colors.grey)),
+                            getSignalIconFromRssi(
+                              device.rssi,
+                              device.timeStamp,
+                            ),
+                            Text(
+                              device.name,
+                              style: TextStyle(
+                                color: isConnected ? Colors.white : Colors.grey,
+                              ),
+                            ),
                           ],
                         ),
                         subtitle: Text(
                           "Last Seen: ${_formatLastSeen(device.timeStamp)}",
-                          style: TextStyle(color: isConnected ? Colors.white : Colors.grey, fontSize: 11),
+                          style: TextStyle(
+                            color: isConnected ? Colors.white : Colors.grey,
+                            fontSize: 11,
+                          ),
                         ),
                         trailing: ValueListenableBuilder<int>(
                           valueListenable: unreadUpdateTrigger,
@@ -256,7 +288,11 @@ Widget getSignalIconFromRssi(String rssiStr, int timeStamp) {
   bool isOffline = ((currentTime - timeStamp) > hardwareTtl);
 
   if (isOffline) {
-    return const Icon(Icons.signal_cellular_nodata_rounded, color: Colors.grey, size: 16);
+    return const Icon(
+      Icons.signal_cellular_nodata_rounded,
+      color: Colors.grey,
+      size: 16,
+    );
   }
 
   double rssi = double.tryParse(rssiStr) ?? -100;

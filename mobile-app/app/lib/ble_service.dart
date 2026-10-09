@@ -566,31 +566,49 @@ Future<bool> sendPrivateMsg(String targetMac, String msg) async {
   bool success = await sendMessage(targetMac, msg);
   AppLogger.log("CHAT", "Sent private message $msg to $targetMac");
   if (success && _lastPrivateMessageRttMs != null) {
-    await LogManager.appendEntry(
-      LogEntry(
-        timestamp: DateTime.now().toIso8601String(),
-        senderUser: usernameSetting.value,
-        receiverUser: targetMac,
-        seqNumber: '',
-        rssi: '',
-        snr: '',
-        rtt: '$_lastPrivateMessageRttMs ms',
-        environment: await LogManager.currentName() ?? '',
-        distance: '',
-        senderLat: currentLogLocation?.latitude.toString() ?? '',
-        senderLon: currentLogLocation?.longitude.toString() ?? '',
-        receiverLat: logNeighborLocations[targetMac]?.latitude.toString() ?? '',
-        receiverLon:
-            logNeighborLocations[targetMac]?.longitude.toString() ?? '',
-        battery: batteryLevel.value.toString(),
-      ),
-    );
+    try {
+      await LogManager.appendEntry(
+        LogEntry(
+          timestamp: DateTime.now().toIso8601String(),
+          senderUser: usernameSetting.value,
+          receiverUser: targetMac,
+          seqNumber: '',
+          rssi: '',
+          snr: '',
+          rtt: '$_lastPrivateMessageRttMs',
+          environment: await LogManager.currentName() ?? '',
+          distance: LogManager.distanceBetween(
+            currentLogLocation,
+            logNeighborLocations[targetMac],
+          ),
+          senderLat: currentLogLocation?.latitude.toString() ?? '',
+          senderLon: currentLogLocation?.longitude.toString() ?? '',
+          receiverLat:
+              logNeighborLocations[targetMac]?.latitude.toString() ?? '',
+          receiverLon:
+              logNeighborLocations[targetMac]?.longitude.toString() ?? '',
+          battery: batteryLevel.value.toString(),
+          payload: msg,
+        ),
+      );
+    } catch (error) {
+      AppLogger.log("LOG", "Failed to append outgoing message: $error");
+    }
   }
   return success;
 }
 
-// buffer for incoming fragments, key: mac
-final Map<String, List<String?>> _fragBuffers = {};
+class _FragmentState {
+  _FragmentState(int totalFragments)
+    : payloads = List<String?>.filled(totalFragments, null),
+      timestamps = List<int?>.filled(totalFragments, null);
+
+  final List<String?> payloads;
+  final List<int?> timestamps;
+}
+
+// buffer for incoming fragments, key: sender MAC
+final Map<String, _FragmentState> _fragBuffers = {};
 
 // only returns when every fragment arrives
 String? handleIncomingFragments(String rawData) {
@@ -616,25 +634,35 @@ String? handleIncomingFragments(String rawData) {
     return null;
   }
 
-  // send single fragment message instantly
+  // Send single fragment message instantly.
   if (totalFragments <= 1) {
-    return "$senderMac;$senderUsername;$colorHex;$targetMac;$sequenceNumber;$rssi;$snr;$timeStamp;$payload";
+    return "$senderMac;$senderUsername;$colorHex;$targetMac;$sequenceNumber;$rssi;$snr;$timeStamp;0;$payload";
   }
 
-  // create "slot" for each fragment in advance
-  final slots = _fragBuffers[senderMac] ??= List.filled(totalFragments, null);
-  slots[currentFragment - 1] = payload;
+  final state = _fragBuffers[senderMac] ??= _FragmentState(totalFragments);
+  if (state.payloads.length != totalFragments) {
+    _fragBuffers[senderMac] = _FragmentState(totalFragments);
+  }
+  final currentState = _fragBuffers[senderMac]!;
+  currentState.payloads[currentFragment - 1] = payload;
+  currentState.timestamps[currentFragment - 1] = int.tryParse(timeStamp);
 
   // wait on missing fragment
-  if (slots.contains(null)) {
+  if (currentState.payloads.contains(null)) {
     return null;
   }
 
-  // clear buffer after all fragments arrive
   _fragBuffers.remove(senderMac);
-  final completeMessage = slots.join();
+  final completeMessage = currentState.payloads.join();
+  final timestamps = currentState.timestamps.whereType<int>().toList();
+  final rttMs = timestamps.length == totalFragments
+      ? ((timestamps.reduce((a, b) => a > b ? a : b) -
+                    timestamps.reduce((a, b) => a < b ? a : b)) *
+                1000)
+            .toString()
+      : '0';
 
-  return "$senderMac;$senderUsername;$colorHex;$targetMac;$sequenceNumber;$rssi;$snr;$timeStamp;$completeMessage";
+  return "$senderMac;$senderUsername;$colorHex;$targetMac;$sequenceNumber;$rssi;$snr;$timeStamp;$rttMs;$completeMessage";
 }
 
 Future<void> _saveIncomingMessageToDb(String rawMsg) async {
@@ -649,7 +677,8 @@ Future<void> _saveIncomingMessageToDb(String rawMsg) async {
     final timeStamp =
         int.tryParse(parts[7]) ??
         (DateTime.now().millisecondsSinceEpoch ~/ 1000);
-    final payload = parts.sublist(8).join(';');
+    final rtt = parts[8];
+    final payload = parts.sublist(9).join(';');
     final isBroadcast = targetMac == 'FFFFFFFF';
 
     final message = DbMessage(
@@ -672,6 +701,8 @@ Future<void> _saveIncomingMessageToDb(String rawMsg) async {
         snr: snr,
         packetTimestamp: timeStamp.toString(),
         battery: batteryLevel.value,
+        payload: payload,
+        rtt: rtt,
       );
     } catch (error) {
       AppLogger.log("LOG", "Failed to append incoming message: $error");

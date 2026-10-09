@@ -37,6 +37,7 @@ class LogEntry {
     required this.receiverLat,
     required this.receiverLon,
     required this.battery,
+    required this.payload,
   });
 
   final String timestamp;
@@ -53,6 +54,7 @@ class LogEntry {
   final String receiverLat;
   final String receiverLon;
   final String battery;
+  final String payload;
 
   Map<String, dynamic> toJson() => {
     'Timestamp': timestamp,
@@ -69,6 +71,7 @@ class LogEntry {
     'Receiver Lat': receiverLat,
     'Receiver Lon': receiverLon,
     'Battery (%)': battery,
+    'Payload': payload,
   };
 
   factory LogEntry.fromJson(Map<String, dynamic> json) => LogEntry(
@@ -86,6 +89,7 @@ class LogEntry {
     receiverLat: '${json['Receiver Lat'] ?? ''}',
     receiverLon: '${json['Receiver Lon'] ?? ''}',
     battery: '${json['Battery (%)'] ?? ''}',
+    payload: '${json['Payload'] ?? ''}',
   );
 }
 
@@ -116,6 +120,7 @@ class LogManager {
     'Receiver Lat',
     'Receiver Lon',
     'Battery (%)',
+    'Payload',
   ];
 
   static const _ioTimeout = Duration(seconds: 3);
@@ -218,6 +223,8 @@ class LogManager {
     required String snr,
     required String packetTimestamp,
     required int battery,
+    required String payload,
+    required String rtt,
   }) async {
     final name = await currentName();
     if (name == null) return;
@@ -234,7 +241,7 @@ class LogManager {
       seqNumber: seqNumber,
       rssi: rssi,
       snr: snr,
-      rtt: '',
+      rtt: rtt,
       environment: name.replaceFirst(RegExp(r'-\d+\.jsonl$'), ''),
       distance: distance,
       senderLat: sender?.latitude.toString() ?? '',
@@ -242,6 +249,7 @@ class LogManager {
       receiverLat: receiver?.latitude.toString() ?? '',
       receiverLon: receiver?.longitude.toString() ?? '',
       battery: battery.toString(),
+      payload: payload,
     );
     await appendEntry(entry);
   }
@@ -276,5 +284,10 @@ class LogManager {
         math.pow(math.sin(dLat / 2), 2) +
         math.cos(lat1) * math.cos(lat2) * math.pow(math.sin(dLon / 2), 2);
     return 2 * earthRadius * math.asin(math.sqrt(h));
+  }
+
+  static String distanceBetween(LogCoordinate? a, LogCoordinate? b) {
+    if (a == null || b == null) return '';
+    return _distanceMeters(a, b).toStringAsFixed(2);
   }
 }

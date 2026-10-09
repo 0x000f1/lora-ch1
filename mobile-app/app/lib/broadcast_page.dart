@@ -71,7 +71,7 @@ class _BroadcastPageState extends State<BroadcastPage> {
               int.tryParse(parts[7]) ??
               (DateTime.now().millisecondsSinceEpoch ~/ 1000);
           // join message in case there is ';' in it
-          final payload = parts.sublist(8).join(';');
+          final payload = parts.sublist(9).join(';');
 
           setState(() {
             _messages.add(

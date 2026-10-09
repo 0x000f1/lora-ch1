@@ -231,7 +231,7 @@ class _MapPageState extends State<MapPage> {
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                 decoration: BoxDecoration(
-                  color: Colors.white.withValues(alpha: 0.9),
+                  color: Colors.black.withValues(alpha: 0.82),
                   borderRadius: BorderRadius.circular(4),
                   border: Border.all(color: neighbor.color, width: 2),
                 ),
@@ -241,6 +241,15 @@ class _MapPageState extends State<MapPage> {
                   style: const TextStyle(
                     fontSize: 11,
                     fontWeight: FontWeight.bold,
+                    fontFamily: 'Roboto',
+                    color: Colors.white,
+                    shadows: [
+                      Shadow(
+                        color: Colors.black,
+                        blurRadius: 2,
+                        offset: Offset(0.5, 0.5),
+                      ),
+                    ],
                   ),
                 ),
               ),
