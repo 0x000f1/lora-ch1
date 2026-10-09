@@ -16,12 +16,17 @@ class PeerDevice {
   final int timeStamp;
   final String colorHex;
 
+  final double? latitude;
+  final double? longitude;
+
   const PeerDevice({
     required this.mac,
     required this.rssi,
     required this.name,
     required this.timeStamp,
     required this.colorHex,
+    this.latitude,
+    this.longitude,
   });
 }
 
@@ -36,15 +41,37 @@ class PrivatePage extends StatefulWidget {
 class _PrivatePageState extends State<PrivatePage> {
   final List<PeerDevice> _devices = [];
   StreamSubscription? _controlSub;
+
+  Future<void> _loadSavedPeers() async {
+    final savedPeers = await getSavedPeers();
+    if (!mounted) return;
+
+    setState(() {
+      _devices.clear();
+      _devices.addAll(
+        savedPeers.map(
+          (peer) => PeerDevice(
+            mac: peer.mac,
+            name: peer.name,
+            colorHex: peer.colorHex ?? '0088FF',
+            rssi: peer.rssi ?? '-100',
+            timeStamp: peer.lastSeen ?? 0,
+          ),
+        ),
+      );
+    });
+  }
+
   @override
   void initState() {
     super.initState();
+    _loadSavedPeers();
     sendOnControlChar("GET_NEI");
 
     // "subscribe" to control stream in ble_service.dart to listen to GET_NEI response
     // NEI|MAC;NEI_USERNAME;COLOR_HEX;RSSI;TIMESTAMP|MAC2;...
     // or NEI|NO_NEI for empty neighbors list
-    _controlSub = controlStream.listen((rawMsg) {
+    _controlSub = controlStream.listen((rawMsg) async {
       if (mounted) {
         // only check for responses starting with NEI
         if (!rawMsg.startsWith("NEI")) return;
@@ -52,14 +79,13 @@ class _PrivatePageState extends State<PrivatePage> {
 
         // remove NEI flag from the beginning
         rawMsg = rawMsg.substring(4, rawMsg.length);
+        if (rawMsg == "NO_NEI") {
+          await _loadSavedPeers();
+          return;
+        }
 
         // store devices in a map for up to 10 minutes
-        final Map<String, PeerDevice> deviceMap = {
-          for (var d in _devices) d.mac: d,
-        };
-
-        final currentTime = DateTime.now().millisecondsSinceEpoch ~/ 1000;
-        const ttlLimit = 600; // timeout after 10 minutes
+        final Map<String, PeerDevice> deviceMap = {for (var d in _devices) d.mac: d};
 
         // Split message after recieving it
         final parts = rawMsg.split('|');
@@ -67,17 +93,20 @@ class _PrivatePageState extends State<PrivatePage> {
           if (part.isEmpty) continue;
           final deviceData = part.split(';');
           // check if data is impact and bypass NO_NEI response
-          if (deviceData.length > 4) {
+          if (deviceData.length >= 7) {
             AppLogger.log("MESH", "Parsed device data: $deviceData");
             final mac = deviceData[0];
             final name = deviceData[1];
             final colorHex = deviceData[2];
             final rssi = deviceData[3];
-
             int timeStamp = int.tryParse(deviceData[4]) ?? 0;
             if (timeStamp < 1000000000) {
               timeStamp = 0; // if its unsynced, treat it as unknown
             }
+            final latitude = double.tryParse(deviceData[5]) ?? 0;
+            final longitude = double.tryParse(deviceData[6]) ?? 0;
+
+            await savePeer(DbPeer(mac: mac, name: name, colorHex: colorHex, rssi: rssi, lastSeen: timeStamp));
 
             // add/update devices
             deviceMap[mac] = PeerDevice(
@@ -86,19 +115,29 @@ class _PrivatePageState extends State<PrivatePage> {
               name: name,
               colorHex: colorHex,
               timeStamp: timeStamp,
+              latitude: latitude,
+              longitude: longitude,
             );
           }
         }
 
-        // remove devices older then 10 minutes
-        deviceMap.removeWhere((mac, device) {
-          if (device.timeStamp == 0) return false;
-          return (currentTime - device.timeStamp) > ttlLimit;
+        // get the last message sent/recieved for each peer
+        final Map<String, int?> lastMessageTime = {};
+        for (final device in _devices) {
+          lastMessageTime[device.mac] = await getLastMessageTimeFromPeer(device.mac);
+        }
+
+        // sort them by last message sent
+        final sortedDevices = deviceMap.values.toList();
+        sortedDevices.sort((a, b) {
+          final aTime = lastMessageTime[a.mac] ?? 0;
+          final bTime = lastMessageTime[b.mac] ?? 0;
+          return bTime.compareTo(aTime);
         });
 
         setState(() {
           _devices.clear();
-          _devices.addAll(deviceMap.values);
+          _devices.addAll(sortedDevices);
         });
       }
     });
@@ -116,12 +155,14 @@ class _PrivatePageState extends State<PrivatePage> {
     final lastSeenTime = DateTime.fromMillisecondsSinceEpoch(timeStamp * 1000);
     final difference = DateTime.now().difference(lastSeenTime);
 
-    if (difference.inMinutes < 1) {
+    if (difference.inSeconds < 30) {
       return "Just now";
     } else if (difference.inMinutes < 60) {
       return "${difference.inMinutes}m ago";
-    } else {
+    } else if (difference.inHours < 24) {
       return "${difference.inHours}h ago";
+    } else {
+      return "${difference.inDays}d ago";
     }
   }
 
@@ -143,51 +184,52 @@ class _PrivatePageState extends State<PrivatePage> {
                 itemCount: _devices.length,
                 itemBuilder: (context, index) {
                   final device = _devices[index];
-                  return ListTile(
-                    onTap: () async {
-                      await Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) => PrivateChatPage(device: device),
+                  return ValueListenableBuilder<bool>(
+                    valueListenable: isDeviceConnected,
+                    builder: (context, isConnected, child) {
+                      return ListTile(
+                        onTap: isConnected
+                            ? () async {
+                                await Navigator.push(
+                                  context,
+                                  MaterialPageRoute(builder: (context) => PrivateChatPage(device: device)),
+                                );
+                                // only refresh unread count after returning from private chat page
+                                await refreshUnreadCount();
+                              }
+                            : null,
+                        leading: CircleAvatar(
+                          backgroundColor: hexToColor(device.colorHex),
+                          child: const Icon(Icons.person, color: Colors.white),
                         ),
-                      );
-                      // only refresh unread count after returning from private chat page
-                      await refreshUnreadCount();
-                    },
-                    leading: CircleAvatar(
-                      backgroundColor: hexToColor(device.colorHex),
-                      child: Icon(Icons.person, color: Colors.white),
-                    ),
-                    title: Row(
-                      children: [
-                        getSignalIconFromRssi(device.rssi, device.timeStamp),
-                        Text(
-                          device.name,
-                          style: TextStyle(color: Colors.black),
+                        title: Row(
+                          children: [
+                            getSignalIconFromRssi(device.rssi, device.timeStamp),
+                            Text(device.name, style: TextStyle(color: isConnected ? Colors.white : Colors.grey)),
+                          ],
                         ),
-                      ],
-                    ),
-                    subtitle: Text(
-                      "Last Seen: ${_formatLastSeen(device.timeStamp)}",
-                      style: TextStyle(color: Colors.black, fontSize: 11),
-                    ),
-
-                    trailing: ValueListenableBuilder<int>(
-                      valueListenable: unreadUpdateTrigger,
-                      builder: (context, _, _) {
-                        return FutureBuilder<int>(
-                          future: getUnreadPrivateCountForPeer(device.mac),
-                          builder: (context, snapshot) {
-                            final count = snapshot.data ?? 0;
-                            return Badge(
-                              isLabelVisible: count > 0,
-                              label: Text('$count'),
-                              backgroundColor: Colors.red.shade300,
+                        subtitle: Text(
+                          "Last Seen: ${_formatLastSeen(device.timeStamp)}",
+                          style: TextStyle(color: isConnected ? Colors.white : Colors.grey, fontSize: 11),
+                        ),
+                        trailing: ValueListenableBuilder<int>(
+                          valueListenable: unreadUpdateTrigger,
+                          builder: (context, _, _) {
+                            return FutureBuilder<int>(
+                              future: getUnreadPrivateCountForPeer(device.mac),
+                              builder: (context, snapshot) {
+                                final count = snapshot.data ?? 0;
+                                return Badge(
+                                  isLabelVisible: count > 0,
+                                  label: Text('$count'),
+                                  backgroundColor: Colors.red.shade300,
+                                );
+                              },
                             );
                           },
-                        );
-                      },
-                    ),
+                        ),
+                      );
+                    },
                   );
                 },
               )
@@ -197,12 +239,7 @@ class _PrivatePageState extends State<PrivatePage> {
                 physics: const AlwaysScrollableScrollPhysics(),
                 children: const [
                   SizedBox(height: 200),
-                  Center(
-                    child: Text(
-                      "No Neighbors",
-                      style: TextStyle(color: Colors.black),
-                    ),
-                  ),
+                  Center(child: Text("No Neighbors")),
                 ],
               ),
       ),
@@ -219,11 +256,7 @@ Widget getSignalIconFromRssi(String rssiStr, int timeStamp) {
   bool isOffline = ((currentTime - timeStamp) > hardwareTtl);
 
   if (isOffline) {
-    return const Icon(
-      Icons.signal_cellular_nodata_rounded,
-      color: Colors.black,
-      size: 16,
-    );
+    return const Icon(Icons.signal_cellular_nodata_rounded, color: Colors.grey, size: 16);
   }
 
   double rssi = double.tryParse(rssiStr) ?? -100;

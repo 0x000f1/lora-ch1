@@ -33,7 +33,7 @@ class ChatBubble extends StatelessWidget {
 
     IconData icon;
     Color color = Colors.grey;
-    
+
     switch (status) {
       // message sent, and peer didnt recieve it yet
       case 'sent':
@@ -64,25 +64,29 @@ class ChatBubble extends StatelessWidget {
     return Align(
       alignment: isMe ? Alignment.centerRight : Alignment.centerLeft,
       child: Column(
-        crossAxisAlignment: isMe ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+        crossAxisAlignment: isMe
+            ? CrossAxisAlignment.end
+            : CrossAxisAlignment.start,
         mainAxisSize: MainAxisSize.min,
         children: [
           Container(
             margin: const EdgeInsets.symmetric(vertical: 2),
             padding: const EdgeInsets.all(12),
-            decoration: msgDecoration(isMe),
+            decoration: msgDecoration(context, isMe),
             child: Column(
-              crossAxisAlignment: isMe ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+              crossAxisAlignment: isMe
+                  ? CrossAxisAlignment.end
+                  : CrossAxisAlignment.start,
               children: [
                 Text(
                   senderName,
                   style: TextStyle(
-                    color: isMe ? Colors.white : Colors.black87,
+                    color: Colors.white,
                     fontSize: 11,
                     fontWeight: FontWeight.bold,
                   ),
                 ),
-                Text(text, style: TextStyle(color: isMe ? Colors.white : Colors.black87)),
+                Text(text, style: TextStyle(color: Colors.white)),
               ],
             ),
           ),
@@ -93,7 +97,10 @@ class ChatBubble extends StatelessWidget {
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   _buildStatusIcon(),
-                  Text(timeStr, style: const TextStyle(color: Colors.grey, fontSize: 10)),
+                  Text(
+                    timeStr,
+                    style: const TextStyle(color: Colors.grey, fontSize: 10),
+                  ),
                 ],
               ),
             ),
@@ -108,7 +115,12 @@ class ChatInput extends StatefulWidget {
   final VoidCallback onSend;
   final double bottomPadding;
 
-  const ChatInput({super.key, required this.controller, required this.onSend, this.bottomPadding = 16.0});
+  const ChatInput({
+    super.key,
+    required this.controller,
+    required this.onSend,
+    this.bottomPadding = 16.0,
+  });
 
   @override
   State<ChatInput> createState() => _ChatInputState();
@@ -116,7 +128,8 @@ class ChatInput extends StatefulWidget {
 
 class _ChatInputState extends State<ChatInput> {
   int _byteCount = 0;
-  static const int maxBytes = 960; // max size of one message (4 full 240 byte fragments)
+  static const int maxBytes =
+      960; // max size of one message (4 full 240 byte fragments)
 
   @override
   void initState() {
@@ -143,7 +156,11 @@ class _ChatInputState extends State<ChatInput> {
   Widget build(BuildContext context) {
     final isOverLimit = _byteCount > maxBytes;
     return Padding(
-      padding: EdgeInsets.only(left: 16, right: 16, bottom: widget.bottomPadding),
+      padding: EdgeInsets.only(
+        left: 16,
+        right: 16,
+        bottom: widget.bottomPadding,
+      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.end,
         mainAxisSize: MainAxisSize.min,
@@ -155,25 +172,38 @@ class _ChatInputState extends State<ChatInput> {
                   controller: widget.controller,
                   decoration: InputDecoration(
                     hintText: "Message",
-                    hintStyle: const TextStyle(color: Colors.black),
-                    filled: true,
-                    fillColor: Colors.grey.shade100,
-                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(25), borderSide: BorderSide.none),
+                    filled: false,
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(25),
+                      borderSide: BorderSide.none,
+                    ),
                     contentPadding: const EdgeInsets.symmetric(horizontal: 20),
                     counter: Text(
                       "$_byteCount/$maxBytes",
-                      style: TextStyle(fontSize: 10, color: isOverLimit ? Colors.red : Colors.grey),
+                      style: TextStyle(
+                        fontSize: 10,
+                        color: isOverLimit ? Colors.red : Colors.grey,
+                      ),
                     ),
                   ),
                 ),
               ),
               const SizedBox(width: 8),
-              CircleAvatar(
-                backgroundColor: isOverLimit || _byteCount == 0 ? Colors.grey : Colors.blue.shade800,
-                child: IconButton(
-                  icon: const Icon(Icons.send_rounded, color: Colors.white, size: 20),
-                  onPressed: isOverLimit || _byteCount == 0 ? null : widget.onSend,
-                ),
+              Column(
+                children: [
+                  CircleAvatar(
+                    backgroundColor: isOverLimit || _byteCount == 0
+                        ? Colors.grey
+                        : Colors.blue.shade800,
+                    child: IconButton(
+                      icon: const Icon(Icons.send_rounded, size: 20),
+                      onPressed: isOverLimit || _byteCount == 0
+                          ? null
+                          : widget.onSend,
+                    ),
+                  ),
+                  const SizedBox(height: 12,)
+                ],
               ),
             ],
           ),
