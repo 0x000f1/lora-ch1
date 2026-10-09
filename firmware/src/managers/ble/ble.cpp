@@ -293,9 +293,21 @@ class controlCharStatusCallbacks : public NimBLECharacteristicCallbacks {
         else if (strcmp(cmd, "FACTORY_RESET") == 0) {
             LOG_W(TAG, "Command received: FACTORY_RESET. Erasing NVS then restart.");
             nimBleChar->setValue("FACTORY_RESET_OK");
-            nimBleChar->notify();
-            vTaskDelay(pdMS_TO_TICKS(100));
-            SystemManager::factoryReset();
+            if (!nimBleChar->notify()) {
+                LOG_W(TAG, "Failed to notify FACTORY_RESET_OK.");
+            }
+
+            // Do not block the NimBLE host task while waiting for the notification.
+            BaseType_t taskCreated = xTaskCreate([](void* pvParameters) {
+                vTaskDelay(pdMS_TO_TICKS(1000));
+                SystemManager::factoryReset();
+                vTaskDelete(NULL);
+            }, "FactoryResetTask", 2048, NULL, 1, NULL);
+
+            if (taskCreated != pdPASS) {
+                LOG_E(TAG, "Failed to create delayed factory reset task.");
+                SystemManager::factoryReset();
+            }
         }
         else if (strcmp(cmd, "FIND") == 0) {
             LOG_I(TAG, "Command received: FIND. Starting 5s haptics.");
