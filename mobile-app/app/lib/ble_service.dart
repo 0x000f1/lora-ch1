@@ -111,6 +111,16 @@ Future<bool> _isPermissionsGranted() async {
 }
 
 Future<bool> _sendCurrentLocation() async {
+  // if user disabled location, send a 0;0 coordinate
+  if(!locationSetting.value) {
+    bool success = await sendCommandWithResponse("SET_LOC;0;0", "LOC_OK");
+    if (success) {
+      AppLogger.log("LOC", "Location cleared (0;0 sent)");
+    }
+    return success;
+  }
+  
+  
   final bool permissionsGranted = await _isPermissionsGranted();
   if (!permissionsGranted) {
     return false;
@@ -136,6 +146,11 @@ Future<bool> _sendCurrentLocation() async {
   }
 }
 
+Future<bool> setLocationSharing(bool isEnabled) async {
+  locationSetting.value = isEnabled;
+  return await _sendCurrentLocation();
+}
+ 
 Future<void> _startLocationUpdates() async {
   final bool permissionsGranted = await _isPermissionsGranted();
   if (!permissionsGranted) return;
@@ -195,6 +210,8 @@ Future<bool?> getVibration() async {
   }
   return null;
 }
+
+final ValueNotifier<bool> locationSetting = ValueNotifier(true);
 
 Future<bool> factoryResetDevice() async {
   bool success = await sendCommandWithResponse("FACTORY_RESET", "FACTORY_RESET_OK");

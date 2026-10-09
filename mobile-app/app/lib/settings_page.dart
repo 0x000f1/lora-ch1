@@ -1,14 +1,10 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'ble_service.dart';
 import 'logger.dart';
 
 String colorToHex(Color color) {
-  return color
-      .toARGB32()
-      .toRadixString(16)
-      .padLeft(8, '0')
-      .substring(2)
-      .toUpperCase();
+  return color.toARGB32().toRadixString(16).padLeft(8, '0').substring(2).toUpperCase();
 }
 
 Color colorFromHex(String hex) {
@@ -47,6 +43,8 @@ class _SettingsPageState extends State<SettingsPage> {
   bool _isRestartingDevice = false;
   bool _isResettingDevice = false;
   int? _selectedColorIndex;
+  
+  bool isUpdatingPreferences = false;
 
   // keeps track of whether the device is restarting or resetting
   bool get _isBusy => _isResettingDevice || _isRestartingDevice;
@@ -59,12 +57,7 @@ class _SettingsPageState extends State<SettingsPage> {
         return Container(
           padding: EdgeInsets.all(7),
           decoration: BoxDecoration(
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withValues(alpha: 0.4),
-                blurRadius: 8,
-              ),
-            ],
+            boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.4), blurRadius: 8)],
             color: colors.surfaceContainer,
             borderRadius: BorderRadius.circular(12),
           ),
@@ -99,9 +92,7 @@ class _SettingsPageState extends State<SettingsPage> {
                   height: 40,
                   width: 40,
                   decoration: BoxDecoration(
-                    color: colorHex.isEmpty
-                        ? Colors.brown
-                        : colorFromHex(colorHex),
+                    color: colorHex.isEmpty ? Colors.brown : colorFromHex(colorHex),
                     shape: BoxShape.circle,
                   ),
                   child: GestureDetector(
@@ -173,31 +164,28 @@ class _SettingsPageState extends State<SettingsPage> {
                   children: [
                     TextButton(
                       onPressed: () => Navigator.of(dialogContext).pop(),
-                      child: const Text(
-                        "Cancel",
-                        style: TextStyle(color: Colors.redAccent),
-                      ),
+                      child: const Text("Cancel", style: TextStyle(color: Colors.redAccent)),
                     ),
                     const Spacer(),
                     TextButton(
                       onPressed: () async {
                         final input = _usernameController.text.trim();
-                        
-                        if(input.isEmpty) {
+
+                        if (input.isEmpty) {
                           setDialogState(() {
                             errorMessage = "Username cannot be empty";
                           });
                           return;
                         }
-                        
-                        if(!validUserNameRegex.hasMatch(input)) {
+
+                        if (!validUserNameRegex.hasMatch(input)) {
                           setDialogState(() {
                             errorMessage = "Username contains invalid characters.";
                           });
                         }
-                        
+
                         final success = await _submitUsername();
-            
+
                         if (success && dialogContext.mounted) {
                           Navigator.of(dialogContext).pop();
                         }
@@ -208,7 +196,7 @@ class _SettingsPageState extends State<SettingsPage> {
                 ),
               ],
             );
-          }
+          },
         );
       },
     );
@@ -261,8 +249,7 @@ class _SettingsPageState extends State<SettingsPage> {
                 ),
                 itemCount: 10,
                 itemBuilder: (context, index) {
-                  final isSelected =
-                      colorHex == colorToHex(_defaultColors[index]);
+                  final isSelected = colorHex == colorToHex(_defaultColors[index]);
 
                   return Center(
                     child: SizedBox(
@@ -283,9 +270,7 @@ class _SettingsPageState extends State<SettingsPage> {
 
                                 if (!success && mounted) {
                                   messenger.showSnackBar(
-                                    SnackBar(
-                                      content: Text("Failed to update color."),
-                                    ),
+                                    SnackBar(content: Text("Failed to update color.")),
                                   );
                                 }
 
@@ -299,16 +284,11 @@ class _SettingsPageState extends State<SettingsPage> {
                           decoration: BoxDecoration(
                             color: _defaultColors[index],
                             shape: BoxShape.circle,
-                            border: Border.all(
-                              color: Colors.black,
-                              width: isSelected ? 3 : 2,
-                            ),
+                            border: Border.all(color: Colors.black, width: isSelected ? 3 : 2),
                           ),
                           child: Center(
                             child: Icon(
-                              isSelected
-                                  ? Icons.check_rounded
-                                  : Icons.person_rounded,
+                              isSelected ? Icons.check_rounded : Icons.person_rounded,
                               color: colors.onSurface,
                             ),
                           ),
@@ -325,75 +305,93 @@ class _SettingsPageState extends State<SettingsPage> {
     );
   }
 
-  Widget _buildVibrationSwitch() {
+  Widget _buildToggleSwitch(
+    IconData icon,
+    Color iconBackgroundColor,
+    String titleText,
+    ValueListenable<bool> listenable,
+    ValueChanged<bool> onChanged,
+  ) {
     final colors = Theme.of(context).colorScheme;
-    return Container(
-      padding: const EdgeInsets.all(6),
-      decoration: BoxDecoration(
-        color: colors.surfaceContainer,
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Container(
-        decoration: BoxDecoration(
-          color: colors.surface,
-          borderRadius: BorderRadius.circular(12),
+    return Material(
+      color: colors.surface,
+      borderRadius: BorderRadius.circular(12),
+      clipBehavior: Clip.antiAlias,
+      child: ListTile(
+        contentPadding: EdgeInsets.only(right: 0, left: 16, top: 6, bottom: 6),
+        leading: Container(
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(12),
+            color: iconBackgroundColor,
+          ),
+          height: 40,
+          width: 40,
+          child: Icon(icon, color: Colors.white),
         ),
-        child: ListTile(
-          contentPadding: EdgeInsets.only(
-            right: 0,
-            left: 16,
-            top: 6,
-            bottom: 6,
-          ),
-          leading: Container(
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(12),
-              color: Colors.blue.shade300,
-            ),
-            height: 40,
-            width: 40,
-            child: Icon(Icons.vibration_rounded, color: Colors.white),
-          ),
-          title: Text("Haptic feedback", style: TextStyle(fontSize: 18)),
-          trailing: Transform.scale(
-            scale: 0.65,
-            child: ValueListenableBuilder<bool>(
-              valueListenable: vibrationSetting,
-              builder: (context, isEnabled, child) {
-                return Switch(
-                  value: isEnabled,
-                  onChanged: _isLoading ? null : _updateVibrationSetting,
-                );
-              },
-            ),
+        title: Text(titleText, style: TextStyle(fontSize: 18)),
+        trailing: Transform.scale(
+          scale: 0.65,
+          child: ValueListenableBuilder<bool>(
+            valueListenable: listenable,
+            builder: (context, isEnabled, child) {
+              return Switch(value: isEnabled, onChanged: isUpdatingPreferences ? null : onChanged);
+            },
           ),
         ),
       ),
     );
   }
-  
-  // send toggle haptic 
+
+  Widget _buildLocationSwitch() {
+    return _buildToggleSwitch(
+      Icons.location_on_rounded,
+      Colors.teal.shade300,
+      "Share location",
+      locationSetting,
+      _updateLocationSetting,
+    );
+  }
+
+  Widget _buildVibrationSwitch() {
+    return _buildToggleSwitch(
+      Icons.vibration_rounded,
+      Colors.blue.shade300,
+      "Haptic feedback",
+      vibrationSetting,
+      _updateVibrationSetting,
+    );
+  }
+
+  // send toggle haptic
   Future<void> _updateVibrationSetting(bool value) async {
     final messenger = ScaffoldMessenger.of(context);
+    final previousValue = vibrationSetting.value;
 
-    setState(() {
-      _isLoading = true;
-    });
+    vibrationSetting.value = value;
 
     final success = await setVibration(value);
 
-    if (success) {
-      vibrationSetting.value = value;
-    } else {
-      messenger.showSnackBar(
-        const SnackBar(content: Text("Failed to update vibration setting.")),
-      );
+    if (!success) {
+      vibrationSetting.value = previousValue;
+      if(mounted) {
+        messenger.showSnackBar(SnackBar(content: Text("Failed to update location sharing")));
+      }
     }
+  }
 
-    if (mounted) {
-      setState(() {
-        _isLoading = false;
-      });
+  Future<void> _updateLocationSetting(bool value) async {
+    final messenger = ScaffoldMessenger.of(context);
+    final previousValue = locationSetting.value;
+
+    locationSetting.value = value;
+
+    final success = await setLocationSharing(value);
+
+    if (!success) {
+      locationSetting.value = previousValue;
+      if (mounted) {
+        messenger.showSnackBar(SnackBar(content: Text("Failed to update location sharing")));
+      }
     }
   }
 
@@ -415,17 +413,11 @@ class _SettingsPageState extends State<SettingsPage> {
         leading: Container(
           width: 40,
           height: 40,
-          decoration: BoxDecoration(
-            color: iconColor,
-            borderRadius: BorderRadius.circular(12),
-          ),
+          decoration: BoxDecoration(color: iconColor, borderRadius: BorderRadius.circular(12)),
           child: Icon(icon, color: Colors.white),
         ),
         title: Text(title, style: TextStyle(fontSize: 18, color: textColor)),
-        subtitle: Text(
-          subtitle,
-          style: TextStyle(fontSize: 13, color: textColor),
-        ),
+        subtitle: Text(subtitle, style: TextStyle(fontSize: 13, color: textColor)),
       ),
     );
   }
@@ -444,9 +436,9 @@ class _SettingsPageState extends State<SettingsPage> {
     await cooldown;
 
     if (!success && mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Find device command failed.")),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text("Find device command failed.")));
     }
 
     if (mounted) {
@@ -455,57 +447,53 @@ class _SettingsPageState extends State<SettingsPage> {
       });
     }
   }
-  
+
   // send restart device request to device
   Future<void> _restartDevice() async {
-  if (_isRestartingDevice) return;
+    if (_isRestartingDevice) return;
 
-  final messenger = ScaffoldMessenger.of(context);
+    final messenger = ScaffoldMessenger.of(context);
 
-  setState(() {
-    _isRestartingDevice = true;
-  });
+    setState(() {
+      _isRestartingDevice = true;
+    });
 
-  final success = await restartDevice();
+    final success = await restartDevice();
 
-  if (!success) {
-    messenger.showSnackBar(
-      const SnackBar(content: Text("Failed to restart device.")),
-    );
+    if (!success) {
+      messenger.showSnackBar(const SnackBar(content: Text("Failed to restart device.")));
 
-    if (mounted) {
-      setState(() {
-        _isRestartingDevice = false;
-      });
+      if (mounted) {
+        setState(() {
+          _isRestartingDevice = false;
+        });
+      }
     }
   }
-}
-  
+
   // send factory reset request
   Future<void> _resetDevice() async {
-  if (_isResettingDevice) return;
+    if (_isResettingDevice) return;
 
-  final messenger = ScaffoldMessenger.of(context);
+    final messenger = ScaffoldMessenger.of(context);
 
-  setState(() {
-    _isResettingDevice = true;
-  });
+    setState(() {
+      _isResettingDevice = true;
+    });
 
-  final success = await factoryResetDevice();
+    final success = await factoryResetDevice();
 
-  if (!success) {
-    messenger.showSnackBar(
-      const SnackBar(content: Text("Failed to reset device.")),
-    );
+    if (!success) {
+      messenger.showSnackBar(const SnackBar(content: Text("Failed to reset device.")));
 
-    if (mounted) {
-      setState(() {
-        _isResettingDevice = false;
-      });
+      if (mounted) {
+        setState(() {
+          _isResettingDevice = false;
+        });
+      }
     }
   }
-}
-  
+
   // build haptic toggle button, find device, restart and reset device
   Widget _buildDeviceActions() {
     final colors = Theme.of(context).colorScheme;
@@ -514,7 +502,16 @@ class _SettingsPageState extends State<SettingsPage> {
       children: [
         Text("PREFERENCES", style: TextStyle(fontSize: 16)),
         SizedBox(height: 6),
-        _buildVibrationSwitch(),
+        Container(
+          padding: EdgeInsets.all(6),
+          decoration: BoxDecoration(
+            color: colors.surfaceContainer,
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: Column(
+            children: [_buildVibrationSwitch(), SizedBox(height: 6), _buildLocationSwitch()],
+          ),
+        ),
         SizedBox(height: 20),
         Text("DEVICE", style: TextStyle(fontSize: 16)),
         SizedBox(height: 6),
@@ -608,7 +605,7 @@ class _SettingsPageState extends State<SettingsPage> {
       }
     }
   }
-  
+
   // submit username to device
   Future<bool> _submitUsername() async {
     final newName = _usernameController.text.trim();
@@ -628,9 +625,7 @@ class _SettingsPageState extends State<SettingsPage> {
     if (success) {
       await Future.delayed(Duration(seconds: 1));
     } else {
-      messenger.showSnackBar(
-        SnackBar(content: Text("Failed to update username")),
-      );
+      messenger.showSnackBar(SnackBar(content: Text("Failed to update username")));
     }
 
     if (mounted) {
