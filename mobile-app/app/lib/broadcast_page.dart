@@ -13,11 +13,11 @@ class BroadcastPage extends StatefulWidget {
   final bool isActive;
 
   const BroadcastPage({
-    super.key, 
-    this.device, 
+    super.key,
+    this.device,
     required this.scrollController,
     required this.isActive,
-    });
+  });
 
   @override
   State<BroadcastPage> createState() => _BroadcastPageState();
@@ -48,7 +48,9 @@ class _BroadcastPageState extends State<BroadcastPage> {
     super.initState();
     _loadMessages();
 
-    _connectionSub = FlutterBluePlus.events.onConnectionStateChanged.listen((event) {
+    _connectionSub = FlutterBluePlus.events.onConnectionStateChanged.listen((
+      event,
+    ) {
       if (mounted) {
         // redraw on connect or disconnect
         setState(() {});
@@ -61,13 +63,15 @@ class _BroadcastPageState extends State<BroadcastPage> {
         // SENDER_MAC;SENDER_USERNAME;COLOR_HEX;TARGET_MAC;TIMESTAMP;RSSI;PAYLOAD
         final parts = rawMsg.split(';');
 
-        if (parts.length >= 7 && parts[3] == 'FFFFFFFF') {
+        if (parts.length >= 9 && parts[3] == 'FFFFFFFF') {
           AppLogger.log("CHAT", "Recieved broadcast message: $rawMsg");
           final senderUsername = parts[1];
           // use internal time if parsing fails
-          final timeStamp = int.tryParse(parts[4]) ?? (DateTime.now().millisecondsSinceEpoch ~/ 1000);
+          final timeStamp =
+              int.tryParse(parts[7]) ??
+              (DateTime.now().millisecondsSinceEpoch ~/ 1000);
           // join message in case there is ';' in it
-          final payload = parts.sublist(6).join(';');
+          final payload = parts.sublist(8).join(';');
 
           setState(() {
             _messages.add(
@@ -80,8 +84,8 @@ class _BroadcastPageState extends State<BroadcastPage> {
               ),
             );
           });
-          
-          if(widget.isActive) {
+
+          if (widget.isActive) {
             await markBroadcastMessagesAsRead();
             await refreshUnreadCount();
           }
@@ -131,9 +135,9 @@ class _BroadcastPageState extends State<BroadcastPage> {
       onSend: () async {
         final outMsg = _controller.text;
         if (outMsg.isEmpty) return;
-        
+
         _controller.clear();
-        
+
         final success = await sendBroadcastMsg(outMsg);
 
         final outgoingMessage = DbMessage(
@@ -146,8 +150,8 @@ class _BroadcastPageState extends State<BroadcastPage> {
         );
 
         await InsertMessage(outgoingMessage);
-        
-        if(!mounted) return;
+
+        if (!mounted) return;
 
         setState(() {
           _messages.add(outgoingMessage);

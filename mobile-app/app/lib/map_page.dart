@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:app/ble_service.dart';
+import 'package:app/logger.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:flutter_map_tile_caching/flutter_map_tile_caching.dart';
@@ -94,10 +95,10 @@ class _MapPageState extends State<MapPage> {
     final parsed = <MapNeighbor>[];
     for (final entry in rawMessage.substring(4).split('|')) {
       final fields = entry.split(';');
-      if (fields.length < 7) continue;
+      if (fields.length < 9) continue;
 
-      final latitude = double.tryParse(fields[5]);
-      final longitude = double.tryParse(fields[6]);
+      final latitude = double.tryParse(fields[7]);
+      final longitude = double.tryParse(fields[8]);
       if (latitude == null || longitude == null) continue;
       if (latitude < -90 ||
           latitude > 90 ||
@@ -113,6 +114,7 @@ class _MapPageState extends State<MapPage> {
           location: LatLng(latitude, longitude),
         ),
       );
+      updateLogNeighborLocation(fields[0], latitude, longitude);
     }
     setState(() {
       _neighbors
@@ -143,6 +145,7 @@ class _MapPageState extends State<MapPage> {
       final position = await Geolocator.getCurrentPosition();
       if (!mounted) return;
       final location = LatLng(position.latitude, position.longitude);
+      updateCurrentLogLocation(position.latitude, position.longitude);
       setState(() => _myLocation = location);
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted) _mapController.move(location, 14);

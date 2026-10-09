@@ -4,7 +4,12 @@ import 'ble_service.dart';
 import 'logger.dart';
 
 String colorToHex(Color color) {
-  return color.toARGB32().toRadixString(16).padLeft(8, '0').substring(2).toUpperCase();
+  return color
+      .toARGB32()
+      .toRadixString(16)
+      .padLeft(8, '0')
+      .substring(2)
+      .toUpperCase();
 }
 
 Color colorFromHex(String hex) {
@@ -43,8 +48,10 @@ class _SettingsPageState extends State<SettingsPage> {
   bool _isRestartingDevice = false;
   bool _isResettingDevice = false;
   int? _selectedColorIndex;
-  
+
   bool isUpdatingPreferences = false;
+  String? _currentLogName;
+  List<LogEntry> _logEntries = [];
 
   // keeps track of whether the device is restarting or resetting
   bool get _isBusy => _isResettingDevice || _isRestartingDevice;
@@ -57,7 +64,12 @@ class _SettingsPageState extends State<SettingsPage> {
         return Container(
           padding: EdgeInsets.all(7),
           decoration: BoxDecoration(
-            boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.4), blurRadius: 8)],
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.4),
+                blurRadius: 8,
+              ),
+            ],
             color: colors.surfaceContainer,
             borderRadius: BorderRadius.circular(12),
           ),
@@ -92,7 +104,9 @@ class _SettingsPageState extends State<SettingsPage> {
                   height: 40,
                   width: 40,
                   decoration: BoxDecoration(
-                    color: colorHex.isEmpty ? Colors.brown : colorFromHex(colorHex),
+                    color: colorHex.isEmpty
+                        ? Colors.brown
+                        : colorFromHex(colorHex),
                     shape: BoxShape.circle,
                   ),
                   child: GestureDetector(
@@ -164,7 +178,10 @@ class _SettingsPageState extends State<SettingsPage> {
                   children: [
                     TextButton(
                       onPressed: () => Navigator.of(dialogContext).pop(),
-                      child: const Text("Cancel", style: TextStyle(color: Colors.redAccent)),
+                      child: const Text(
+                        "Cancel",
+                        style: TextStyle(color: Colors.redAccent),
+                      ),
                     ),
                     const Spacer(),
                     TextButton(
@@ -180,7 +197,8 @@ class _SettingsPageState extends State<SettingsPage> {
 
                         if (!validUserNameRegex.hasMatch(input)) {
                           setDialogState(() {
-                            errorMessage = "Username contains invalid characters.";
+                            errorMessage =
+                                "Username contains invalid characters.";
                           });
                         }
 
@@ -249,7 +267,8 @@ class _SettingsPageState extends State<SettingsPage> {
                 ),
                 itemCount: 10,
                 itemBuilder: (context, index) {
-                  final isSelected = colorHex == colorToHex(_defaultColors[index]);
+                  final isSelected =
+                      colorHex == colorToHex(_defaultColors[index]);
 
                   return Center(
                     child: SizedBox(
@@ -270,7 +289,9 @@ class _SettingsPageState extends State<SettingsPage> {
 
                                 if (!success && mounted) {
                                   messenger.showSnackBar(
-                                    SnackBar(content: Text("Failed to update color.")),
+                                    SnackBar(
+                                      content: Text("Failed to update color."),
+                                    ),
                                   );
                                 }
 
@@ -284,11 +305,16 @@ class _SettingsPageState extends State<SettingsPage> {
                           decoration: BoxDecoration(
                             color: _defaultColors[index],
                             shape: BoxShape.circle,
-                            border: Border.all(color: Colors.black, width: isSelected ? 3 : 2),
+                            border: Border.all(
+                              color: Colors.black,
+                              width: isSelected ? 3 : 2,
+                            ),
                           ),
                           child: Center(
                             child: Icon(
-                              isSelected ? Icons.check_rounded : Icons.person_rounded,
+                              isSelected
+                                  ? Icons.check_rounded
+                                  : Icons.person_rounded,
                               color: colors.onSurface,
                             ),
                           ),
@@ -334,7 +360,10 @@ class _SettingsPageState extends State<SettingsPage> {
           child: ValueListenableBuilder<bool>(
             valueListenable: listenable,
             builder: (context, isEnabled, child) {
-              return Switch(value: isEnabled, onChanged: isUpdatingPreferences ? null : onChanged);
+              return Switch(
+                value: isEnabled,
+                onChanged: isUpdatingPreferences ? null : onChanged,
+              );
             },
           ),
         ),
@@ -373,8 +402,10 @@ class _SettingsPageState extends State<SettingsPage> {
 
     if (!success) {
       vibrationSetting.value = previousValue;
-      if(mounted) {
-        messenger.showSnackBar(SnackBar(content: Text("Failed to update location sharing")));
+      if (mounted) {
+        messenger.showSnackBar(
+          SnackBar(content: Text("Failed to update location sharing")),
+        );
       }
     }
   }
@@ -390,7 +421,9 @@ class _SettingsPageState extends State<SettingsPage> {
     if (!success) {
       locationSetting.value = previousValue;
       if (mounted) {
-        messenger.showSnackBar(SnackBar(content: Text("Failed to update location sharing")));
+        messenger.showSnackBar(
+          SnackBar(content: Text("Failed to update location sharing")),
+        );
       }
     }
   }
@@ -413,11 +446,17 @@ class _SettingsPageState extends State<SettingsPage> {
         leading: Container(
           width: 40,
           height: 40,
-          decoration: BoxDecoration(color: iconColor, borderRadius: BorderRadius.circular(12)),
+          decoration: BoxDecoration(
+            color: iconColor,
+            borderRadius: BorderRadius.circular(12),
+          ),
           child: Icon(icon, color: Colors.white),
         ),
         title: Text(title, style: TextStyle(fontSize: 18, color: textColor)),
-        subtitle: Text(subtitle, style: TextStyle(fontSize: 13, color: textColor)),
+        subtitle: Text(
+          subtitle,
+          style: TextStyle(fontSize: 13, color: textColor),
+        ),
       ),
     );
   }
@@ -436,9 +475,9 @@ class _SettingsPageState extends State<SettingsPage> {
     await cooldown;
 
     if (!success && mounted) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text("Find device command failed.")));
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Find device command failed.")),
+      );
     }
 
     if (mounted) {
@@ -461,7 +500,9 @@ class _SettingsPageState extends State<SettingsPage> {
     final success = await restartDevice();
 
     if (!success) {
-      messenger.showSnackBar(const SnackBar(content: Text("Failed to restart device.")));
+      messenger.showSnackBar(
+        const SnackBar(content: Text("Failed to restart device.")),
+      );
 
       if (mounted) {
         setState(() {
@@ -484,7 +525,9 @@ class _SettingsPageState extends State<SettingsPage> {
     final success = await factoryResetDevice();
 
     if (!success) {
-      messenger.showSnackBar(const SnackBar(content: Text("Failed to reset device.")));
+      messenger.showSnackBar(
+        const SnackBar(content: Text("Failed to reset device.")),
+      );
 
       if (mounted) {
         setState(() {
@@ -509,7 +552,11 @@ class _SettingsPageState extends State<SettingsPage> {
             borderRadius: BorderRadius.circular(12),
           ),
           child: Column(
-            children: [_buildVibrationSwitch(), SizedBox(height: 6), _buildLocationSwitch()],
+            children: [
+              _buildVibrationSwitch(),
+              SizedBox(height: 6),
+              _buildLocationSwitch(),
+            ],
           ),
         ),
         SizedBox(height: 20),
@@ -565,6 +612,179 @@ class _SettingsPageState extends State<SettingsPage> {
     );
   }
 
+  Future<void> _startNewLog() async {
+    var enteredName = '';
+    final name = await showDialog<String>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Start new log'),
+        content: TextField(
+          autofocus: true,
+          onChanged: (value) => enteredName = value,
+          decoration: const InputDecoration(
+            labelText: 'Environment / file name',
+            hintText: 'Forest, open field, city...',
+          ),
+          onSubmitted: (_) => Navigator.pop(dialogContext, enteredName),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(dialogContext, enteredName),
+            child: const Text('Start'),
+          ),
+        ],
+      ),
+    );
+
+    if (name == null || name.trim().isEmpty) return;
+    try {
+      final fileName = await LogManager.startNew(name);
+      if (!mounted) return;
+      setState(() {
+        _currentLogName = fileName;
+        _logEntries = [];
+      });
+    } catch (error) {
+      AppLogger.log('LOG', 'Failed to start log: $error');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Could not create log file: $error')),
+        );
+      }
+    }
+  }
+
+  Future<void> _openCurrentLog() async {
+    List<LogEntry> entries;
+    try {
+      entries = await LogManager.readCurrent();
+    } catch (error) {
+      AppLogger.log('LOG', 'Failed to read log: $error');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Could not open log file: $error')),
+        );
+      }
+      return;
+    }
+    if (!mounted) return;
+    setState(() => _logEntries = entries);
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      builder: (context) => DraggableScrollableSheet(
+        expand: false,
+        initialChildSize: 0.85,
+        maxChildSize: 0.95,
+        builder: (context, controller) => _buildLogList(controller),
+      ),
+    );
+  }
+
+  Widget _buildLogList(ScrollController controller) {
+    return Padding(
+      padding: const EdgeInsets.all(14),
+      child: Column(
+        children: [
+          Text(
+            _currentLogName ?? 'Current log',
+            style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+          ),
+          const SizedBox(height: 8),
+          Expanded(
+            child: _logEntries.isEmpty
+                ? const Center(
+                    child: Text('No incoming messages in this log yet.'),
+                  )
+                : ListView.builder(
+                    controller: controller,
+                    itemCount: _logEntries.length,
+                    itemBuilder: (context, index) {
+                      final entry = _logEntries[index];
+                      final values = entry.toJson();
+                      return Card(
+                        margin: const EdgeInsets.only(bottom: 10),
+                        child: Padding(
+                          padding: const EdgeInsets.all(12),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: LogManager.labels.map((label) {
+                              return Padding(
+                                padding: const EdgeInsets.symmetric(
+                                  vertical: 2,
+                                ),
+                                child: Row(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    SizedBox(
+                                      width: 125,
+                                      child: Text(
+                                        label,
+                                        style: const TextStyle(
+                                          fontWeight: FontWeight.bold,
+                                        ),
+                                      ),
+                                    ),
+                                    Expanded(
+                                      child: Text('${values[label] ?? ''}'),
+                                    ),
+                                  ],
+                                ),
+                              );
+                            }).toList(),
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildLoggingActions() {
+    final colors = Theme.of(context).colorScheme;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text('MESSAGE LOGS', style: TextStyle(fontSize: 16)),
+        const SizedBox(height: 6),
+        Container(
+          padding: const EdgeInsets.all(6),
+          decoration: BoxDecoration(
+            color: colors.surfaceContainer,
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: Column(
+            children: [
+              _buildDeviceActionButton(
+                icon: Icons.fiber_new_rounded,
+                iconColor: Colors.indigo.shade300,
+                title: 'Start new log',
+                subtitle: _currentLogName ?? 'Choose an environment name',
+                onTap: _startNewLog,
+              ),
+              const SizedBox(height: 7),
+              _buildDeviceActionButton(
+                icon: Icons.folder_open_rounded,
+                iconColor: Colors.teal.shade300,
+                title: 'Open current log',
+                subtitle: 'View received messages as cards',
+                onTap: _currentLogName == null ? null : _openCurrentLog,
+                isDisabled: _currentLogName == null,
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
   late final TextEditingController _usernameController;
 
   @override
@@ -572,6 +792,13 @@ class _SettingsPageState extends State<SettingsPage> {
     super.initState();
     _usernameController = TextEditingController(text: usernameSetting.value);
     _initSelectedColor();
+    LogManager.currentName()
+        .then((name) {
+          if (mounted) setState(() => _currentLogName = name);
+        })
+        .catchError((error) {
+          AppLogger.log('LOG', 'Failed to load current log: $error');
+        });
     isDeviceConnected.addListener(_handleConnectionChanged);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _handleConnectionChanged();
@@ -625,7 +852,9 @@ class _SettingsPageState extends State<SettingsPage> {
     if (success) {
       await Future.delayed(Duration(seconds: 1));
     } else {
-      messenger.showSnackBar(SnackBar(content: Text("Failed to update username")));
+      messenger.showSnackBar(
+        SnackBar(content: Text("Failed to update username")),
+      );
     }
 
     if (mounted) {
@@ -654,6 +883,11 @@ class _SettingsPageState extends State<SettingsPage> {
               Padding(
                 padding: EdgeInsetsGeometry.symmetric(horizontal: 5),
                 child: _buildDeviceActions(),
+              ),
+              const SizedBox(height: 20),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 5),
+                child: _buildLoggingActions(),
               ),
             ],
           ),

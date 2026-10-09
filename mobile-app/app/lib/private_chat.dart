@@ -66,9 +66,9 @@ class _PrivatePageState extends State<PrivateChatPage> {
           final senderMac = parts[0];
           final targetMac = parts[3];
           final timeStamp =
-              int.tryParse(parts[4]) ??
+              int.tryParse(parts[7]) ??
               (DateTime.now().millisecondsSinceEpoch ~/ 1000);
-          final payload = parts.sublist(6).join(';');
+          final payload = parts.sublist(8).join(';');
           AppLogger.log("CHAT", rawMsg);
           if (senderMac == widget.device.mac && targetMac != "FFFFFFFF") {
             AppLogger.log(
@@ -157,7 +157,7 @@ class _PrivatePageState extends State<PrivateChatPage> {
               setState(() {
                 outMessage.status = success ? 'delivered' : 'failed';
               });
-              
+
               await markMessageDelivery(messageId, success);
             },
           ),
