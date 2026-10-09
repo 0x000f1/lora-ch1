@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:sqflite/sqflite.dart';
 import 'package:path/path.dart';
 
@@ -85,7 +87,6 @@ Future<void> markMessageDelivery(int id, bool isDelivered) async {
   );
 }
 
-
 Future<int> InsertMessage(DbMessage msg) async {
   final db = await getDatabase();
   // returns id of the message inserted
@@ -94,11 +95,7 @@ Future<int> InsertMessage(DbMessage msg) async {
 
 Future<List<DbMessage>> getBroadcastMessage() async {
   final db = await getDatabase();
-  final rows = await db.query(
-    'messages',
-    where: 'is_broadcast = 1',
-    orderBy: 'timestamp ASC',
-  );
+  final rows = await db.query('messages', where: 'is_broadcast = 1', orderBy: 'timestamp ASC');
   return rows.map((row) => DbMessage.fromMap(row)).toList();
 }
 
@@ -193,17 +190,28 @@ Future<Database> openChatDataBase() async {
         is_read INTEGER DEFAULT 0
       )
       ''');
+
+      await db.execute('''
+      CREATE TABLE my_keys (
+      id INTEGER PRIMARY KEY,
+      private_key TEXT,
+      public_key TEXT
+      )
+      ''');
+
+      await db.execute('''
+      CREATE TABLE peer_keys (
+      peer_mac TEXT PRIMARY KEY
+      public_key TEXT
+      )
+      ''');
     },
   );
 }
 
 Future<void> savePeer(DbPeer peer) async {
   final db = await getDatabase();
-  await db.insert(
-    'peers',
-    peer.toMap(),
-    conflictAlgorithm: ConflictAlgorithm.replace,
-  );
+  await db.insert('peers', peer.toMap(), conflictAlgorithm: ConflictAlgorithm.replace);
 }
 
 Future<List<DbPeer>> getSavedPeers() async {
@@ -219,22 +227,10 @@ class DbPeer {
   final String? rssi;
   final int? lastSeen;
 
-  DbPeer({
-    required this.mac,
-    required this.name,
-    this.colorHex,
-    this.rssi,
-    this.lastSeen,
-  });
+  DbPeer({required this.mac, required this.name, this.colorHex, this.rssi, this.lastSeen});
 
   Map<String, dynamic> toMap() {
-    return {
-      'mac': mac,
-      'name': name,
-      'color_hex': colorHex,
-      'rssi': rssi,
-      'last_seen': lastSeen,
-    };
+    return {'mac': mac, 'name': name, 'color_hex': colorHex, 'rssi': rssi, 'last_seen': lastSeen};
   }
 
   DbPeer.fromMap(Map<String, dynamic> map)
@@ -243,4 +239,23 @@ class DbPeer {
       colorHex = map['color_hex'] as String?,
       rssi = map['rssi'] as String?,
       lastSeen = map['last_seen'] as int?;
+}
+
+Future<void> saveMyKeys(String privateKey, String publicKey) async {
+  final db = await getDatabase();
+  await db.insert('my_keys', {
+    'id': 1,
+    'private_key': privateKey,
+    'public_key': publicKey,
+  }, conflictAlgorithm: ConflictAlgorithm.replace);
+}
+
+Future<Map<String, String>?> getMyKeys() async {
+  final db = await getDatabase();
+  final rows = await db.query('my_keys', where: 'id = 1', limit: 1);
+  if (rows.isEmpty) return null;
+  return {
+    'private_key': rows.first['private_key'] as String,
+    'public_key': rows.first['public_key'] as String,
+  };
 }
