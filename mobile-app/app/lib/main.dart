@@ -19,11 +19,7 @@ class MainApp extends StatelessWidget {
   const MainApp({super.key});
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      theme: appTheme,
-      themeMode: ThemeMode.dark,
-      home: const HomePage(),
-    );
+    return MaterialApp(theme: appTheme, themeMode: ThemeMode.dark, home: const HomePage());
   }
 }
 
@@ -33,8 +29,7 @@ class HomePage extends StatefulWidget {
   State<HomePage> createState() => _HomePageState();
 }
 
-class _HomePageState extends State<HomePage>
-    with SingleTickerProviderStateMixin {
+class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin {
   // late: will be initialized before first use (in initState())
   late TabController tabController;
   int currentPage = 0;
@@ -70,6 +65,28 @@ class _HomePageState extends State<HomePage>
     super.dispose();
   }
 
+  Widget buildBatteryIndicator(int level) {
+    final (icon, color) = switch (level) {
+      <= 10 => (Icons.battery_alert_rounded, Colors.redAccent),
+      <= 14 => (Icons.battery_1_bar_sharp, Colors.white),
+      <= 28 => (Icons.battery_2_bar_rounded, Colors.white),
+      <= 42 => (Icons.battery_3_bar_rounded, Colors.white),
+      <= 57 => (Icons.battery_4_bar_rounded, Colors.white),
+      <= 71 => (Icons.battery_5_bar_rounded, Colors.white),
+      <= 85 => (Icons.battery_6_bar_rounded, Colors.white),
+      <= 100 => (Icons.battery_full_rounded, Colors.white),
+      _ => (Icons.battery_charging_full_rounded, Colors.white),
+    };
+
+    return Row(
+      children: [
+        if (level <= 100) Text("$level%", style: TextStyle(fontSize: 13)),
+        const SizedBox(width: 2),
+        Icon(icon, color: color, size: 20),
+      ],
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final colors = Theme.of(context).colorScheme;
@@ -87,17 +104,7 @@ class _HomePageState extends State<HomePage>
                     ValueListenableBuilder<int>(
                       valueListenable: batteryLevel,
                       builder: (context, bat, child) {
-                        return Row(
-                          children: [
-                            Text("$bat%"),
-                            const SizedBox(width: 4),
-                            Icon(
-                              bat > 20
-                                  ? Icons.battery_full_rounded
-                                  : Icons.battery_alert_rounded,
-                            ),
-                          ],
-                        );
+                        return buildBatteryIndicator(bat);
                       },
                     ),
 
@@ -124,9 +131,7 @@ class _HomePageState extends State<HomePage>
 
                   IconButton(
                     icon: Icon(
-                      isConnected
-                          ? Icons.bluetooth_connected_rounded
-                          : Icons.bluetooth_rounded,
+                      isConnected ? Icons.bluetooth_connected_rounded : Icons.bluetooth_rounded,
                     ),
                     onPressed: () => showBTSheet(context),
                   ),
@@ -149,10 +154,7 @@ class _HomePageState extends State<HomePage>
           children: [
             //const Center(child: Text("Private Chats")),
             PrivatePage(scrollController: controller),
-            BroadcastPage(
-              scrollController: controller,
-              isActive: currentPage == 1,
-            ),
+            BroadcastPage(scrollController: controller, isActive: currentPage == 1),
           ],
         ),
         child: TabBar(
@@ -160,10 +162,7 @@ class _HomePageState extends State<HomePage>
           dividerHeight: 0,
           controller: tabController,
           indicatorAnimation: TabIndicatorAnimation.elastic,
-          indicatorPadding: EdgeInsetsGeometry.symmetric(
-            horizontal: -4,
-            vertical: 7,
-          ),
+          indicatorPadding: EdgeInsetsGeometry.symmetric(horizontal: -4, vertical: 7),
           indicator: BoxDecoration(
             color: colors.onPrimaryContainer,
             borderRadius: BorderRadius.circular(20),
@@ -180,10 +179,7 @@ class _HomePageState extends State<HomePage>
                       isLabelVisible: count > 0,
                       backgroundColor: Colors.red.shade300,
                       label: Text("$count"),
-                      child: ImageIcon(
-                        AssetImage('assets/icons/private.png'),
-                        size: 35,
-                      ),
+                      child: ImageIcon(AssetImage('assets/icons/private.png'), size: 35),
                     );
                   },
                 ),
@@ -200,10 +196,7 @@ class _HomePageState extends State<HomePage>
                       isLabelVisible: count > 0,
                       backgroundColor: Colors.red.shade300,
                       label: Text("$count"),
-                      child: ImageIcon(
-                        AssetImage('assets/icons/broadcast.png'),
-                        size: 35,
-                      ),
+                      child: ImageIcon(AssetImage('assets/icons/broadcast.png'), size: 35),
                     );
                   },
                 ),

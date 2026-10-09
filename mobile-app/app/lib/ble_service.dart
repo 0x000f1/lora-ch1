@@ -59,13 +59,6 @@ Future<void> setupBleCommunication(
   _controlBleSub = _controlChar!.onValueReceived.listen((value) {
     if (value.isEmpty) return;
     String rawMsg = utf8.decode(value);
-
-    if (rawMsg.startsWith("BAT;")) {
-      final parts = rawMsg.split(";");
-      if (parts.length >= 2) {
-        batteryLevel.value = int.tryParse(rawMsg.split(";")[1]) ?? batteryLevel.value;
-      }
-    }
     _controlStreamController.add(rawMsg);
   });
 
@@ -89,6 +82,27 @@ final ValueNotifier<int> unreadUpdateTrigger = ValueNotifier(0);
 
 final ValueNotifier<int> batteryLevel = ValueNotifier(0);
 Timer? _batteryTimer;
+
+Future<void> _updateBatteryStatus() async {
+  String? response = await sendCommandAndFetch("GET_BAT", "BAT");
+  // use old value if request fails
+  if (response == null) return;
+
+  final parts = response.split(';');
+  if (parts.length < 3) return;
+
+  final val = parts[1];
+  final charging = parts[2];
+  
+  // device cant send battery level while charging
+  // if battery is charging, then treat it as 110% and dont display value on UI
+  if(charging == '1'){
+    batteryLevel.value = 110;
+    return;
+  }
+  
+  batteryLevel.value = int.tryParse(val) ?? batteryLevel.value;
+}
 
 Timer? _locationTimer;
 
@@ -305,8 +319,8 @@ Future<String?> getColor() async {
 
 void _startBatteryUpdates() {
   _batteryTimer?.cancel();
-  _batteryTimer = Timer.periodic(const Duration(seconds: 5), (_) {
-    sendOnControlChar("GET_BAT");
+  _batteryTimer = Timer.periodic(const Duration(seconds: 5), (_) async {
+    await _updateBatteryStatus();
   });
 }
 
