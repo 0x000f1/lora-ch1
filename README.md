@@ -34,6 +34,7 @@ The current hardware is based on the ESP32-C3 microcontroller, interfaced with a
 
 * **Reliable Bidirectional Communication:** Transmit packages seamlessly between two or more devices. Supports public Broadcasts and private P2P messages with an Automatic Repeat Request (ARQ) mechanism. P2P messages are automatically acknowledged (ACK) and retried up to 3 times if lost in the air.
 * **Fast TX & Continuous RX Architecture:** Optimized for ultra-low latency and high reliability in the prototype phase. By utilizing an optimized preamble (12 symbols), the Time on Air (ToA) is reduced to ~100-132ms (payload dependent), virtually eliminating packet collisions while ensuring zero message drops through continuous background listening. *Thread-safe FreeRTOS implementation prevents conflicts between BLE and LoRa tasks*.
+* **End-to-End Encryption Support (Key Exchange):** Natively supports routing public keys for E2EE via `KEY_REQ` and `KEY_RESP` commands over the standard data characteristic. The key exchange utilizes the existing ARQ (Hardware ACK) mechanism ensuring reliable and verified key delivery between peers.
 * **Offline Message Buffer:** Safely stores up to 32 incoming direct (P2P) messages in the RAM if the phone is disconnected. Upon BLE reconnection, all buffered messages are instantly pushed to the app. Public Broadcasts are ignored for offline storage to preserve memory.
 * **Smart Neighbour Discovery:** Automatic heartbeat messages are sent out to advertise the active device among other users, storing the RSSI, last active timestamp, and the user's custom RGB UI color. The system automatically cleans up "dead" or out-of-range nodes after a timeout period based on the active power profile.
 * **Location Sharing & Privacy:** Broadcasts the user's GPS coordinates (Latitude and Longitude) to the mesh network via Heartbeat messages. If the user disables location sharing (Privacy Mode), the system dynamically truncates the binary payload by 8 bytes to conserve precious LoRa airtime and battery life.
@@ -63,12 +64,16 @@ The system advertises a single main Service, under which two characteristics (Da
 Actual message sending and receiving takes place on this channel. The payload must follow a semicolon-separated format to support message fragmentation and direct addressing.
 
 * **Sending (App -> LoRa):**
-  * **Format:** `TARGET_MAC;CURRENT_FRAGMENT;TOTAL_FRAGMENTS;PAYLOAD`
-  * Write a String to this characteristic using the format above.
-  * *Target MAC:* 8-character HEX string. Use `FFFFFFFF` to Broadcast to everyone, or a specific device's LoRa ID for a private P2P message.
-  * *Example (Broadcast):* `FFFFFFFF;1;1;Hello everyone!`
-  * *Example (P2P Fragmented):* `ABCD1234;1;3;This is a long me`
-  * *Limitation:* The `PAYLOAD` length per BLE write should be kept around 240 bytes due to LoRa airtime limitations.
+  * **Format 1 (Standard Message):** `TARGET_MAC;CURRENT_FRAGMENT;TOTAL_FRAGMENTS;PAYLOAD`
+    * Write a String to this characteristic using the format above.
+    * *Target MAC:* 8-character HEX string. Use `FFFFFFFF` to Broadcast to everyone, or a specific device's LoRa ID for a private P2P message.
+    * *Example (Broadcast):* `FFFFFFFF;1;1;Hello everyone!`
+    * *Example (P2P Fragmented):* `ABCD1234;1;3;This is a long me`
+    * *Limitation:* The `PAYLOAD` length per BLE write should be kept around 240 bytes due to LoRa airtime limitations.
+  * **Format 2 (Key Exchange):** `KEY_REQ;TARGET_MAC;PUBLIC_KEY` or `KEY_RESP;TARGET_MAC;PUBLIC_KEY`
+    * Initiates or responds to an End-to-End Encryption key exchange.
+    * The ESP32 automatically parses the `TARGET_MAC`, forwards the key via LoRa, and awaits a hardware ACK from the target device.
+    * *Example:* `KEY_REQ;A1B2C3D4;PU8r8H3BvjiyDNbqtp12Y1LHFvhF+nJI81oWjmFqS1w=`
 
 * **Receiving (LoRa -> App):**
   * The app must subscribe to `NOTIFY` events on this characteristic.
@@ -79,9 +84,11 @@ Actual message sending and receiving takes place on this channel. The payload mu
     * `TIMESTAMP`: The UNIX Epoch time in seconds. If the device clock is not synced via `SET_TIM`, this value returns `0`.
     * `RSSI`: The signal strength of the received LoRa package (e.g., `-78.00`).
   * **Format 2 (Delivery Success):** `ACK_OK;TARGET_MAC`
-    * Sent to the app when a previously sent P2P message is successfully acknowledged by the receiver.
+    * Sent to the app when a previously sent P2P message (or Key Exchange) is successfully acknowledged by the receiver's hardware.
   * **Format 3 (Delivery Failed):** `ERR_TIMEOUT;TARGET_MAC`
     * Sent to the app when a P2P message fails to reach the target after maximum retries or channel collisions.
+  * **Format 4 (Key Exchange):** `KEY_REQ;SENDER_MAC;PUBLIC_KEY` or `KEY_RESP;SENDER_MAC;PUBLIC_KEY`
+    * Sent to the app when another device initiates or responds to a key exchange. The app can use the `SENDER_MAC` to identify the peer and complete the encryption setup.
 
 #### B. Control Characteristic
 This channel is used to query the network status and manage system preferences.
