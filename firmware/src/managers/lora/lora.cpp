@@ -548,56 +548,76 @@ void LoRaManager::handleFlags() {
                     }
 
                     if (!duplicate && payloadLength > 0) {
-                        char formattedString[PAYLOAD_SIZE + 80]; // Extra space for formatting
                         char payloadString[PAYLOAD_SIZE];
                         size_t copyLength = (payloadLength < PAYLOAD_SIZE) ? payloadLength : PAYLOAD_SIZE - 1; // Ensure null-termination
 
                         memcpy(payloadString, payload, copyLength);
                         payloadString[copyLength] = '\0'; // Null-terminate the string
 
-                        time_t now;
-                        time(&now);
+                        if (strncmp(payloadString, "KEY_REQ;", 8) == 0 || strncmp(payloadString, "KEY_RESP;", 9) == 0) {
+                            char keyNotifyBuffer[PAYLOAD_SIZE + 20];
+                            const char* separator = strchr(payloadString, ';');
 
-                        // FAIL-SAFE: 1704067200 = 2024. 01. 1
-                        // If the ESP time is less than the FAIL-SAFE time, there it is outdated. Set it to 0.
-                        long safeTimestamp = (now < 1704067200) ? 0 : (long)now;
+                            if (separator != nullptr) {
+                                int typeLength = separator - payloadString;
+                                const char* pubKey = separator + 1;
 
-                        // Check if the target address was broadcast.
-                        bool isBroadcast = (header.targetAddress == BROADCAST_ADDRESS);
-
-                        // Format generation: SENDER_ADDRESS;SENDER_USERNAME;COLOR_HEX;TARGET_ADDRESS;CURRENT_FRAGMENT;TOTAL_FRAGMENT;TIMESTAMP;RSSI;PAYLOAD
-                        const char* senderUsername = "Unknown";
-                        uint8_t r = 0, g = 136, b = 255; // Default Light Blue color
-
-                        for (uint8_t i = 0; i < neighborCount; ++i) {
-                            if (neighbors[i].senderAddress == header.senderAddress) {
-                                senderUsername = neighbors[i].senderUsername;
-                                r = neighbors[i].colorR;
-                                g = neighbors[i].colorG;
-                                b = neighbors[i].colorB;
-                                break;
+                                snprintf(keyNotifyBuffer, sizeof(keyNotifyBuffer), "%.*s;%08X;%s", typeLength, payloadString, header.senderAddress, pubKey);
+                                LOG_I(TAG, "Received KEY package: %s", keyNotifyBuffer);
+                                bool isBroadcast = (header.targetAddress == BROADCAST_ADDRESS);
+                                if (!BLEManager::isConnected() || !isBroadcast) {
+                                    HapticManager::playEffect(52);
+                                } else {
+                                    LOG_I(TAG, "Haptics not played, because there is a connected device or the message was broadcast.");
+                                }
+                                BLEManager::pushMessage(keyNotifyBuffer, isBroadcast);
                             }
+                        } else {
+                            char formattedString[PAYLOAD_SIZE + 80]; // Extra space for formatting
+                            time_t now;
+                            time(&now);
+
+                            // FAIL-SAFE: 1704067200 = 2024. 01. 1
+                            // If the ESP time is less than the FAIL-SAFE time, there it is outdated. Set it to 0.
+                            long safeTimestamp = (now < 1704067200) ? 0 : (long)now;
+
+                            // Check if the target address was broadcast.
+                            bool isBroadcast = (header.targetAddress == BROADCAST_ADDRESS);
+
+                            // Format generation: SENDER_ADDRESS;SENDER_USERNAME;COLOR_HEX;TARGET_ADDRESS;CURRENT_FRAGMENT;TOTAL_FRAGMENT;TIMESTAMP;RSSI;PAYLOAD
+                            const char* senderUsername = "Unknown";
+                            uint8_t r = 0, g = 136, b = 255; // Default Light Blue color
+
+                            for (uint8_t i = 0; i < neighborCount; ++i) {
+                                if (neighbors[i].senderAddress == header.senderAddress) {
+                                    senderUsername = neighbors[i].senderUsername;
+                                    r = neighbors[i].colorR;
+                                    g = neighbors[i].colorG;
+                                    b = neighbors[i].colorB;
+                                    break;
+                                }
+                            }
+
+                            char colorHex[7];
+                            snprintf(colorHex, sizeof(colorHex), "%02X%02X%02X", r, g, b);
+
+                            snprintf(formattedString, sizeof(formattedString), "%08X;%s;%s;%08X;%d;%d;%ld;%.2f;%s",
+                                    header.senderAddress,
+                                    senderUsername,
+                                    colorHex,
+                                    header.targetAddress,
+                                    header.currentFragment,
+                                    header.totalFragments,
+                                    safeTimestamp,
+                                    loraModule.getRSSI(),
+                                    payloadString);
+
+                            LOG_I(TAG, "Received DATA package: %s", formattedString);
+                            // Play haptics if the message was P2P or a client was connected.
+                            (!BLEManager::isConnected() || !isBroadcast) ? HapticManager::playEffect(52) :
+                            LOG_I(TAG, "Haptics not played, because there is a connected device or the message was broadcast.");
+                            BLEManager::pushMessage(formattedString, isBroadcast); // Forward the message to the BLE Manager to notify connected clients.
                         }
-
-                        char colorHex[7];
-                        snprintf(colorHex, sizeof(colorHex), "%02X%02X%02X", r, g, b);
-
-                        snprintf(formattedString, sizeof(formattedString), "%08X;%s;%s;%08X;%d;%d;%ld;%.2f;%s",
-                                 header.senderAddress,
-                                 senderUsername,
-                                 colorHex,
-                                 header.targetAddress,
-                                 header.currentFragment,
-                                 header.totalFragments,
-                                 safeTimestamp,
-                                 loraModule.getRSSI(),
-                                 payloadString);
-
-                        LOG_I(TAG, "Received DATA package: %s", formattedString);
-                        // Play haptics if the message was P2P or a client was connected.
-                        (!BLEManager::isConnected() || !isBroadcast) ? HapticManager::playEffect(52) :
-                        LOG_I(TAG, "Haptics not played, because there is a connected device or the message was broadcast.");
-                        BLEManager::pushMessage(formattedString, isBroadcast); // Forward the message to the BLE Manager to notify connected clients.
                     }
                 }
             }

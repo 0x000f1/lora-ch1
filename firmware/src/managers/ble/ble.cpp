@@ -398,6 +398,27 @@ class dataCharStatusCallbacks : public NimBLECharacteristicCallbacks {
         size_t totalLength = bleValue.length();
         LOG_I(TAG, "Characteristic written by client: %s", value);
         
+        // If the message was KEY_REQ or KEY_RESP
+        if (strncmp(value, "KEY_REQ;", 8) == 0 || strncmp(value, "KEY_RESP;", 9) == 0) {
+            const char* firstSemicolon = strchr(value, ';');
+            if (firstSemicolon != nullptr) {
+                const char* targetStart = firstSemicolon + 1;
+                char* pEnd;
+                uint32_t targetAddress = strtoul(targetStart, &pEnd, 16);
+
+                if (pEnd != targetStart && *pEnd == ';') {
+                    const char* pubKey = pEnd + 1;
+                    char payloadBuffer[250];
+                    int typeLength = firstSemicolon - value;
+
+                    snprintf(payloadBuffer, sizeof(payloadBuffer), "%.*s;%s", typeLength, value, pubKey);
+                    LoRaManager::queueMessage((uint8_t*)payloadBuffer, strlen(payloadBuffer), targetAddress, 1, 1);
+
+                    return;
+                }
+            }
+        }
+
         char* pEnd; // Helper constant for strtoul
 
         // 1. Getting the destination MAC address
