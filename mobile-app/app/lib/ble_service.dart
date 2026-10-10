@@ -1,7 +1,10 @@
 import 'dart:async';
 import 'dart:convert';
+import 'package:app/constants.dart';
+import 'package:app/crypto.dart';
 import 'package:app/db_service.dart';
 import 'package:app/logger.dart';
+import 'package:cryptography/cryptography.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_blue_plus/flutter_blue_plus.dart';
 import 'package:geolocator/geolocator.dart';
@@ -46,11 +49,17 @@ Future<void> setupBleCommunication(
         _dataStreamController.add(rawMsg);
         return;
       }
+      
+      if (rawMsg.startsWith("KEY_REQ") || rawMsg.startsWith("KEY_RESP")) {
+        await handleKeyExchangePacket(rawMsg);
+        return;
+      }
 
       final assambled = handleIncomingFragments(rawMsg);
       if (assambled != null) {
-        await _saveIncomingMessageToDb(assambled);
-        _dataStreamController.add(assambled);
+        final processed = await processIncomingAssambledMessage(assambled);
+        await _saveIncomingMessageToDb(processed);
+        _dataStreamController.add(processed);
       }
     }
   });
@@ -97,7 +106,7 @@ Future<void> _updateBatteryStatus() async {
   // device cant send battery level while charging
   // if battery is charging, then treat it as 110% and dont display value on UI
   if(charging == '1'){
-    batteryLevel.value = 110;
+    batteryLevel.value = batteryChargingValue;
     return;
   }
   
@@ -261,16 +270,16 @@ Future<bool> setUsername(String newName) async {
     return false;
   }
 
-  if (trimmed.length > 16) {
+  if (trimmed.length > maxUserNameLength) {
     AppLogger.log("SETT", "Username exceeds 16 limit: $trimmed");
     return false;
   }
 
-  final String command = "SET_USR;$newName";
+  final String command = "SET_USR;$trimmed";
   bool success = await sendCommandWithResponse(command, "USR_OK");
   if (success) {
-    usernameSetting.value = newName;
-    AppLogger.log("SETT", "Username updated to: $newName");
+    usernameSetting.value = trimmed;
+    AppLogger.log("SETT", "Username updated to: $trimmed");
     return true;
   } else {
     AppLogger.log("SETT", "Username failed to update");
@@ -406,14 +415,14 @@ Future<bool> sendOnDataChar(String msg) async {
     AppLogger.log("BLE", "Sent on Data char: $msg");
     return true;
   } catch (e) {
-    AppLogger.log("BLE", "Error writing to control char: Message: $msg, Error: $e");
+    AppLogger.log("BLE", "Error writing to data char: Message: $msg, Error: $e");
     return false;
   }
 }
 
 Future<bool> sendOnControlChar(String msg) async {
   if (_controlChar == null) {
-    AppLogger.log("BLE", "Cannot send $msg: control characteristic is null");
+    AppLogger.log("BLE", "Cannot send $msg: data characteristic is null");
     return false;
   }
   if (!isDeviceConnected.value) {
@@ -441,7 +450,7 @@ List<String> splitMessage(String text) {
     final charBytes = utf8.encode(char).length;
 
     // reset current fragment if adding a character results in one over 240 bytes
-    if (currentFragmentBytes + charBytes > 240) {
+    if (currentFragmentBytes + charBytes > broadcastMaxFragmentBytes) {
       fragments.add(currentFragment.toString());
       currentFragment.clear();
       currentFragmentBytes = 0;
@@ -481,7 +490,7 @@ Future<bool> _sendFragmentWithAck(String packet, String targetMac, int payloadBy
 
 Future<bool> sendMessage(String targetMac, String msg) async {
   final fragments = splitMessage(msg);
-  final isBroadcast = targetMac == 'FFFFFFFF';
+  final isBroadcast = targetMac == broadcastMac;
 
   for (int i = 0; i < fragments.length; i++) {
     final payload = fragments[i];
@@ -507,7 +516,7 @@ Future<bool> sendMessage(String targetMac, String msg) async {
     }
 
     if (!ackReceived) {
-      AppLogger.log("BLE", "Message failed to send: $msg");
+      AppLogger.log("BLE", "ACK timeout for message: $msg");
       return false;
     }
   }
@@ -517,14 +526,21 @@ Future<bool> sendMessage(String targetMac, String msg) async {
 }
 
 Future<bool> sendBroadcastMsg(String msg) async {
-  bool success = await sendMessage("FFFFFFFF", msg);
+  bool success = await sendMessage(broadcastMac, msg);
   AppLogger.log("CHAT", "Sent broadcast message $msg");
   return success;
 }
 
 Future<bool> sendPrivateMsg(String targetMac, String msg) async {
-  bool success = await sendMessage(targetMac, msg);
-  AppLogger.log("CHAT", "Sent private message $msg to $targetMac");
+  final encryptedPayload = await encryptOutgoingPayload(targetMac, msg);
+  
+  if(encryptedPayload == null) {
+    AppLogger.log("CHAT", "Cannot send private message to $targetMac: ecnryption failed");
+    return false;
+  }
+  
+  bool success = await sendMessage(targetMac, encryptedPayload);
+  AppLogger.log("CHAT", "Sent private message $encryptedPayload ($msg) to $targetMac");
   return success;
 }
 
@@ -555,12 +571,19 @@ String? handleIncomingFragments(String rawData) {
     return "$senderMac;$senderUsername;$colorHex;$targetMac;$timeStamp;$rssi;$payload";
   }
 
-  // create "slot" for each fragment in advance
-  final slots = _fragBuffers[senderMac] ??= List.filled(totalFragments, null);
-  slots[currentFragment - 1] = payload;
+  // get the slot of this fragment
+  var slots = _fragBuffers[senderMac];
 
-  // wait on missing fragment
-  if (slots.contains(null)) {
+  // fill the buffer with the amount of fragments excepted, or
+  // replace if it was created for a different amount of fragment
+  if(slots == null || slots.length != totalFragments) {
+    slots = _fragBuffers[senderMac] = List<String?>.filled(totalFragments, null);
+  }
+  
+  slots[currentFragment - 1] = payload;
+  
+  // wait until every fragment has arrived
+  if(slots.contains(null)) {
     return null;
   }
 
@@ -579,7 +602,7 @@ Future<void> _saveIncomingMessageToDb(String rawMsg) async {
     final targetMac = parts[3];
     final timeStamp = int.tryParse(parts[4]) ?? (DateTime.now().millisecondsSinceEpoch ~/ 1000);
     final payload = parts.sublist(6).join(';');
-    final isBroadcast = targetMac == 'FFFFFFFF';
+    final isBroadcast = targetMac == broadcastMac;
 
     final message = DbMessage(
       peerMac: isBroadcast ? null : senderMac,
@@ -609,7 +632,11 @@ Future<bool> sendCommandWithResponse(String command, String expectedReponse) asy
           return false;
         },
       );
-      if (!sent) return false;
+      if (!sent) {
+        // ignore reponse future to avoid timeout
+        response.ignore();
+        return false;
+      }
 
       final String responseString = await response;
       AppLogger.log("BLE", "Recieved reponse: $responseString for command $command");
@@ -627,17 +654,167 @@ Future<bool> sendCommandWithResponse(String command, String expectedReponse) asy
 Future<String?> sendCommandAndFetch(String command, String expectedPrefix) async {
   for (int i = 0; i <= 3; i++) {
     try {
-      final responseFuture = controlStream
+      final response = controlStream
           .firstWhere((msg) => msg.startsWith(expectedPrefix))
           .timeout(const Duration(seconds: 3));
 
       bool sent = await sendOnControlChar(command);
-      if (!sent) return null;
+      if (!sent) {
+        response.ignore();
+        return null;
+      }
 
-      return await responseFuture;
+      return await response;
     } catch (e) {
       if (i == 3) return null;
     }
   }
   return null;
+}
+
+SimpleKeyPair? _myKeyPair;
+Future<SimpleKeyPair>? _initFuture;
+
+// get keypair, or init keypair on first launch
+Future<SimpleKeyPair> getOrInitMyKeyPair() async {
+  // return if keypair is already in memory
+  if (_myKeyPair != null) return _myKeyPair!;
+  
+  // store running task in future, if it already exists, wait for it finish to prevent conflicts
+  _initFuture ??= _loadOrGenerateKeys();
+  return await _initFuture!;
+}
+
+Future<SimpleKeyPair> _loadOrGenerateKeys() async {
+  // get keys from database
+  final savedKeys = await getMyKeys();
+  
+  if(savedKeys != null) {
+    // store in memory from base64 public and private key
+    _myKeyPair = await CryptoService.importKeyPair(savedKeys['private_key']!, savedKeys['public_key']!);
+  } else {
+    // on first launch generate new keypair
+    _myKeyPair = await CryptoService.generateKeyPair();
+    
+    // extract public key from new keypair
+    final pubKey = await _myKeyPair!.extractPublicKey();
+    
+    // convert both keys into base64
+    final privBase64 = await CryptoService.exportPrivateKey(_myKeyPair!);
+    final pubBase64 = await CryptoService.exportPublicKey(pubKey);
+    
+    // save new keys into database
+    await saveMyKeys(privBase64, pubBase64);
+  }
+  
+  return _myKeyPair!;
+}
+
+Future<void> checkAndRequestKey(String neighborMac) async {
+  final existingKey = await getPeerPublicKey(neighborMac);
+  
+  if(existingKey == null) {
+    final keyPair = await getOrInitMyKeyPair();
+    final myPubKey = await keyPair.extractPublicKey();
+    final myPubKeyBase64 = await CryptoService.exportPublicKey(myPubKey);
+    
+    await sendKeyExchange("KEY_REQ", neighborMac, myPubKeyBase64);
+    
+    
+  }
+}
+
+
+Future<bool> sendKeyExchange(String type, String targetMac, String pubBase64) async {
+  final packet = "$type;$targetMac;$pubBase64";
+  AppLogger.log("ENC", "Sending $type to $targetMac");
+  return await sendOnDataChar(packet);
+}
+
+Future<void> handleKeyExchangePacket(String rawMsg) async {
+  final parts = rawMsg.split(';');
+  if(parts.length < 3) return;
+  
+  final type = parts[0];
+  final senderMac = parts[1];
+  final pubKey = parts[2];
+  
+  if(pubKey.isEmpty) return;
+  
+  if(type == 'KEY_REQ') {
+    await savePeerPublicKey(senderMac, pubKey);
+    
+    final keyPair = await getOrInitMyKeyPair();
+    final myPubKey = await keyPair.extractPublicKey();
+    final myPubKeyBase64 = await CryptoService.exportPublicKey(myPubKey);
+    
+    await sendKeyExchange("KEY_RESP", senderMac, myPubKeyBase64);
+    AppLogger.log("ENC", "Saved key from $senderMac and sent KEY_RESP");
+    return;
+  }
+  
+  if(type == "KEY_RESP") {
+    await savePeerPublicKey(senderMac, pubKey);
+    AppLogger.log("ENC", "Saved key from $senderMac");
+  }
+}
+
+Future<String?> encryptOutgoingPayload(String targetMac, String payload) async {
+  final peerPubKeyBase64 = await getPeerPublicKey(targetMac);
+  
+  if(peerPubKeyBase64 == null) {
+    AppLogger.log("ENC", "Missing public key for $targetMac, requesting key...");
+    await checkAndRequestKey(targetMac);
+    return null;
+  }
+  try {
+    final myKeyPair = await getOrInitMyKeyPair();
+    final peerPublicKey = await CryptoService.importPublicKey(peerPubKeyBase64);
+    final sharedSecret = await CryptoService.deriveSharedSecret(myKeyPair, peerPublicKey);
+    
+    return await CryptoService.encryptMessage(payload, sharedSecret);
+  } catch (e) {
+    AppLogger.log("ENC", "Encryption error for $targetMac: $e");
+    return null;
+  }
+}
+
+Future<String> decryptIncomingPayload(String senderMac, String encryptedPayload) async {
+  try {
+    final peerPubKeyBase64 = await getPeerPublicKey(senderMac);
+    if(peerPubKeyBase64 == null) {
+      AppLogger.log("ENC", "No public key for $senderMac to decrypt");
+      return "[Failed to decrypt message. Key is missing.]";
+    }
+    
+    final myKeyPair = await getOrInitMyKeyPair();
+    final peerPublicKey = await CryptoService.importPublicKey(peerPubKeyBase64);
+    final sharedSecret = await CryptoService.deriveSharedSecret(myKeyPair, peerPublicKey);
+    
+    return await CryptoService.decryptMessage(encryptedPayload, sharedSecret);
+  } catch (e) {
+    AppLogger.log("ENC", "Decrypting error from $senderMac: $e");
+    return "[Failed to decrypt message.]";
+  }
+}
+
+Future<String> processIncomingAssambledMessage(String assambled) async {
+  final parts = assambled.split(';');
+  if (parts.length < 7) return assambled;
+  
+  final senderMac = parts[0];
+  final targetMac = parts[3];
+  final isBroadcast = targetMac == broadcastMac;
+  
+  if(isBroadcast) {
+    return assambled;
+  }
+  
+  final encryptedPayload = parts.sublist(6).join(';');
+  AppLogger.log("ENC", "Recieved encrypted message: $encryptedPayload");
+  final decryptedText = await decryptIncomingPayload(senderMac, encryptedPayload);
+  final prefix = parts.sublist(0, 6).join(';');
+  
+  return "$prefix;$decryptedText";
+  
 }

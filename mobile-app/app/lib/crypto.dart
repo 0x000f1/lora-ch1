@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'package:app/constants.dart';
 import 'package:cryptography/cryptography.dart';
 
 class CryptoService {
@@ -65,7 +66,7 @@ class CryptoService {
   static Future<String> decryptMessage(String base64Payload, SecretKey sharedKey) async {
     final rawBytes = base64Decode(base64Payload);
     // check if payload is too short or corrupted
-    if (rawBytes.length < 28) {
+    if (rawBytes.length < encryptionMetaBytes) {
       throw ArgumentError("Ciphertext payload too short");
     }
     

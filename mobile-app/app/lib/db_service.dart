@@ -201,7 +201,7 @@ Future<Database> openChatDataBase() async {
 
       await db.execute('''
       CREATE TABLE peer_keys (
-      peer_mac TEXT PRIMARY KEY
+      peer_mac TEXT PRIMARY KEY,
       public_key TEXT
       )
       ''');
@@ -211,7 +211,7 @@ Future<Database> openChatDataBase() async {
 
 Future<void> savePeer(DbPeer peer) async {
   final db = await getDatabase();
-  await db.insert('peers', peer.toMap(), conflictAlgorithm: ConflictAlgorithm.replace);
+  await db.insert('peers', peer.toMap(), conflictAlgorithm: .replace);
 }
 
 Future<List<DbPeer>> getSavedPeers() async {
@@ -247,7 +247,7 @@ Future<void> saveMyKeys(String privateKey, String publicKey) async {
     'id': 1,
     'private_key': privateKey,
     'public_key': publicKey,
-  }, conflictAlgorithm: ConflictAlgorithm.replace);
+  }, conflictAlgorithm: .replace);
 }
 
 Future<Map<String, String>?> getMyKeys() async {
@@ -258,4 +258,19 @@ Future<Map<String, String>?> getMyKeys() async {
     'private_key': rows.first['private_key'] as String,
     'public_key': rows.first['public_key'] as String,
   };
+}
+
+Future<void> savePeerPublicKey(String peerMac, String publicKey) async {
+  final db = await getDatabase();
+  await db.insert('peer_keys', {
+    'peer_mac': peerMac,
+    'public_key': publicKey,
+  }, conflictAlgorithm: .replace);
+}
+
+Future<String?> getPeerPublicKey(String peerMac) async {
+  final db = await getDatabase();
+  final rows = await db.query('peer_keys', where: 'peer_mac = ?', whereArgs: [peerMac], limit: 1);
+  if (rows.isEmpty) return null;
+  return rows.first['public_key'] as String?;
 }

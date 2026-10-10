@@ -106,8 +106,12 @@ class _PrivatePageState extends State<PrivatePage> {
             final latitude = double.tryParse(deviceData[5]) ?? 0;
             final longitude = double.tryParse(deviceData[6]) ?? 0;
 
-            await savePeer(DbPeer(mac: mac, name: name, colorHex: colorHex, rssi: rssi, lastSeen: timeStamp));
+            await savePeer(
+              DbPeer(mac: mac, name: name, colorHex: colorHex, rssi: rssi, lastSeen: timeStamp),
+            );
 
+            await checkAndRequestKey(mac);
+            
             // add/update devices
             deviceMap[mac] = PeerDevice(
               mac: mac,
@@ -118,6 +122,7 @@ class _PrivatePageState extends State<PrivatePage> {
               latitude: latitude,
               longitude: longitude,
             );
+            
           }
         }
 
@@ -192,7 +197,9 @@ class _PrivatePageState extends State<PrivatePage> {
                             ? () async {
                                 await Navigator.push(
                                   context,
-                                  MaterialPageRoute(builder: (context) => PrivateChatPage(device: device)),
+                                  MaterialPageRoute(
+                                    builder: (context) => PrivateChatPage(device: device),
+                                  ),
                                 );
                                 // only refresh unread count after returning from private chat page
                                 await refreshUnreadCount();
@@ -205,12 +212,18 @@ class _PrivatePageState extends State<PrivatePage> {
                         title: Row(
                           children: [
                             getSignalIconFromRssi(device.rssi, device.timeStamp),
-                            Text(device.name, style: TextStyle(color: isConnected ? Colors.white : Colors.grey)),
+                            Text(
+                              device.name,
+                              style: TextStyle(color: isConnected ? Colors.white : Colors.grey),
+                            ),
                           ],
                         ),
                         subtitle: Text(
                           "Last Seen: ${_formatLastSeen(device.timeStamp)}",
-                          style: TextStyle(color: isConnected ? Colors.white : Colors.grey, fontSize: 11),
+                          style: TextStyle(
+                            color: isConnected ? Colors.white : Colors.grey,
+                            fontSize: 11,
+                          ),
                         ),
                         trailing: ValueListenableBuilder<int>(
                           valueListenable: unreadUpdateTrigger,
