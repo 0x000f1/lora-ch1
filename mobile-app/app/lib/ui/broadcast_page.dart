@@ -129,6 +129,7 @@ class _BroadcastPageState extends State<BroadcastPage> {
     return ChatInput(
       controller: _controller,
       bottomPadding: 90.0,
+      isBroadcast: true,
       onSend: () async {
         final outMsg = _controller.text;
         if (outMsg.isEmpty) return;

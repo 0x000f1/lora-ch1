@@ -4,11 +4,12 @@ import 'dart:convert';
 
 import 'package:app/core/constants.dart';
 import 'package:characters/characters.dart';
+import 'package:app/core/logger.dart';
 
 // buffer for incoming fragments, key: mac
 final Map<String, List<String?>> _fragBuffers = {};
 
-// split every outgoing message into 240 byte sized fragments
+// split every outgoing message into 200 byte sized fragments
 List<String> splitMessage(String text) {
   final List<String> fragments = [];
   final StringBuffer currentFragment = StringBuffer();
@@ -18,7 +19,7 @@ List<String> splitMessage(String text) {
   for (final char in text.characters) {
     final charBytes = utf8.encode(char).length;
 
-    // reset current fragment if adding a character results in one over 240 bytes
+    // reset current fragment if adding a character results in one over the byte limit
     if (currentFragmentBytes + charBytes > maxFragmentBytes) {
       fragments.add(currentFragment.toString());
       currentFragment.clear();
@@ -74,6 +75,7 @@ String? handleIncomingFragments(String rawData) {
   }
 
   slots[currentFragment - 1] = payload;
+  AppLogger.log("FRAG", "fragment $currentFragment/$totalFragments from $senderMac stored, fragbuffer = {$_fragBuffers}");
 
   // wait until every fragment has arrived
   if (slots.contains(null)) {

@@ -1,3 +1,4 @@
+import 'package:app/core/constants.dart';
 import 'package:flutter/material.dart';
 import 'dart:convert';
 import 'package:app/core/theme.dart';
@@ -62,9 +63,7 @@ class ChatBubble extends StatelessWidget {
     return Align(
       alignment: isMe ? Alignment.centerRight : Alignment.centerLeft,
       child: Column(
-        crossAxisAlignment: isMe
-            ? CrossAxisAlignment.end
-            : CrossAxisAlignment.start,
+        crossAxisAlignment: isMe ? CrossAxisAlignment.end : CrossAxisAlignment.start,
         mainAxisSize: MainAxisSize.min,
         children: [
           Container(
@@ -72,17 +71,11 @@ class ChatBubble extends StatelessWidget {
             padding: const EdgeInsets.all(12),
             decoration: msgDecoration(context, isMe),
             child: Column(
-              crossAxisAlignment: isMe
-                  ? CrossAxisAlignment.end
-                  : CrossAxisAlignment.start,
+              crossAxisAlignment: isMe ? CrossAxisAlignment.end : CrossAxisAlignment.start,
               children: [
                 Text(
                   senderName,
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 11,
-                    fontWeight: FontWeight.bold,
-                  ),
+                  style: TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold),
                 ),
                 Text(text, style: TextStyle(color: Colors.white)),
               ],
@@ -95,10 +88,7 @@ class ChatBubble extends StatelessWidget {
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   _buildStatusIcon(),
-                  Text(
-                    timeStr,
-                    style: const TextStyle(color: Colors.grey, fontSize: 10),
-                  ),
+                  Text(timeStr, style: const TextStyle(color: Colors.grey, fontSize: 10)),
                 ],
               ),
             ),
@@ -112,12 +102,14 @@ class ChatInput extends StatefulWidget {
   final TextEditingController controller;
   final VoidCallback onSend;
   final double bottomPadding;
+  final bool isBroadcast;
 
   const ChatInput({
     super.key,
     required this.controller,
     required this.onSend,
     this.bottomPadding = 16.0,
+    required this.isBroadcast,
   });
 
   @override
@@ -126,8 +118,6 @@ class ChatInput extends StatefulWidget {
 
 class _ChatInputState extends State<ChatInput> {
   int _byteCount = 0;
-  static const int maxBytes =
-      960; // max size of one message (4 full 240 byte fragments)
 
   @override
   void initState() {
@@ -152,13 +142,10 @@ class _ChatInputState extends State<ChatInput> {
 
   @override
   Widget build(BuildContext context) {
+    final int maxBytes = widget.isBroadcast ? maxBytesBroadcast : maxBytesPrivate;
     final isOverLimit = _byteCount > maxBytes;
     return Padding(
-      padding: EdgeInsets.only(
-        left: 16,
-        right: 16,
-        bottom: widget.bottomPadding,
-      ),
+      padding: EdgeInsets.only(left: 16, right: 16, bottom: widget.bottomPadding),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.end,
         mainAxisSize: MainAxisSize.min,
@@ -178,10 +165,7 @@ class _ChatInputState extends State<ChatInput> {
                     contentPadding: const EdgeInsets.symmetric(horizontal: 20),
                     counter: Text(
                       "$_byteCount/$maxBytes",
-                      style: TextStyle(
-                        fontSize: 10,
-                        color: isOverLimit ? Colors.red : Colors.grey,
-                      ),
+                      style: TextStyle(fontSize: 10, color: isOverLimit ? Colors.red : Colors.grey),
                     ),
                   ),
                 ),
@@ -195,12 +179,10 @@ class _ChatInputState extends State<ChatInput> {
                         : Colors.blue.shade800,
                     child: IconButton(
                       icon: const Icon(Icons.send_rounded, size: 20),
-                      onPressed: isOverLimit || _byteCount == 0
-                          ? null
-                          : widget.onSend,
+                      onPressed: isOverLimit || _byteCount == 0 ? null : widget.onSend,
                     ),
                   ),
-                  const SizedBox(height: 12,)
+                  const SizedBox(height: 12),
                 ],
               ),
             ],

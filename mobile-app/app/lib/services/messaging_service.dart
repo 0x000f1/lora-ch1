@@ -25,6 +25,7 @@ void startMessageProcessing() {
 }
 
 Future<void> _handleRawPacket(String rawMsg) async {
+  AppLogger.log("RX", "raw packet (${utf8.encode(rawMsg).length} bytes): $rawMsg");
   
   // ACK and timeout handled in _sendFragmentWithAck
   if (rawMsg.startsWith("ACK_OK") || rawMsg.startsWith("ERR_TIMEOUT")) return;
@@ -104,8 +105,10 @@ Future<bool> _sendFragmentWithAck(String packet, String targetMac, int payloadBy
 
   try {
     final response = await ackFuture;
+    AppLogger.log("BLE", "Response to fragment: $response");
     return response.startsWith("ACK_OK");
   } catch (e) {
+    AppLogger.log("BLE", "No response to fragment within ${timeout.inMilliseconds} ms: $e");
     return false;
   }
 }

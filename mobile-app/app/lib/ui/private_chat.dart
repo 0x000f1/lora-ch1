@@ -123,6 +123,7 @@ class _PrivatePageState extends State<PrivateChatPage> {
 
           ChatInput(
             controller: _controller,
+            isBroadcast: false,
             bottomPadding: 16,
             onSend: () async {
               final outMsg = _controller.text;
