@@ -1,9 +1,11 @@
 import 'dart:async';
-import 'package:app/ble_service.dart';
-import 'package:app/logger.dart';
 import 'package:flutter/material.dart';
-import 'package:app/private_chat.dart';
-import 'package:app/db_service.dart';
+
+import 'package:app/ui/private_chat.dart';
+import 'package:app/services/ble_service.dart';
+import 'package:app/core/logger.dart';
+import 'package:app/services/db_service.dart';
+import 'package:app/services/unread_service.dart';
 
 Color hexToColor(String hex) {
   return Color(int.parse("FF$hex", radix: 16));

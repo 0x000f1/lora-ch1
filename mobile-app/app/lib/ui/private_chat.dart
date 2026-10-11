@@ -1,10 +1,12 @@
-import 'package:app/db_service.dart';
-import 'package:app/logger.dart';
 import 'package:flutter/material.dart';
-import 'package:app/private_page.dart';
 import 'dart:async';
-import 'package:app/ble_service.dart';
-import 'package:app/widgets.dart';
+
+import 'package:app/services/unread_service.dart';
+import 'package:app/ui/private_page.dart';
+import 'package:app/services/db_service.dart';
+import 'package:app/core/logger.dart';
+import 'package:app/services/ble_service.dart';
+import 'package:app/ui/widgets.dart';
 
 class PrivateChatPage extends StatefulWidget {
   final PeerDevice device;

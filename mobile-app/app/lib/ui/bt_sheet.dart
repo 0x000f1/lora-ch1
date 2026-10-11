@@ -1,6 +1,6 @@
 import 'dart:async';
-import 'package:app/ble_service.dart';
-import 'package:app/logger.dart';
+import 'package:app/services/ble_service.dart';
+import 'package:app/core/logger.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_blue_plus/flutter_blue_plus.dart';
 

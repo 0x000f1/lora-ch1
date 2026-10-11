@@ -1,5 +1,7 @@
+// cryptographic algorithms (AES encryption, X25519 key generation)
+
 import 'dart:convert';
-import 'package:app/constants.dart';
+import 'package:app/core/constants.dart';
 import 'package:cryptography/cryptography.dart';
 
 class CryptoService {

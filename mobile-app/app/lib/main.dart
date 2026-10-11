@@ -1,14 +1,15 @@
-import 'package:app/ble_service.dart';
-import 'package:app/db_service.dart';
-import 'package:app/private_page.dart';
-import 'package:app/settings_page.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_blue_plus/flutter_blue_plus.dart';
-// https://pub.dev/packages/flutter_floating_bottom_bar
 import 'package:flutter_floating_bottom_bar/flutter_floating_bottom_bar.dart';
-import 'theme.dart';
-import 'bt_sheet.dart';
-import 'broadcast_page.dart';
+
+import 'services/ble_service.dart';
+import 'services/db_service.dart';
+import 'ui/private_page.dart';
+import 'ui/settings_page.dart';
+import 'core/theme.dart';
+import 'ui/bt_sheet.dart';
+import 'ui/broadcast_page.dart';
+import 'services/unread_service.dart';
 
 void main() {
   //debugPaintSizeEnabled = true; // see layout bounds in debug mode

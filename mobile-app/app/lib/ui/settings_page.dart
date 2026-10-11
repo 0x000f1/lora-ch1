@@ -1,7 +1,7 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-import 'ble_service.dart';
-import 'logger.dart';
+
+import 'package:app/services/ble_service.dart';
 
 String colorToHex(Color color) {
   return color.toARGB32().toRadixString(16).padLeft(8, '0').substring(2).toUpperCase();

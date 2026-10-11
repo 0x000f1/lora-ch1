@@ -1,8 +1,6 @@
-import 'dart:math';
-
 import 'package:flutter/material.dart';
 import 'dart:convert';
-import 'package:app/theme.dart';
+import 'package:app/core/theme.dart';
 
 // SEPERATE FILE FOR WIDGETS THAT BOTH BROADCAST AND PRIVATE PAGE USES
 class ChatBubble extends StatelessWidget {
