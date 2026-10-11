@@ -21,6 +21,7 @@ dependencies:
   flutter_map_tile_caching: ^10.1.1
   latlong2: ^0.9.1
   path_provider: ^2.1.5
+  cryptography: ^2.9.0
 
 dev_dependencies:
   flutter_test:
