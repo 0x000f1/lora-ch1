@@ -17,6 +17,7 @@ dependencies:
   path: ^1.9.0
   flutter_switch: ^0.3.2
   geolocator: ^14.0.2
+  cryptography: ^2.9.0
 
 dev_dependencies:
   flutter_test:
