@@ -63,7 +63,7 @@ class _BtScanSheetState extends State<_BtScanSheet> {
     });
 
     FlutterBluePlus.startScan(
-      timeout: const Duration(seconds: 15),
+      timeout: const Duration(seconds: 30),
       androidUsesFineLocation: true,
     );
 
@@ -93,8 +93,12 @@ class _BtScanSheetState extends State<_BtScanSheet> {
   Future<void> _connect(BluetoothDevice device, int index) async {
     setState(() => _connectIndex = index);
     AppLogger.log("BLE", "Attempting connection to device: ${device.platformName}");
-
-    // function from ble_service.dart
+    final connectedDevices = FlutterBluePlus.connectedDevices;
+    for(var connectedDevice in connectedDevices) {
+      AppLogger.log("BLE", "Disconnecting from previous device: ${connectedDevice.platformName}");
+      await disconnectDevice(connectedDevice);
+    }
+    
     bool success = await connectAndSetupDevice(device);
 
     if (mounted) {
