@@ -1,6 +1,7 @@
 // BLE connection management and entry file for services
 
 import 'dart:async';
+import 'package:flutter/material.dart';
 import 'package:flutter_blue_plus/flutter_blue_plus.dart';
 
 import 'package:app/core/logger.dart';
@@ -73,17 +74,3 @@ Future<void> disconnectDevice(BluetoothDevice device) async {
   _foundChars.clear();
   clearFragmentBuffers();
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-

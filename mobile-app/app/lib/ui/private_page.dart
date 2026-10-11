@@ -48,18 +48,22 @@ class _PrivatePageState extends State<PrivatePage> {
     final savedPeers = await getSavedPeers();
     if (!mounted) return;
 
+
     setState(() {
       _devices.clear();
       _devices.addAll(
-        savedPeers.map(
-          (peer) => PeerDevice(
-            mac: peer.mac,
-            name: peer.name,
-            colorHex: peer.colorHex ?? '0088FF',
-            rssi: peer.rssi ?? '-100',
-            timeStamp: peer.lastSeen ?? 0,
-          ),
-        ),
+        savedPeers
+            // remove my device if it was previously connected
+            .where((peer) => peer.mac != myDeviceId.value)
+            .map(
+              (peer) => PeerDevice(
+                mac: peer.mac,
+                name: peer.name,
+                colorHex: peer.colorHex ?? '0088FF',
+                rssi: peer.rssi ?? '-100',
+                timeStamp: peer.lastSeen ?? 0,
+              ),
+            ),
       );
     });
   }
@@ -86,7 +90,7 @@ class _PrivatePageState extends State<PrivatePage> {
           return;
         }
 
-        // store devices in a map for up to 10 minutes
+        // store devices in a map
         final Map<String, PeerDevice> deviceMap = {for (var d in _devices) d.mac: d};
 
         // Split message after recieving it
@@ -113,7 +117,7 @@ class _PrivatePageState extends State<PrivatePage> {
             );
 
             await checkAndRequestKey(mac);
-            
+
             // add/update devices
             deviceMap[mac] = PeerDevice(
               mac: mac,
@@ -124,7 +128,6 @@ class _PrivatePageState extends State<PrivatePage> {
               latitude: latitude,
               longitude: longitude,
             );
-            
           }
         }
 
@@ -134,8 +137,12 @@ class _PrivatePageState extends State<PrivatePage> {
           lastMessageTime[device.mac] = await getLastMessageTimeFromPeer(device.mac);
         }
 
+        // remove current device from the list, if it was previously connected to the phone
+        final sortedDevices = deviceMap.values
+            .where((device) => device.mac != myDeviceId.value)
+            .toList();
+
         // sort them by last message sent
-        final sortedDevices = deviceMap.values.toList();
         sortedDevices.sort((a, b) {
           final aTime = lastMessageTime[a.mac] ?? 0;
           final bTime = lastMessageTime[b.mac] ?? 0;

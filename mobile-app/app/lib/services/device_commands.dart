@@ -6,6 +6,7 @@ import 'dart:async';
 import 'package:app/services/ble_service.dart';
 import 'package:app/core/constants.dart';
 import 'package:app/core/logger.dart';
+import 'package:flutter/material.dart';
 
 
 
@@ -26,6 +27,11 @@ Future<void> initializeDeviceSettings() async {
   String? initialColor = await getColor();
   if (initialColor != null) {
     colorSetting.value = initialColor;
+  }
+  
+  String? deviceId = await getDeviceId();
+  if (deviceId != null) {
+    myDeviceId.value = deviceId;
   }
 }
 
@@ -197,4 +203,15 @@ void stopBatteryUpdates() {
   _batteryTimer?.cancel();
   _batteryTimer = null;
   batteryLevel.value = 0;
+}
+
+final ValueNotifier<String?> myDeviceId = ValueNotifier(null);
+
+Future<String?> getDeviceId() async {
+  String? response = await sendCommandAndFetch("GET_ID", "ID");
+  AppLogger.log("BLE", "Recieved response for GET_ID: $response");
+  if (response == null) return null;
+  final parts = response.split(';');
+  if(parts.length < 2) return null;
+  return parts[1];
 }
