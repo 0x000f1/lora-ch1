@@ -342,15 +342,16 @@ class _SettingsPageState extends State<SettingsPage> {
     );
   }
 
-  Widget _buildLocationSwitch() {
-    return _buildToggleSwitch(
-      Icons.location_on_rounded,
-      Colors.teal.shade300,
-      "Share location",
-      locationSetting,
-      _updateLocationSetting,
-    );
-  }
+  // Widget _buildLocationSwitch() {
+  //   return _buildToggleSwitch(
+  //     Icons.location_on_rounded,
+  //     Colors.teal.shade300,
+  //     "Share location",
+  //     locationSetting,
+  //     _updateLocationSetting,
+  //   );
+  // }
+
 
   Widget _buildVibrationSwitch() {
     return _buildToggleSwitch(
@@ -509,7 +510,7 @@ class _SettingsPageState extends State<SettingsPage> {
             borderRadius: BorderRadius.circular(12),
           ),
           child: Column(
-            children: [_buildVibrationSwitch(), SizedBox(height: 6), _buildLocationSwitch()],
+            children: [_buildVibrationSwitch(), SizedBox(height: 6)],
           ),
         ),
         SizedBox(height: 20),

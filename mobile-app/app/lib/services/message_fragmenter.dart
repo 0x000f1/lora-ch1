@@ -64,14 +64,17 @@ String? handleIncomingFragments(String rawData) {
   if (totalFragments <= 1) {
     return "$senderMac;$senderUsername;$colorHex;$targetMac;$timeStamp;$rssi;$payload";
   }
+  
+  // use sendermac + timestamp as a key
+  final String bufferKey = "${senderMac}_$timeStamp";
 
   // get the slot of this fragment
-  var slots = _fragBuffers[senderMac];
+  var slots = _fragBuffers[bufferKey];
 
   // fill the buffer with the amount of fragments excepted, or
   // replace if it was created for a different amount of fragment
   if (slots == null || slots.length != totalFragments) {
-    slots = _fragBuffers[senderMac] = List<String?>.filled(totalFragments, null);
+    slots = _fragBuffers[bufferKey] = List<String?>.filled(totalFragments, null);
   }
 
   slots[currentFragment - 1] = payload;
@@ -83,7 +86,7 @@ String? handleIncomingFragments(String rawData) {
   }
 
   // clear buffer after all fragments arrive
-  _fragBuffers.remove(senderMac);
+  _fragBuffers.remove(bufferKey);
   final completeMessage = slots.join();
 
   return "$senderMac;$senderUsername;$colorHex;$targetMac;$timeStamp;$rssi;$completeMessage";

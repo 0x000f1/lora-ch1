@@ -32,10 +32,10 @@ void initConnectionListener() {
 
     if (connected) {
       startBatteryUpdates();
-      startLocationUpdates();
+      // startLocationUpdates();
     } else {
       clearFragmentBuffers();
-      stopLocationUpdates();
+      // stopLocationUpdates();
       stopBatteryUpdates();
     }
   });
