@@ -36,7 +36,7 @@ void HapticManager::playEffect(uint8_t effectId) {
             digitalWrite(HAPTIC_EN_PIN, LOW);
             return;
         }
-        drv.selectLibrary(1);
+        drv.selectLibrary(6); // LRA library
         drv.setMode(SensorDRV2605::MODE_INTTRIG);
 
         drv.setWaveform(0, effectId); // Load the effect into 'buffer' at position 0
