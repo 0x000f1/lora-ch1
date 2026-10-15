@@ -462,7 +462,7 @@ class dataCharStatusCallbacks : public NimBLECharacteristicCallbacks {
 
 void BLEManager::pairingTimerCallback(TimerHandle_t xTimer) {
     LOG_I(TAG, "Pairing mode timeout (60s). Shutting down BLE.");
-    SystemManager::setPowerProfile(PowerProfile::BATTERY_SAVER);
+    //SystemManager::setPowerProfile(PowerProfile::BATTERY_SAVER);
     BLEManager::shutdownPending = true;
 }
 
