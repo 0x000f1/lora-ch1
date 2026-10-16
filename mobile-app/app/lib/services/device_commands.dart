@@ -13,7 +13,8 @@ import 'package:flutter/material.dart';
 // initialize/get settings after connecting
 Future<void> initializeDeviceSettings() async {
   await _setDeviceTime();
-
+  await _updateBatteryStatus();
+  
   bool? initialVib = await getVibration();
   if (initialVib != null) {
     vibrationSetting.value = initialVib;
