@@ -18,6 +18,7 @@ dependencies:
   flutter_switch: ^0.3.2
   geolocator: ^14.0.2
   cryptography: ^2.9.0
+  flutter_local_notifications: ^22.3.2
 
 dev_dependencies:
   flutter_test:

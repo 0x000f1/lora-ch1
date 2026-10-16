@@ -1,3 +1,8 @@
+import 'dart:async';
+
+import 'package:app/core/logger.dart';
+import 'package:app/services/notification_service.dart';
+import 'package:app/ui/private_chat.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_blue_plus/flutter_blue_plus.dart';
 import 'package:flutter_floating_bottom_bar/flutter_floating_bottom_bar.dart';
@@ -11,8 +16,18 @@ import 'ui/bt_sheet.dart';
 import 'ui/broadcast_page.dart';
 import 'services/unread_service.dart';
 
-void main() {
+// lets code outside of widget navigate (on notification tap)
+final GlobalKey<NavigatorState> navigatorKey = GlobalKey();
+Future<void> main() async {
   //debugPaintSizeEnabled = true; // see layout bounds in debug mode
+
+  // needed because plugins are used before runApp
+  WidgetsFlutterBinding.ensureInitialized();
+
+  await initNotifications();
+  await requestNotificationPermission();
+  setupNotificationListener();
+
   runApp(const MainApp());
 }
 
@@ -20,7 +35,12 @@ class MainApp extends StatelessWidget {
   const MainApp({super.key});
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(theme: appTheme, themeMode: ThemeMode.dark, home: const HomePage());
+    return MaterialApp(
+      navigatorKey: navigatorKey,
+      theme: appTheme,
+      themeMode: ThemeMode.dark,
+      home: const HomePage(),
+    );
   }
 }
 
@@ -35,6 +55,8 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
   late TabController tabController;
   int currentPage = 0;
 
+  StreamSubscription<String>? _notificationSubscription;
+
   @override
   void initState() {
     super.initState();
@@ -47,7 +69,45 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
       }
     });
 
+    // listen to notification taps and open
+    _notificationSubscription = notificationTapStream.stream.listen((String peerMac) async {
+      _openChat(peerMac);
+    });
+
+    // check if app was launched from notification
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      final peerMac = await getLaunchNotificationPeerMac();
+      // open chat for the peer if a payload was found
+      if (peerMac != null) _openChat(peerMac);
+    });
+
     refreshUnreadCount();
+  }
+
+  Future<void> _openChat(String peerMac) async {
+    AppLogger.log("NOTIF", "Attempting to open chat for mac: $peerMac");
+    if (activeChatMac == peerMac) {
+      AppLogger.log("NOTIF", "Canceled. Chat is already open");
+      return;
+    }
+    final peers = await getSavedPeers();
+    final matches = peers.where((peer) => peer.mac == peerMac);
+    if (matches.isEmpty) {
+      AppLogger.log("NOTIF", "Canceled. Peer $peerMac not found");
+      return;
+    }
+    
+    // change background UI to private tab
+    if(tabController.index != 0) {
+      tabController.animateTo(0);
+    }
+    
+    AppLogger.log("NOTIF", "Navigation started to Private Chat for peer $peerMac");
+    navigatorKey.currentState?.push(
+      MaterialPageRoute(
+        builder: (context) => PrivateChatPage(device: PeerDevice.fromDb(matches.first)),
+      ),
+    );
   }
 
   void changePage(int newPage) async {
@@ -63,6 +123,7 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
   @override
   void dispose() {
     tabController.dispose();
+    _notificationSubscription?.cancel();
     super.dispose();
   }
 

@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 import 'package:flutter/material.dart';
 
 import 'package:app/ui/private_chat.dart';
@@ -6,6 +7,7 @@ import 'package:app/services/ble_service.dart';
 import 'package:app/core/logger.dart';
 import 'package:app/services/db_service.dart';
 import 'package:app/services/unread_service.dart';
+import 'package:app/services/notification_service.dart';
 
 Color hexToColor(String hex) {
   return Color(int.parse("FF$hex", radix: 16));
@@ -30,6 +32,15 @@ class PeerDevice {
     this.latitude,
     this.longitude,
   });
+
+  PeerDevice.fromDb(DbPeer peer)
+    : mac = peer.mac,
+      name = peer.name,
+      colorHex = peer.colorHex ?? '0088FF',
+      rssi = peer.rssi ?? '-100',
+      timeStamp = peer.lastSeen ?? 0,
+      latitude = 0,
+      longitude = 0;
 }
 
 class PrivatePage extends StatefulWidget {
@@ -47,7 +58,6 @@ class _PrivatePageState extends State<PrivatePage> {
   Future<void> _loadSavedPeers() async {
     final savedPeers = await getSavedPeers();
     if (!mounted) return;
-
 
     setState(() {
       _devices.clear();

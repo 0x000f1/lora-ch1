@@ -1,3 +1,4 @@
+import 'package:app/services/notification_service.dart';
 import 'package:flutter/material.dart';
 import 'dart:async';
 
@@ -53,12 +54,17 @@ class _PrivatePageState extends State<PrivateChatPage> {
     _dataSub?.cancel();
     _controller.dispose();
     _scrollController.dispose();
+    // only clear if no other chat was opened
+    if (activeChatMac == widget.device.mac) activeChatMac = null;
     super.dispose();
   }
 
   @override
   void initState() {
     super.initState();
+    // pass the active chat mac to notification service
+    activeChatMac = widget.device.mac;
+    cancelChatNotification(widget.device.mac);
     _initializeChat();
     _dataSub = dataStream.listen((rawMsg) async {
       if (mounted) {
