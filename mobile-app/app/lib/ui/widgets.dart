@@ -37,7 +37,7 @@ class ChatBubble extends StatelessWidget {
       // message sent, and peer didnt recieve it yet
       case 'sent':
         icon = Icons.check_rounded;
-        color = Colors.black;
+        color = Colors.white60;
         break;
       // message sent, and either peer failed to recieve it, or BLE failed to send it
       // on broadcast messages, this only fails if BLE failed to send it
@@ -50,7 +50,7 @@ class ChatBubble extends StatelessWidget {
       case 'delivered':
       default:
         icon = Icons.done_all_rounded;
-        color = Colors.black;
+        color = Colors.white60;
         break;
     }
 
