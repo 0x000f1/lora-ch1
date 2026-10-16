@@ -195,7 +195,7 @@ Future<void> _updateBatteryStatus() async {
 
 void startBatteryUpdates() {
   _batteryTimer?.cancel();
-  _batteryTimer = Timer.periodic(const Duration(seconds: 5), (_) async {
+  _batteryTimer = Timer.periodic(const Duration(seconds: 20), (_) async {
     await _updateBatteryStatus();
   });
 }
