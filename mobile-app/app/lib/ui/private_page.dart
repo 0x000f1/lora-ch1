@@ -7,11 +7,7 @@ import 'package:app/services/ble_service.dart';
 import 'package:app/core/logger.dart';
 import 'package:app/services/db_service.dart';
 import 'package:app/services/unread_service.dart';
-import 'package:app/services/notification_service.dart';
-
-Color hexToColor(String hex) {
-  return Color(int.parse("FF$hex", radix: 16));
-}
+import 'package:app/core/color_utils.dart';
 
 class PeerDevice {
   final String mac;

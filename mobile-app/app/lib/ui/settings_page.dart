@@ -1,15 +1,8 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:app/core/color_utils.dart';
 
 import 'package:app/services/ble_service.dart';
-
-String colorToHex(Color color) {
-  return color.toARGB32().toRadixString(16).padLeft(8, '0').substring(2).toUpperCase();
-}
-
-Color colorFromHex(String hex) {
-  return Color(int.parse('FF$hex', radix: 16));
-}
 
 // default 10 colors
 final List<Color> _defaultColors = [
@@ -37,14 +30,11 @@ class SettingsPage extends StatefulWidget {
 class _SettingsPageState extends State<SettingsPage> {
   // keep track of loading to wait for ble response and request
   bool _isLoading = false;
-  bool _isSavingUsername = false;
 
   bool _isFindingDevice = false;
   bool _isRestartingDevice = false;
   bool _isResettingDevice = false;
-  int? _selectedColorIndex;
   
-  bool isUpdatingPreferences = false;
 
   // keeps track of whether the device is restarting or resetting
   bool get _isBusy => _isResettingDevice || _isRestartingDevice;
@@ -92,7 +82,7 @@ class _SettingsPageState extends State<SettingsPage> {
                   height: 40,
                   width: 40,
                   decoration: BoxDecoration(
-                    color: colorHex.isEmpty ? Colors.brown : colorFromHex(colorHex),
+                    color: colorHex.isEmpty ? Colors.brown : hexToColor(colorHex),
                     shape: BoxShape.circle,
                   ),
                   child: GestureDetector(
@@ -182,6 +172,7 @@ class _SettingsPageState extends State<SettingsPage> {
                           setDialogState(() {
                             errorMessage = "Username contains invalid characters.";
                           });
+                          return;
                         }
 
                         final success = await _submitUsername();
@@ -334,7 +325,7 @@ class _SettingsPageState extends State<SettingsPage> {
           child: ValueListenableBuilder<bool>(
             valueListenable: listenable,
             builder: (context, isEnabled, child) {
-              return Switch(value: isEnabled, onChanged: isUpdatingPreferences ? null : onChanged);
+              return Switch(value: isEnabled, onChanged: _isLoading ? null : onChanged);
             },
           ),
         ),
@@ -375,7 +366,7 @@ class _SettingsPageState extends State<SettingsPage> {
     if (!success) {
       vibrationSetting.value = previousValue;
       if(mounted) {
-        messenger.showSnackBar(SnackBar(content: Text("Failed to update location sharing")));
+        messenger.showSnackBar(SnackBar(content: Text("Failed to update haptic feedback")));
       }
     }
   }
@@ -454,21 +445,25 @@ class _SettingsPageState extends State<SettingsPage> {
     if (_isRestartingDevice) return;
 
     final messenger = ScaffoldMessenger.of(context);
-
-    setState(() {
-      _isRestartingDevice = true;
-    });
-
-    final success = await restartDevice();
-
-    if (!success) {
-      messenger.showSnackBar(const SnackBar(content: Text("Failed to restart device.")));
-
-      if (mounted) {
-        setState(() {
-          _isRestartingDevice = false;
-        });
+  
+    try {
+      setState(() {
+        _isRestartingDevice = true;
+      });
+      
+      final success = await restartDevice();
+      
+      if (!success) {
+        messenger.showSnackBar(const SnackBar(content: Text("Failed to restart device.")));
+      
+        if (mounted) {
+          setState(() {
+            _isRestartingDevice = false;
+          });
+        }
       }
+    } catch (e) {
+      
     }
   }
 
@@ -572,7 +567,6 @@ class _SettingsPageState extends State<SettingsPage> {
   void initState() {
     super.initState();
     _usernameController = TextEditingController(text: usernameSetting.value);
-    _initSelectedColor();
     isDeviceConnected.addListener(_handleConnectionChanged);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _handleConnectionChanged();
@@ -593,19 +587,6 @@ class _SettingsPageState extends State<SettingsPage> {
     }
   }
 
-  // highlight the current color in the UI
-  void _initSelectedColor() {
-    final currentColorHex = colorSetting.value;
-    if (currentColorHex.isEmpty) return;
-
-    for (int i = 0; i < _defaultColors.length; i++) {
-      final hex = colorToHex(_defaultColors[i]);
-      if (hex == currentColorHex) {
-        _selectedColorIndex = i;
-        break;
-      }
-    }
-  }
 
   // submit username to device
   Future<bool> _submitUsername() async {
@@ -615,26 +596,15 @@ class _SettingsPageState extends State<SettingsPage> {
 
     // unfocus keyboard
     FocusScope.of(context).unfocus();
-
-    setState(() {
-      _isSavingUsername = true;
-    });
-
     final messenger = ScaffoldMessenger.of(context);
     bool success = await setUsername(newName);
 
     if (success) {
+      // wait 1 second for the username to save before dialog closes
       await Future.delayed(Duration(seconds: 1));
     } else {
       messenger.showSnackBar(SnackBar(content: Text("Failed to update username")));
     }
-
-    if (mounted) {
-      setState(() {
-        _isSavingUsername = false;
-      });
-    }
-
     return success;
   }
 

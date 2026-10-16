@@ -96,11 +96,11 @@ Future<bool> sendOnControlChar(String msg) async {
   }
 }
 
-// send a SET command on control stream that has an expected response (SET_TIM: TIM_OK) etc..
+// send a SET command on control stream that has an expected response (SET_TIM: TIM_OK, etc) and factory reset/restart
 Future<bool> sendCommandWithResponse(String command, String expectedReponse) async {
   for (int i = 0; i <= 3; i++) {
     try {
-      final response = controlStream.firstWhere((msg) => msg == expectedReponse).timeout(Duration(seconds: 3));
+      final response = controlStream.firstWhere((msg) => msg == expectedReponse).timeout(Duration(seconds: 3), onTimeout: () => "TIMEOUT");
 
       // if command is RST it drops the BLE connection immediately
       bool sent = await sendOnControlChar(command).timeout(
@@ -117,6 +117,16 @@ Future<bool> sendCommandWithResponse(String command, String expectedReponse) asy
       }
 
       final String responseString = await response;
+      
+      // timeout in case the device drops connection before sending RST_OK
+      if(responseString == "TIMEOUT") {
+        if (command == "RST" || command == "FACTORY_RESET") {
+          AppLogger.log("BLE", "Device restarted before sending $expectedReponse, Assuming success");
+          return true;
+        }
+        
+        throw Exception("Response timeout for $command");
+      }
       AppLogger.log("BLE", "Recieved reponse: $responseString for command $command");
       return true;
     } catch (e) {
@@ -134,15 +144,21 @@ Future<String?> sendCommandAndFetch(String command, String expectedPrefix) async
     try {
       final response = controlStream
           .firstWhere((msg) => msg.startsWith(expectedPrefix))
-          .timeout(const Duration(seconds: 3));
+          .timeout(const Duration(seconds: 3), onTimeout: () => "TIMEOUT");
 
       bool sent = await sendOnControlChar(command);
       if (!sent) {
         response.ignore();
         return null;
       }
+      
+      final responseString = await response;
+      
+      if(responseString == "TIMEOUT") {
+        throw Exception("Response timeout for command $command");
+      }
 
-      return await response;
+      return response;
     } catch (e) {
       if (i == 3) return null;
     }
