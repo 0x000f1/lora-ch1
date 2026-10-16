@@ -274,3 +274,8 @@ Future<String?> getPeerPublicKey(String peerMac) async {
   if (rows.isEmpty) return null;
   return rows.first['public_key'] as String?;
 }
+
+Future<void> deletePeerPublicKey(String peerMac) async {
+  final db = await getDatabase();
+  await db.delete('peer_keys', where: 'peer_mac = ?', whereArgs: [peerMac]);
+}
