@@ -50,6 +50,7 @@ class PrivatePage extends StatefulWidget {
 class _PrivatePageState extends State<PrivatePage> {
   final List<PeerDevice> _devices = [];
   StreamSubscription? _controlSub;
+  Timer? _refreshTimer;
 
   Future<void> _loadSavedPeers() async {
     final savedPeers = await getSavedPeers();
@@ -79,6 +80,14 @@ class _PrivatePageState extends State<PrivatePage> {
     super.initState();
     _loadSavedPeers();
     sendOnControlChar("GET_NEI");
+    
+    _refreshTimer = Timer.periodic(const Duration(seconds: 30), (_) {
+      if(mounted) {
+        setState(() {
+          // refresh UI automatically every 30 seconds   
+        });
+      }
+    });
 
     // "subscribe" to control stream in ble_service.dart to listen to GET_NEI response
     // NEI|MAC;NEI_USERNAME;COLOR_HEX;RSSI;TIMESTAMP|MAC2;...
@@ -166,6 +175,7 @@ class _PrivatePageState extends State<PrivatePage> {
   @override
   void dispose() {
     _controlSub?.cancel();
+    _refreshTimer?.cancel();
     AppLogger.log("BLE", "Control subscription canceled");
     super.dispose();
   }
@@ -278,10 +288,11 @@ class _PrivatePageState extends State<PrivatePage> {
 // get signal strenght from rssi or no signal icon from timestamp for outdates devices
 Widget getSignalIconFromRssi(String rssiStr, int timeStamp) {
   final currentTime = DateTime.now().millisecondsSinceEpoch ~/ 1000;
-  const hardwareTtl = 120; // 2 minute ttl on firmware
+  // mark user unreachable, if it was not seen for more then 60 seconds (2 heartbeats on hardware)
+  const ttl = 60;
 
   // device is considered offline if its missing for more then 2 minteutes
-  bool isOffline = ((currentTime - timeStamp) > hardwareTtl);
+  bool isOffline = ((currentTime - timeStamp) > ttl);
 
   if (isOffline) {
     return const Icon(Icons.signal_cellular_nodata_rounded, color: Colors.grey, size: 16);
