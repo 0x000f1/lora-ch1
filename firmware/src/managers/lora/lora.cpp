@@ -261,6 +261,7 @@ void LoRaManager::sendMessage(uint8_t* data, size_t length, uint32_t targetAddre
             retryCount = 0;
         }
 
+        waitingForAck = true;
         float ackAirTime = loraModule.getTimeOnAir(sizeof(PackageHeader) + sizeof(AckPayload)) / 1000.0f;
         uint32_t dynamicTimeoutMs = (uint32_t)(airTime + requiredOffTimeMs + ackAirTime + 300.0f);
 
