@@ -82,6 +82,7 @@ class _PrivatePageState extends State<PrivatePage> {
     sendOnControlChar("GET_NEI");
     
     _refreshTimer = Timer.periodic(const Duration(seconds: 30), (_) {
+      sendOnControlChar("GET_NEI");
       if(mounted) {
         setState(() {
           // refresh UI automatically every 30 seconds   
