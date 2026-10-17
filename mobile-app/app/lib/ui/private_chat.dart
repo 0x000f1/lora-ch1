@@ -92,9 +92,13 @@ class _PrivatePageState extends State<PrivateChatPage> {
                   isMe: false,
                   timestamp: timeStamp,
                   isBroadcast: false,
+                  isRead: true
                 ),
               );
             });
+            
+            await markPrivateMessagesAsRead(widget.device.mac);
+            await refreshUnreadCount();
           }
         }
       }
