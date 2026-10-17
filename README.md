@@ -32,7 +32,7 @@ The current hardware is based on the ESP32-C3 microcontroller, interfaced with a
 
 ## Functions
 
-* **Reliable Bidirectional Communication:** Transmit packages seamlessly between two or more devices. Supports public Broadcasts and private P2P messages with an Automatic Repeat Request (ARQ) mechanism. P2P messages are automatically acknowledged (ACK) and retried up to 3 times if lost in the air.
+* **Reliable Bidirectional Communication:** Transmit packages seamlessly between two or more devices. Supports public Broadcasts and private P2P messages with an Automatic Repeat Request (ARQ) mechanism. P2P messages are automatically acknowledged (ACK) and retried up to 3 times if lost in the air. The system utilizes a dynamic ACK timeout mechanism, calculating the exact wait time based on the payload's Time on Air (ToA) and the mandatory 10% Duty Cycle off-time, ensuring reliable retries without regulatory violations.
 * **Fast TX & Continuous RX Architecture:** Optimized for ultra-low latency and high reliability in the prototype phase. By utilizing an optimized preamble (12 symbols), the Time on Air (ToA) is reduced to ~100-132ms (payload dependent), virtually eliminating packet collisions while ensuring zero message drops through continuous background listening. *Thread-safe FreeRTOS implementation prevents conflicts between BLE and LoRa tasks*.
 * **End-to-End Encryption Support (Key Exchange):** Natively supports routing public keys for E2EE via `KEY_REQ` and `KEY_RESP` commands over the standard data characteristic. The key exchange utilizes the existing ARQ (Hardware ACK) mechanism ensuring reliable and verified key delivery between peers.
 * **Offline Message Buffer:** Safely stores up to 32 incoming direct (P2P) messages in the RAM if the phone is disconnected. Upon BLE reconnection, all buffered messages are instantly pushed to the app. Public Broadcasts are ignored for offline storage to preserve memory.
@@ -81,7 +81,7 @@ Actual message sending and receiving takes place on this channel. The payload mu
     * The app can use the `TARGET_MAC` to determine if the received message was a public broadcast (`FFFFFFFF`) or a private P2P message.
     * `SENDER_USERNAME`: The sender's username string automatically resolved from the internal neighbor cache. Returns `Unknown` if the sender is not in the cache.
     * `COLOR_HEX`: The sender's custom UI color (e.g., `FF0000`) resolved from the cache. Defaults to `0088FF` if unknown.
-    * `TIMESTAMP`: The UNIX Epoch time in seconds. If the device clock is not synced via `SET_TIM`, this value returns `0`.
+    * `TIMESTAMP`: The UNIX Epoch time in seconds. If the device clock is not synced via `SET_TIM`, this value returns `0`. For fragmented messages (total fragments > 1), all fragments of the same message will share the exact same timestamp (derived from the first received fragment), allowing the mobile app to seamlessly group them.
     * `RSSI`: The signal strength of the received LoRa package (e.g., `-78.00`).
   * **Format 2 (Delivery Success):** `ACK_OK;TARGET_MAC`
     * Sent to the app when a previously sent P2P message (or Key Exchange) is successfully acknowledged by the receiver's hardware.

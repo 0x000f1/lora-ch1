@@ -215,28 +215,6 @@ void LoRaManager::sendMessage(uint8_t* data, size_t length, uint32_t targetAddre
         }
     }
 
-    if (packageType == PKG_DATA && targetAddress != BROADCAST_ADDRESS) {
-        if (!isRetry) {
-            // If the message is new (not resending), save the parameters
-            if (length > 0) {
-                memcpy(lastPayload, data, length);
-            }
-            lastPayloadLength = length;
-            lastTargetAddress = targetAddress;
-            lastCurrentFragment = currentFragment;
-            lastTotalFragment = totalFragment;
-            lastSequenceNumber = sequenceNumber;
-            retryCount = 0;
-        }
-
-        waitingForAck = true;
-
-        if (ackTimer != nullptr) {
-            xTimerStop(ackTimer, 0);
-            xTimerStart(ackTimer, 0);
-        }
-    }
-
     PackageHeader header{};
     header.senderAddress = SystemManager::getLoRaID();
     header.targetAddress = targetAddress;
@@ -263,9 +241,34 @@ void LoRaManager::sendMessage(uint8_t* data, size_t length, uint32_t targetAddre
 
     // 10% duty cycle hardware limitation
     uint32_t requiredOffTimeMs = (uint32_t)(airTime * 9.0f); // In 10 units 1 can used, 9 can't usable
-    nextTxAllowedMillis = millis() + requiredOffTimeMs;
+    unsigned long calculatedNextTx = millis() + (uint32_t)airTime + requiredOffTimeMs;
+    if (calculatedNextTx > nextTxAllowedMillis) {
+        nextTxAllowedMillis = calculatedNextTx;
+    }
     LOG_I(TAG, "Duty Cycle (10%%) enforced: TX paused for %lu ms", requiredOffTimeMs);
 
+    if (packageType == PKG_DATA && targetAddress != BROADCAST_ADDRESS) {
+        if (!isRetry) {
+            // If the message is new (not resending), save the parameters
+            if (length > 0) {
+                memcpy(lastPayload, data, length);
+            }
+            lastPayloadLength = length;
+            lastTargetAddress = targetAddress;
+            lastCurrentFragment = currentFragment;
+            lastTotalFragment = totalFragment;
+            lastSequenceNumber = sequenceNumber;
+            retryCount = 0;
+        }
+
+        float ackAirTime = loraModule.getTimeOnAir(sizeof(PackageHeader) + sizeof(AckPayload)) / 1000.0f;
+        uint32_t dynamicTimeoutMs = (uint32_t)(airTime + requiredOffTimeMs + ackAirTime + 300.0f);
+
+        if (ackTimer != nullptr) {
+            xTimerChangePeriod(ackTimer, pdMS_TO_TICKS(dynamicTimeoutMs), 0);
+        }
+        LOG_I(TAG, "Dynamic ACK timeout set to: %lu ms", dynamicTimeoutMs);
+    }
 
     loraModule.standby();
     // isScanning = false;
@@ -353,6 +356,17 @@ void LoRaManager::handleFlags() {
             } else {
                 LOG_E(TAG, "Max retries reached. Delivery failed to 0x%08X", lastTargetAddress);
                 waitingForAck = false;
+                if (txQueue != nullptr) {
+                    TxMessage tempMsg{};
+                    while (xQueuePeek(txQueue, &tempMsg, 0) == pdPASS) {
+                        if (tempMsg.targetAddress == lastTargetAddress) {
+                            xQueueReceive(txQueue, &tempMsg, 0);
+                            LOG_W(TAG, "Dropped remaining fragment %d/%d for 0x%08X", tempMsg.currentFragment, tempMsg.totalFragment, lastTargetAddress);
+                        } else {
+                            break;
+                        }
+                    }
+                }
                 HapticManager::playEffect(16); // Long haptic feedback to notify about the error.
 
                 // Push BLE message that shows the error.
@@ -434,10 +448,25 @@ void LoRaManager::handleFlags() {
 
             uint8_t* payload = rxBuffer + sizeof(PackageHeader);
             size_t payloadLength = len - sizeof(PackageHeader);
+            float currentRssi = loraModule.getRSSI();
 
             LOG_I(TAG, "RX from 0x%08X, RSSI: %f, Type: %d",
-                  header.senderAddress, loraModule.getRSSI(), header.packageType);
+                  header.senderAddress, currentRssi, header.packageType);
 
+
+            time_t now;
+            time(&now);
+            long currentSafeTimestamp = (now < 1704067200) ? 0 : (long)now;
+
+            for (uint8_t i = 0; i < neighborCount; i++) {
+                if (neighbors[i].senderAddress == header.senderAddress) {
+                    neighbors[i].lastSeenMillis = millis();
+                    neighbors[i].timestamp = currentSafeTimestamp;
+                    neighbors[i].rssi = currentRssi;
+                    break;
+                }
+            }
+            
             // The received package is for BROADCAST or for this device
             bool packageIsForMe = (header.targetAddress == BROADCAST_ADDRESS ||
                                    header.targetAddress == (uint32_t)SystemManager::getLoRaID());
@@ -464,7 +493,7 @@ void LoRaManager::handleFlags() {
                                discovery.colorB,
                                discovery.latitude,
                                discovery.longitude,
-                               loraModule.getRSSI());
+                               currentRssi);
             }
 
             if (!packageIsForMe) {
@@ -574,12 +603,40 @@ void LoRaManager::handleFlags() {
                             }
                         } else {
                             char formattedString[PAYLOAD_SIZE + 80]; // Extra space for formatting
-                            time_t now;
-                            time(&now);
+                            
+                            struct FragmentTimeTracker {
+                                uint32_t senderAddress;
+                                long timestamp;
+                            };
+                            static FragmentTimeTracker fragTimeCache[MAX_NEIGHBORS];
+                            static uint8_t fragCacheIdx = 0;
 
-                            // FAIL-SAFE: 1704067200 = 2024. 01. 1
-                            // If the ESP time is less than the FAIL-SAFE time, there it is outdated. Set it to 0.
-                            long safeTimestamp = (now < 1704067200) ? 0 : (long)now;
+                            long safeTimestamp = currentSafeTimestamp;
+
+                            if (header.totalFragments > 1) {
+                                if (header.currentFragment == 1) {
+                                    bool found = false;
+                                    for (uint8_t i = 0; i < MAX_NEIGHBORS; i++) {
+                                        if (fragTimeCache[i].senderAddress == header.senderAddress) {
+                                            fragTimeCache[i].timestamp = safeTimestamp;
+                                            found = true;
+                                            break;
+                                        }
+                                    }
+                                    if (!found) {
+                                        fragTimeCache[fragCacheIdx].senderAddress = header.senderAddress;
+                                        fragTimeCache[fragCacheIdx].timestamp = safeTimestamp;
+                                        fragCacheIdx = (fragCacheIdx + 1) % MAX_NEIGHBORS;
+                                    }
+                                } else {
+                                    for (uint8_t i = 0; i < MAX_NEIGHBORS; i++) {
+                                        if (fragTimeCache[i].senderAddress == header.senderAddress && fragTimeCache[i].timestamp != 0) {
+                                            safeTimestamp = fragTimeCache[i].timestamp;
+                                            break;
+                                        }
+                                    }
+                                }
+                            }
 
                             // Check if the target address was broadcast.
                             bool isBroadcast = (header.targetAddress == BROADCAST_ADDRESS);
@@ -609,7 +666,7 @@ void LoRaManager::handleFlags() {
                                     header.currentFragment,
                                     header.totalFragments,
                                     safeTimestamp,
-                                    loraModule.getRSSI(),
+                                    currentRssi,
                                     payloadString);
 
                             LOG_I(TAG, "Received DATA package: %s", formattedString);
