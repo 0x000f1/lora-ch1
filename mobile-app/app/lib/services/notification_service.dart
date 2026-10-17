@@ -1,3 +1,4 @@
+import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:async';
 
 import 'package:app/core/constants.dart';
@@ -24,7 +25,23 @@ StreamSubscription<String>? _messageSub;
 // stream to forward notification tap events
 StreamController<String> notificationTapStream = StreamController<String>.broadcast();
 
+// global variables to store if user has notifications turned on
+final ValueNotifier<bool> privateNotificationSetting = ValueNotifier(true);
+final ValueNotifier<bool> broadcastNotificationSetting = ValueNotifier(true);
+
 const int _connectionNotificationId = 1;
+
+Future<void> setPrivateNotifications(bool value) async {
+  privateNotificationSetting.value = value;
+  final prefs = await SharedPreferences.getInstance();
+  await prefs.setBool('pref_private_notif', value);
+}
+
+Future<void> setBroadcastNotifications(bool value) async {
+  privateNotificationSetting.value = value;
+  final prefs = await SharedPreferences.getInstance();
+  await prefs.setBool('pref_broadcast_notif', value);
+}
 
 const _connectionChannel = AndroidNotificationDetails(
   'connection_channel',
@@ -47,6 +64,11 @@ Future<void> initNotifications() async {
   const androidInitializationSettings = AndroidInitializationSettings("@mipmap/ic_launcher");
 
   final initializationSettings = InitializationSettings(android: androidInitializationSettings);
+
+  // load user preferences from shared_preferences, enabled by default
+  final prefs = await SharedPreferences.getInstance();
+  privateNotificationSetting.value = prefs.getBool('pref_private_notif') ?? true;
+  broadcastNotificationSetting.value = prefs.getBool('pref_broadcast_notif') ?? true;
 
   await _plugin.initialize(
     settings: initializationSettings,
@@ -74,7 +96,7 @@ Future<String?> getLaunchNotificationPeerMac() async {
   // check if app was started by a notification
   final details = await _plugin.getNotificationAppLaunchDetails();
   if (details?.didNotificationLaunchApp ?? false) {
-    // return private mac for notification, or broadcast 
+    // return private mac for notification, or broadcast
     return details!.notificationResponse?.payload;
   }
   return null;
@@ -156,12 +178,18 @@ Future<void> _onMessage(String rawMsg) async {
   // only send broadcast notification if the broadcast tab is
   // hidden when private chat is open with a peer
   if (targetMac == broadcastMac) {
+    // broadcast notifications are turned off
+    if (!broadcastNotificationSetting.value) return;
+    
     if (!_isAppInForeground || activeChatMac != null) {
       await _showNotification("BROADCAST", "Broadcast: $senderUser", payload);
     }
     return;
   }
-
+  
+  // private notifications are turned off
+  if (!privateNotificationSetting.value) return;
+  
   // only skip it while the user is looking at this chat
   if (_isAppInForeground && activeChatMac == senderMac) return;
   await _showNotification(senderMac, senderUser, payload);

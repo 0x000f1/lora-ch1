@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:app/core/color_utils.dart';
+import 'package:app/services/notification_service.dart';
 
 import 'package:app/services/ble_service.dart';
 
@@ -34,7 +35,6 @@ class _SettingsPageState extends State<SettingsPage> {
   bool _isFindingDevice = false;
   bool _isRestartingDevice = false;
   bool _isResettingDevice = false;
-  
 
   // keeps track of whether the device is restarting or resetting
   bool get _isBusy => _isResettingDevice || _isRestartingDevice;
@@ -343,7 +343,6 @@ class _SettingsPageState extends State<SettingsPage> {
   //   );
   // }
 
-
   Widget _buildVibrationSwitch() {
     return _buildToggleSwitch(
       Icons.vibration_rounded,
@@ -365,7 +364,7 @@ class _SettingsPageState extends State<SettingsPage> {
 
     if (!success) {
       vibrationSetting.value = previousValue;
-      if(mounted) {
+      if (mounted) {
         messenger.showSnackBar(SnackBar(content: Text("Failed to update haptic feedback")));
       }
     }
@@ -445,26 +444,24 @@ class _SettingsPageState extends State<SettingsPage> {
     if (_isRestartingDevice) return;
 
     final messenger = ScaffoldMessenger.of(context);
-  
+
     try {
       setState(() {
         _isRestartingDevice = true;
       });
-      
+
       final success = await restartDevice();
-      
+
       if (!success) {
         messenger.showSnackBar(const SnackBar(content: Text("Failed to restart device.")));
-      
+
         if (mounted) {
           setState(() {
             _isRestartingDevice = false;
           });
         }
       }
-    } catch (e) {
-      
-    }
+    } catch (e) {}
   }
 
   // send factory reset request
@@ -505,7 +502,25 @@ class _SettingsPageState extends State<SettingsPage> {
             borderRadius: BorderRadius.circular(12),
           ),
           child: Column(
-            children: [_buildVibrationSwitch(), SizedBox(height: 6)],
+            children: [
+              _buildVibrationSwitch(),
+              SizedBox(height: 6),
+              _buildToggleSwitch(
+                Icons.notifications_rounded,
+                Colors.indigo.shade300,
+                "Private notifications",
+                privateNotificationSetting,
+                (value) => setPrivateNotifications(value),
+              ),
+              SizedBox(height: 6),
+              _buildToggleSwitch(
+                Icons.notifications_active_rounded,
+                Colors.teal.shade300,
+                "Broadcast notifications",
+                broadcastNotificationSetting,
+                (value) => setBroadcastNotifications(value),
+              ),
+            ],
           ),
         ),
         SizedBox(height: 20),
@@ -586,7 +601,6 @@ class _SettingsPageState extends State<SettingsPage> {
       Navigator.of(context).pop();
     }
   }
-
 
   // submit username to device
   Future<bool> _submitUsername() async {
