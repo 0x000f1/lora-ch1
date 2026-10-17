@@ -71,8 +71,10 @@ Future<void> requestNotificationPermission() async {
 }
 
 Future<String?> getLaunchNotificationPeerMac() async {
+  // check if app was started by a notification
   final details = await _plugin.getNotificationAppLaunchDetails();
   if (details?.didNotificationLaunchApp ?? false) {
+    // return private mac for notification, or broadcast 
     return details!.notificationResponse?.payload;
   }
   return null;
@@ -96,11 +98,13 @@ Future<void> _startConnectionService() async {
 }
 
 Future<void> _stopConnectionService() async {
-  await _plugin.resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>()?.stopForegroundService();
+  await _plugin
+      .resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>()
+      ?.stopForegroundService();
 }
 
 void _onConnectionChanged() {
-  if(isDeviceConnected.value) {
+  if (isDeviceConnected.value) {
     _startConnectionService();
   } else {
     _stopConnectionService();
@@ -108,6 +112,9 @@ void _onConnectionChanged() {
 }
 
 int _notificationId(String peerMac) {
+  // unique id for broadcast messages
+  if (peerMac == "BROADCAST") return 999;
+
   // 32 bit integer needed for id
   return int.tryParse(peerMac, radix: 16)?.toSigned(32) ?? 0;
 }
@@ -132,7 +139,7 @@ Future<void> cancelChatNotification(String peerMac) {
 // listens to finished messages (assambled, decrypted, saved)
 void setupNotificationListener() {
   // dont subscribe more then once
-  if(_messageSub != null) return;
+  if (_messageSub != null) return;
   _messageSub = dataStream.listen(_onMessage);
   isDeviceConnected.addListener(_onConnectionChanged);
 }
@@ -145,8 +152,15 @@ Future<void> _onMessage(String rawMsg) async {
   final targetMac = parts[3];
   final payload = parts.sublist(6).join(';');
 
-  // dont create notifications for broadcast messages
-  if (targetMac == broadcastMac) return;
+  // handle broadcast notifications seperately,
+  // only send broadcast notification if the broadcast tab is
+  // hidden when private chat is open with a peer
+  if (targetMac == broadcastMac) {
+    if (!_isAppInForeground || activeChatMac != null) {
+      await _showNotification("BROADCAST", "Broadcast: $senderUser", payload);
+    }
+    return;
+  }
 
   // only skip it while the user is looking at this chat
   if (_isAppInForeground && activeChatMac == senderMac) return;

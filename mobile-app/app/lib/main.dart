@@ -69,8 +69,15 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
       }
     });
 
-    // listen to notification taps and open
+    // listen to notification taps and open corresponding page
     _notificationSubscription = notificationTapStream.stream.listen((String peerMac) async {
+      // navigate to broadcast page on tap
+      if (peerMac == "BROADCAST") {
+        if (tabController.index != 1) {
+          tabController.animateTo(1);
+        }
+      }
+      // navigate to the peer's private page on tap
       _openChat(peerMac);
     });
 
