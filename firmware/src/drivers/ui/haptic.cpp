@@ -21,7 +21,7 @@ int HapticManager::setupHaptic() {
 
     Wire.begin(HAPTIC_SDA_PIN, HAPTIC_SCL_PIN); // Start the I2C bus on the init progress
 
-    powerOffTimer = xTimerCreate("hapticOffTimer", pdMS_TO_TICKS(500), pdFALSE, nullptr, powerOffTimerCallback);
+    powerOffTimer = xTimerCreate("hapticOffTimer", pdMS_TO_TICKS(1500), pdFALSE, nullptr, powerOffTimerCallback);
 
     return 0;
 }
@@ -45,7 +45,7 @@ void HapticManager::playEffect(uint8_t effectId) {
         
         LOG_I(TAG, "Effect played (ID): %d", effectId);
 
-        // Start the timer that automatically turn off the chip in 500ms
+        // Start the timer that automatically turn off the chip in 1500ms
         if (powerOffTimer != nullptr){
             xTimerStart(powerOffTimer, 0);
         }
@@ -55,7 +55,7 @@ void HapticManager::playEffect(uint8_t effectId) {
 }
 
 void HapticManager::powerOffTimerCallback(TimerHandle_t xTimer) {
-    // This timer runs in the background after 500ms as defined
+    // This timer runs in the background after 1500ms as defined
     digitalWrite(HAPTIC_EN_PIN, LOW);
     LOG_I(TAG, "Haptic motor powered off to save energy.");
 }
