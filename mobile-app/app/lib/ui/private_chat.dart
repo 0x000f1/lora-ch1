@@ -8,6 +8,7 @@ import 'package:app/services/db_service.dart';
 import 'package:app/core/logger.dart';
 import 'package:app/services/ble_service.dart';
 import 'package:app/ui/widgets.dart';
+import 'package:app/services/neighbor_service.dart';
 
 class PrivateChatPage extends StatefulWidget {
   final PeerDevice device;

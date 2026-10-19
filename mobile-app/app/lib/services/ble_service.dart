@@ -1,6 +1,7 @@
 // BLE connection management and entry file for services
 
 import 'dart:async';
+import 'package:app/services/neighbor_service.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_blue_plus/flutter_blue_plus.dart';
 
@@ -37,6 +38,7 @@ void initConnectionListener() {
       clearFragmentBuffers();
       // stopLocationUpdates();
       stopBatteryUpdates();
+      stopNeighborProcessing();
     }
   });
 }

@@ -7,6 +7,7 @@ import 'package:app/services/ble_service.dart';
 import 'package:app/core/constants.dart';
 import 'package:app/core/logger.dart';
 import 'package:flutter/material.dart';
+import 'package:app/services/neighbor_service.dart';
 
 
 
@@ -14,6 +15,7 @@ import 'package:flutter/material.dart';
 Future<void> initializeDeviceSettings() async {
   await _setDeviceTime();
   await _updateBatteryStatus();
+  startNeighborProcessing();
   
   bool? initialVib = await getVibration();
   if (initialVib != null) {

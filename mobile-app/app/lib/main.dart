@@ -15,6 +15,7 @@ import 'core/theme.dart';
 import 'ui/bt_sheet.dart';
 import 'ui/broadcast_page.dart';
 import 'services/unread_service.dart';
+import 'services/neighbor_service.dart';
 
 // lets code outside of widget navigate (on notification tap)
 final GlobalKey<NavigatorState> navigatorKey = GlobalKey();
