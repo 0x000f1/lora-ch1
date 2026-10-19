@@ -3,10 +3,10 @@
 const String broadcastMac = "FFFFFFFF";
 
 // max payload size of one fragment for broadcast messages
-const int maxFragmentBytes = 200;
+const int maxFragmentBytes = 64;
 
 // max number of fragments a message can reach
-const int maxFragmentsPerMessage = 5;
+const int maxFragmentsPerMessage = 8;
 
 const int maxBytesBroadcast = maxFragmentsPerMessage * maxFragmentBytes;
 // base64 adds a factor of 4/3, nonce and authtag is 28 bytes
