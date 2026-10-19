@@ -26,24 +26,23 @@ void startMessageProcessing() {
 
 Future<void> _handleRawPacket(String rawMsg) async {
   AppLogger.log("RX", "raw packet (${utf8.encode(rawMsg).length} bytes): $rawMsg");
-  
+
   // ACK and timeout handled in _sendFragmentWithAck
   if (rawMsg.startsWith("ACK_OK") || rawMsg.startsWith("ERR_TIMEOUT")) return;
-  
+
   // KEY_REQ and KEY_RESP
   if (rawMsg.startsWith("KEY_REQ") || rawMsg.startsWith("KEY_RESP")) {
     await handleKeyExchangePacket(rawMsg);
     return;
   }
-  
+
   final assambled = handleIncomingFragments(rawMsg);
   if (assambled == null) return;
-  
+
   final processed = await processIncomingAssambledMessage(assambled);
-  
+
   await _saveIncomingMessageToDb(processed);
   _dataStreamController.add(processed);
-  
 }
 
 Future<void> _saveIncomingMessageToDb(String rawMsg) async {
@@ -73,22 +72,21 @@ Future<void> _saveIncomingMessageToDb(String rawMsg) async {
 Future<String> processIncomingAssambledMessage(String assambled) async {
   final parts = assambled.split(';');
   if (parts.length < 7) return assambled;
-  
+
   final senderMac = parts[0];
   final targetMac = parts[3];
   final isBroadcast = targetMac == broadcastMac;
-  
-  if(isBroadcast) {
+
+  if (isBroadcast) {
     return assambled;
   }
-  
+
   final encryptedPayload = parts.sublist(6).join(';');
   AppLogger.log("ENC", "Recieved encrypted message: $encryptedPayload");
   final decryptedText = await decryptIncomingPayload(senderMac, encryptedPayload);
   final prefix = parts.sublist(0, 6).join(';');
-  
+
   return "$prefix;$decryptedText";
-  
 }
 
 // returns true if a message got an ack_ok response, false otherwise
@@ -98,7 +96,9 @@ Future<bool> _sendFragmentWithAck(String packet, String targetMac, int payloadBy
 
   // start stream before sending data
   final ackFuture = rawDataStream
-      .firstWhere((msg) => msg.startsWith("ACK_OK;$targetMac") || msg.startsWith("ERR_TIMEOUT;$targetMac"))
+      .firstWhere(
+        (msg) => msg.startsWith("ACK_OK;$targetMac") || msg.startsWith("ERR_TIMEOUT;$targetMac"),
+      )
       .timeout(timeout);
 
   await sendOnDataChar(packet);
@@ -113,9 +113,36 @@ Future<bool> _sendFragmentWithAck(String packet, String targetMac, int payloadBy
   }
 }
 
+// null while no message is being sent
+Completer<void>? _currentSend;
+
+
+// send every fragment, one at a time 
 Future<bool> _sendMessage(String targetMac, String msg) async {
+  // wait until another message is being sent
+  while (_currentSend != null) {
+    await _currentSend!.future;
+  }
+  
+  // mark send as busy
+  _currentSend = Completer<void>();
+  try {
+    return await _sendFragments(targetMac, msg);
+  } finally {
+    final done = _currentSend!;
+    _currentSend = null;
+    done.complete();
+  }
+}
+
+// splits the message and sends every fragment
+// returns true if every fragment got an ACK
+// false means the message may still arrived, but device didn't recieve ACK
+Future<bool> _sendFragments(String targetMac, String msg) async {
   final fragments = splitMessage(msg);
   final isBroadcast = targetMac == broadcastMac;
+
+  // turns false if one fragment didnt confirm with ACK, but keep sending after
   bool allAcked = true;
 
   for (int i = 0; i < fragments.length; i++) {
@@ -137,13 +164,13 @@ Future<bool> _sendMessage(String targetMac, String msg) async {
     // send every packet with a seperate ACK check
     final payloadBytes = utf8.encode(payload).length;
     final ackReceived = await _sendFragmentWithAck(packet, targetMac, payloadBytes);
-    
+
     if (ackReceived) {
       AppLogger.log("BLE", "ACK recieved for fragment ${i + 1}/${fragments.length}");
     }
 
     if (!ackReceived) {
-      AppLogger.log("BLE", "ACK timeout for message: $msg");
+      AppLogger.log("BLE", "No ACK for fragment ${i + 1}/${fragments.length}.");
       allAcked = false;
     }
   }
@@ -152,20 +179,23 @@ Future<bool> _sendMessage(String targetMac, String msg) async {
   return allAcked;
 }
 
+// sends a broadcast message (no ACK, not encrypted)
 Future<bool> sendBroadcastMsg(String msg) async {
   bool success = await _sendMessage(broadcastMac, msg);
   AppLogger.log("CHAT", "Sent broadcast message $msg");
   return success;
 }
 
+// encrypts and sends a private message to peer
 Future<bool> sendPrivateMsg(String targetMac, String msg) async {
   final encryptedPayload = await encryptOutgoingPayload(targetMac, msg);
-  
-  if(encryptedPayload == null) {
+
+  // no key for this peer yet
+  if (encryptedPayload == null) {
     AppLogger.log("CHAT", "Cannot send private message to $targetMac: ecnryption failed");
     return false;
   }
-  
+
   bool success = await _sendMessage(targetMac, encryptedPayload);
   AppLogger.log("CHAT", "Sent private message $encryptedPayload ($msg) to $targetMac");
   return success;
