@@ -77,7 +77,7 @@ class ChatBubble extends StatelessWidget {
                   senderName,
                   style: TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold),
                 ),
-                Text(text, style: TextStyle(color: Colors.white)),
+                SelectableText(text, style: TextStyle(color: Colors.white)),
               ],
             ),
           ),
