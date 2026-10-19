@@ -94,7 +94,7 @@ Future<String> processIncomingAssambledMessage(String assambled) async {
 // returns true if a message got an ack_ok response, false otherwise
 Future<bool> _sendFragmentWithAck(String packet, String targetMac, int payloadBytes) async {
   // 3,5 seconds + 50ms/byte maximum timeout
-  final timeout = Duration(milliseconds: 3500 + (payloadBytes * 50));
+  final timeout = Duration(milliseconds: 3500 + (payloadBytes * 100));
 
   // start stream before sending data
   final ackFuture = rawDataStream
@@ -116,6 +116,7 @@ Future<bool> _sendFragmentWithAck(String packet, String targetMac, int payloadBy
 Future<bool> _sendMessage(String targetMac, String msg) async {
   final fragments = splitMessage(msg);
   final isBroadcast = targetMac == broadcastMac;
+  bool allAcked = true;
 
   for (int i = 0; i < fragments.length; i++) {
     final payload = fragments[i];
@@ -136,18 +137,19 @@ Future<bool> _sendMessage(String targetMac, String msg) async {
     // send every packet with a seperate ACK check
     final payloadBytes = utf8.encode(payload).length;
     final ackReceived = await _sendFragmentWithAck(packet, targetMac, payloadBytes);
+    
     if (ackReceived) {
       AppLogger.log("BLE", "ACK recieved for fragment ${i + 1}/${fragments.length}");
     }
 
     if (!ackReceived) {
       AppLogger.log("BLE", "ACK timeout for message: $msg");
-      return false;
+      allAcked = false;
     }
   }
 
   AppLogger.log("CHAT", "Sent message: $msg");
-  return true;
+  return allAcked;
 }
 
 Future<bool> sendBroadcastMsg(String msg) async {
