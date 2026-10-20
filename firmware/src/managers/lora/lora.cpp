@@ -10,7 +10,7 @@
 #define TAG "LORA"
 #define BAND 433.175
 #define BANDWIDTH 125.0
-#define SPREADING_FACTOR 8
+#define SPREADING_FACTOR 9
 #define CODING_RATE 5
 #define SYNC_WORD 0x12
 #define POWER 10
