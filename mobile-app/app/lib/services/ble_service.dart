@@ -19,13 +19,18 @@ export 'package:app/services/message_fragmenter.dart';
 export 'package:app/services/ble_transport.dart';
 export 'package:app/services/messaging_service.dart';
 
-
 List<BluetoothCharacteristic> _foundChars = [];
 List<BluetoothCharacteristic> get chars => _foundChars;
 
+final ValueNotifier<bool> isBluetoothOn = ValueNotifier(false);
 
 void initConnectionListener() {
   startMessageProcessing();
+  FlutterBluePlus.adapterState.listen((state) {
+    isBluetoothOn.value = state == BluetoothAdapterState.on;
+    AppLogger.log("BLE", "Bluetooth adapter state: ${state.name}");
+  });
+  
   FlutterBluePlus.events.onConnectionStateChanged.listen((event) {
     bool connected = event.connectionState == BluetoothConnectionState.connected;
     isDeviceConnected.value = connected;
@@ -45,6 +50,14 @@ void initConnectionListener() {
 
 Future<bool> connectAndSetupDevice(BluetoothDevice device) async {
   _foundChars.clear();
+  
+  // disconnect previous device when trying to connect to a new one
+  for (var connectedDevice in FlutterBluePlus.connectedDevices) {
+    if(connectedDevice.remoteId != device.remoteId) {
+      await connectedDevice.disconnect();
+    }
+  }
+  
   try {
     await device.connect();
     List<BluetoothService> services = await device.discoverServices();
@@ -75,4 +88,38 @@ Future<void> disconnectDevice(BluetoothDevice device) async {
   await device.disconnect();
   _foundChars.clear();
   clearFragmentBuffers();
+}
+
+
+StreamSubscription<List<ScanResult>>? _scanSub;
+
+Future<void> startBluetoothDeviceScan(Function(List<BluetoothDevice>) onDevicesupdated) async {
+  _scanSub?.cancel();
+
+  final connected = FlutterBluePlus.connectedDevices.where(
+    (d) => d.platformName.startsWith("lora-ch1"),
+  );
+
+  onDevicesupdated(connected.toList());
+
+  try {
+    await FlutterBluePlus.startScan(timeout: Duration(seconds: 30), androidUsesFineLocation: true);
+
+    _scanSub = FlutterBluePlus.scanResults.listen((results) {
+      final scanned = results
+          .map((r) => r.device)
+          .where((d) => d.platformName.startsWith('lora-ch1'));
+
+      final combined = {...connected, ...scanned}.toList();
+
+      onDevicesupdated(combined);
+    });
+  } catch (e) {
+    AppLogger.log("BLE", "Failed to start scan");
+  }
+}
+
+void stopBluetoothScan() {
+  _scanSub?.cancel();
+  FlutterBluePlus.stopScan();
 }

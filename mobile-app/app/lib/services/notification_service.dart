@@ -1,3 +1,4 @@
+import 'package:app/services/db_service.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:async';
 
@@ -20,7 +21,7 @@ bool _isAppInForeground = true;
 AppLifecycleListener? _lifecycleListener;
 
 // incoming, processed messages
-StreamSubscription<String>? _messageSub;
+StreamSubscription<DbMessage>? _messageSub;
 
 // stream to forward notification tap events
 StreamController<String> notificationTapStream = StreamController<String>.broadcast();
@@ -166,23 +167,17 @@ void setupNotificationListener() {
   isDeviceConnected.addListener(_onConnectionChanged);
 }
 
-Future<void> _onMessage(String rawMsg) async {
-  final parts = rawMsg.split(';');
-  if (parts.length < 7) return;
-  final senderMac = parts[0];
-  final senderUser = parts[1];
-  final targetMac = parts[3];
-  final payload = parts.sublist(6).join(';');
-
+Future<void> _onMessage(DbMessage msg) async {
+  
   // handle broadcast notifications seperately,
   // only send broadcast notification if the broadcast tab is
   // hidden when private chat is open with a peer
-  if (targetMac == broadcastMac) {
+  if (msg.isBroadcast) {
     // broadcast notifications are turned off
     if (!broadcastNotificationSetting.value) return;
     
     if (!_isAppInForeground || activeChatMac != null) {
-      await _showNotification("BROADCAST", "Broadcast: $senderUser", payload);
+      await _showNotification("BROADCAST", "Broadcast: ${msg.senderName}", msg.content);
     }
     return;
   }
@@ -191,6 +186,6 @@ Future<void> _onMessage(String rawMsg) async {
   if (!privateNotificationSetting.value) return;
   
   // only skip it while the user is looking at this chat
-  if (_isAppInForeground && activeChatMac == senderMac) return;
-  await _showNotification(senderMac, senderUser, payload);
+  if (_isAppInForeground && activeChatMac == msg.peerMac) return;
+  await _showNotification(msg.peerMac!, msg.senderName, msg.content);
 }

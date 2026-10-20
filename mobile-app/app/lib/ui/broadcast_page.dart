@@ -1,6 +1,5 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
-import 'package:flutter_blue_plus/flutter_blue_plus.dart';
 
 import 'package:app/services/unread_service.dart';
 import 'package:app/ui/widgets.dart';
@@ -9,16 +8,14 @@ import 'package:app/services/db_service.dart';
 import 'package:app/services/ble_service.dart';
 
 class BroadcastPage extends StatefulWidget {
-  final BluetoothDevice? device;
   final ScrollController scrollController;
   final bool isActive;
 
   const BroadcastPage({
-    super.key, 
-    this.device, 
+    super.key,
     required this.scrollController,
     required this.isActive,
-    });
+  });
 
   @override
   State<BroadcastPage> createState() => _BroadcastPageState();
@@ -27,8 +24,6 @@ class BroadcastPage extends StatefulWidget {
 class _BroadcastPageState extends State<BroadcastPage> {
   final TextEditingController _controller = TextEditingController();
 
-  // connection listener
-  StreamSubscription? _connectionSub;
   // data listener
   StreamSubscription? _dataSub;
 
@@ -49,40 +44,14 @@ class _BroadcastPageState extends State<BroadcastPage> {
     super.initState();
     _loadMessages();
 
-    _connectionSub = FlutterBluePlus.events.onConnectionStateChanged.listen((event) {
+    _dataSub = dataStream.listen((DbMessage msg) async {
       if (mounted) {
-        // redraw on connect or disconnect
-        setState(() {});
-      }
-    });
-
-    _dataSub = dataStream.listen((rawMsg) async {
-      if (mounted) {
-        // sent from ble stream with fragment info removed:
-        // SENDER_MAC;SENDER_USERNAME;COLOR_HEX;TARGET_MAC;TIMESTAMP;RSSI;PAYLOAD
-        final parts = rawMsg.split(';');
-
-        if (parts.length >= 7 && parts[3] == 'FFFFFFFF') {
-          AppLogger.log("CHAT", "Recieved broadcast message: $rawMsg");
-          final senderUsername = parts[1];
-          // use internal time if parsing fails
-          final timeStamp = int.tryParse(parts[4]) ?? (DateTime.now().millisecondsSinceEpoch ~/ 1000);
-          // join message in case there is ';' in it
-          final payload = parts.sublist(6).join(';');
-
+        if (msg.isBroadcast) {
           setState(() {
-            _messages.add(
-              DbMessage(
-                senderName: senderUsername,
-                content: payload,
-                isMe: false,
-                timestamp: timeStamp,
-                isBroadcast: true,
-              ),
-            );
+            _messages.add(msg);
           });
           
-          if(widget.isActive) {
+          if (widget.isActive) {
             await markBroadcastMessagesAsRead();
             await refreshUnreadCount();
           }
@@ -93,7 +62,6 @@ class _BroadcastPageState extends State<BroadcastPage> {
 
   @override
   void dispose() {
-    _connectionSub?.cancel();
     _dataSub?.cancel();
     super.dispose();
   }
@@ -133,9 +101,9 @@ class _BroadcastPageState extends State<BroadcastPage> {
       onSend: () async {
         final outMsg = _controller.text;
         if (outMsg.isEmpty) return;
-        
+
         _controller.clear();
-        
+
         final success = await sendBroadcastMsg(outMsg);
 
         final outgoingMessage = DbMessage(
@@ -148,8 +116,8 @@ class _BroadcastPageState extends State<BroadcastPage> {
         );
 
         await InsertMessage(outgoingMessage);
-        
-        if(!mounted) return;
+
+        if (!mounted) return;
 
         setState(() {
           _messages.add(outgoingMessage);

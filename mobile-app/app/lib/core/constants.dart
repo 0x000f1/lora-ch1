@@ -2,6 +2,8 @@
 
 const String broadcastMac = "FFFFFFFF";
 
+const String broadcastId = "FFFFFFFFFFFF";
+
 // max payload size of one fragment for broadcast messages
 const int maxFragmentBytes = 64;
 

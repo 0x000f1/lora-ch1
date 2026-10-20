@@ -12,10 +12,10 @@ import 'package:app/services/message_fragmenter.dart';
 import 'package:app/services/unread_service.dart';
 
 // finished messages (assambed, decryped and saved)
-final _dataStreamController = StreamController<String>.broadcast();
+final _messageStreamController = StreamController<DbMessage>.broadcast();
 
 // stream for finished messages
-Stream<String> get dataStream => _dataStreamController.stream;
+Stream<DbMessage> get dataStream => _messageStreamController.stream;
 
 StreamSubscription<String>? _rawDataSub;
 
@@ -41,32 +41,37 @@ Future<void> _handleRawPacket(String rawMsg) async {
 
   final processed = await processIncomingAssambledMessage(assambled);
 
-  await _saveIncomingMessageToDb(processed);
-  _dataStreamController.add(processed);
+  final savedMessage = await _saveIncomingMessageToDb(processed);
+  if (savedMessage == null) return;
+  
+  _messageStreamController.add(savedMessage);
 }
 
-Future<void> _saveIncomingMessageToDb(String rawMsg) async {
+Future<DbMessage?> _saveIncomingMessageToDb(String rawMsg) async {
   final parts = rawMsg.split(';');
-  if (parts.length >= 7) {
-    final senderMac = parts[0];
-    final senderUser = parts[1];
-    final targetMac = parts[3];
-    final timeStamp = int.tryParse(parts[4]) ?? (DateTime.now().millisecondsSinceEpoch ~/ 1000);
-    final payload = parts.sublist(6).join(';');
-    final isBroadcast = targetMac == broadcastMac;
+  if (parts.length < 7) return null;
+  
+  final senderMac = parts[0];
+  final senderUser = parts[1];
+  final targetMac = parts[3];
+  final timeStamp = int.tryParse(parts[4]) ?? (DateTime.now().millisecondsSinceEpoch ~/ 1000);
+  final payload = parts.sublist(6).join(';');
+  final isBroadcast = targetMac == broadcastMac;
 
-    final message = DbMessage(
-      peerMac: isBroadcast ? null : senderMac,
-      senderName: senderUser,
-      content: payload,
-      isMe: false,
-      timestamp: timeStamp,
-      isBroadcast: isBroadcast,
-      isRead: false,
-    );
-    await InsertMessage(message);
-    await refreshUnreadCount();
-  }
+  final message = DbMessage(
+    peerMac: isBroadcast ? null : senderMac,
+    senderName: senderUser,
+    content: payload,
+    isMe: false,
+    timestamp: timeStamp,
+    isBroadcast: isBroadcast,
+    isRead: false,
+  );
+
+  await InsertMessage(message);
+  await refreshUnreadCount();
+
+  return message;
 }
 
 Future<String> processIncomingAssambledMessage(String assambled) async {
@@ -116,14 +121,13 @@ Future<bool> _sendFragmentWithAck(String packet, String targetMac, int payloadBy
 // null while no message is being sent
 Completer<void>? _currentSend;
 
-
-// send every fragment, one at a time 
+// send every fragment, one at a time
 Future<bool> _sendMessage(String targetMac, String msg) async {
   // wait until another message is being sent
   while (_currentSend != null) {
     await _currentSend!.future;
   }
-  
+
   // mark send as busy
   _currentSend = Completer<void>();
   try {

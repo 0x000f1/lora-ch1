@@ -67,41 +67,18 @@ class _PrivatePageState extends State<PrivateChatPage> {
     activeChatMac = widget.device.mac;
     cancelChatNotification(widget.device.mac);
     _initializeChat();
-    _dataSub = dataStream.listen((rawMsg) async {
+    
+    // listen to fully processed messages
+    _dataSub = dataStream.listen((DbMessage msg) async {
       if (mounted) {
-        final parts = rawMsg.split(';');
-
-        if (parts.length >= 7) {
-          final senderMac = parts[0];
-          final targetMac = parts[3];
-          final timeStamp =
-              int.tryParse(parts[4]) ??
-              (DateTime.now().millisecondsSinceEpoch ~/ 1000);
-          final payload = parts.sublist(6).join(';');
-          AppLogger.log("CHAT", rawMsg);
-          if (senderMac == widget.device.mac && targetMac != "FFFFFFFF") {
-            AppLogger.log(
-              "CHAT",
-              "Recieved private message from ${widget.device.name}",
-            );
-            setState(() {
-              _messages.add(
-                DbMessage(
-                  peerMac: widget.device.mac,
-                  senderName: widget.device.name,
-                  content: payload,
-                  isMe: false,
-                  timestamp: timeStamp,
-                  isBroadcast: false,
-                  isRead: true
-                ),
-              );
-            });
-            
-            await markPrivateMessagesAsRead(widget.device.mac);
-            await refreshUnreadCount();
-          }
+        if(!msg.isBroadcast && msg.peerMac == widget.device.mac) {
+          setState(() {
+            msg.isRead = true;
+            _messages.add(msg);
+          });
         }
+        await markPrivateMessagesAsRead(widget.device.mac);
+        await refreshUnreadCount();
       }
     });
   }
@@ -142,10 +119,7 @@ class _PrivatePageState extends State<PrivateChatPage> {
 
               _controller.clear();
 
-              AppLogger.log(
-                "CHAT",
-                "Sent private message to ${widget.device.name}",
-              );
+              AppLogger.log("CHAT", "Sent private message to ${widget.device.name}");
               final outMessage = DbMessage(
                 peerMac: widget.device.mac,
                 senderName: "Me",
@@ -171,7 +145,7 @@ class _PrivatePageState extends State<PrivateChatPage> {
               setState(() {
                 outMessage.status = success ? 'delivered' : 'failed';
               });
-              
+
               await markMessageDelivery(messageId, success);
             },
           ),
