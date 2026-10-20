@@ -87,7 +87,7 @@ Future<void> markMessageDelivery(int id, bool isDelivered) async {
   );
 }
 
-Future<int> InsertMessage(DbMessage msg) async {
+Future<int> insertMessage(DbMessage msg) async {
   final db = await getDatabase();
   // returns id of the message inserted
   return await db.insert("messages", msg.toMap());
@@ -114,12 +114,14 @@ class DbMessage {
   final int? id;
   final String? peerMac;
   final String senderName;
-  final String content;
+  String content;
   final bool isMe;
   final int timestamp;
   final bool isBroadcast;
   String? status;
   bool isRead;
+  String? ciphertext;
+  String state;
 
   DbMessage({
     this.id,
@@ -131,6 +133,8 @@ class DbMessage {
     required this.isBroadcast,
     this.status,
     this.isRead = false,
+    this.ciphertext,
+    this.state = 'ok',
   });
 
   Map<String, dynamic> toMap() {
@@ -144,6 +148,8 @@ class DbMessage {
       'is_broadcast': isBroadcast ? 1 : 0,
       'status': status,
       'is_read': isRead ? 1 : 0,
+      'ciphertext': ciphertext,
+      'state': state,
     };
   }
 
@@ -156,7 +162,9 @@ class DbMessage {
       timestamp = (map['timestamp'] as int?) ?? 0,
       isBroadcast = ((map['is_broadcast'] as int?) ?? 0) == 1,
       status = map['status'] as String?,
-      isRead = ((map['is_read'] as int?) ?? 0) == 1;
+      isRead = ((map['is_read'] as int?) ?? 0) == 1,
+      ciphertext = map['ciphertext'] as String?,
+      state = (map['state'] as String?) ?? 'ok';
 }
 
 Future<Database> openChatDataBase() async {
@@ -187,7 +195,9 @@ Future<Database> openChatDataBase() async {
         timestamp INTEGER,
         is_broadcast INTEGER,
         status TEXT,
-        is_read INTEGER DEFAULT 0
+        is_read INTEGER DEFAULT 0,
+        ciphertext TEXT,
+        state TEXT
       )
       ''');
 
@@ -206,6 +216,26 @@ Future<Database> openChatDataBase() async {
       )
       ''');
     },
+  );
+}
+
+Future<List<DbMessage>> getUndecryptableMessages(String peerMac) async {
+  final db = await getDatabase();
+  final rows = await db.query(
+    'messages',
+    where: 'peer_mac = ? AND state = "undecryptable"',
+    whereArgs: [peerMac],
+  );
+  return rows.map((row) => DbMessage.fromMap(row)).toList();
+}
+
+Future<void> updateMessageContent(int id, String newContent, String newState) async {
+  final db = await getDatabase();
+  await db.update(
+    'messages',
+    {'content': newContent, 'state': newState, 'ciphertext': null},
+    where: 'id = ?',
+    whereArgs: [id],
   );
 }
 

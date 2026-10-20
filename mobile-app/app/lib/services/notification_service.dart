@@ -187,5 +187,9 @@ Future<void> _onMessage(DbMessage msg) async {
   
   // only skip it while the user is looking at this chat
   if (_isAppInForeground && activeChatMac == msg.peerMac) return;
+  
+  // dont show notification if message is missing a decryption key
+  if (msg.state == 'undecryptable') return;
+  
   await _showNotification(msg.peerMac!, msg.senderName, msg.content);
 }

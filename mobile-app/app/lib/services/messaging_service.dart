@@ -14,6 +14,10 @@ import 'package:app/services/unread_service.dart';
 // finished messages (assambed, decryped and saved)
 final _messageStreamController = StreamController<DbMessage>.broadcast();
 
+// trigger to notify UI to refresh chat when old messages are decrypted
+final _messageUpdateStreamController = StreamController<void>.broadcast();
+Stream<void> get messageUpdateStream => _messageUpdateStreamController.stream;
+
 // stream for finished messages
 Stream<DbMessage> get dataStream => _messageStreamController.stream;
 
@@ -39,18 +43,18 @@ Future<void> _handleRawPacket(String rawMsg) async {
   final assambled = handleIncomingFragments(rawMsg);
   if (assambled == null) return;
 
-  final processed = await processIncomingAssambledMessage(assambled);
 
-  final savedMessage = await _saveIncomingMessageToDb(processed);
+  final savedMessage = await _saveIncomingMessageToDb(assambled);
   if (savedMessage == null) return;
-  
+
   _messageStreamController.add(savedMessage);
 }
 
+// processes and saves incoming message, stores ciphertext if decryption fails
 Future<DbMessage?> _saveIncomingMessageToDb(String rawMsg) async {
   final parts = rawMsg.split(';');
   if (parts.length < 7) return null;
-  
+
   final senderMac = parts[0];
   final senderUser = parts[1];
   final targetMac = parts[3];
@@ -58,40 +62,70 @@ Future<DbMessage?> _saveIncomingMessageToDb(String rawMsg) async {
   final payload = parts.sublist(6).join(';');
   final isBroadcast = targetMac == broadcastMac;
 
+  // get decrypted text or fallback to storing raw payload with undecryptable state
+  final (content, ciphertext, state) = await processIncomingAssambledMessage(
+    senderMac,
+    targetMac,
+    payload,
+  );
+
   final message = DbMessage(
     peerMac: isBroadcast ? null : senderMac,
     senderName: senderUser,
-    content: payload,
+    content: content,
     isMe: false,
     timestamp: timeStamp,
     isBroadcast: isBroadcast,
     isRead: false,
+    ciphertext: ciphertext,
+    state: state,
   );
 
-  await InsertMessage(message);
+  await insertMessage(message);
   await refreshUnreadCount();
 
   return message;
 }
 
-Future<String> processIncomingAssambledMessage(String assambled) async {
-  final parts = assambled.split(';');
-  if (parts.length < 7) return assambled;
-
-  final senderMac = parts[0];
-  final targetMac = parts[3];
-  final isBroadcast = targetMac == broadcastMac;
-
-  if (isBroadcast) {
-    return assambled;
+// attempts to decrypt payload, returns record with content, raw ciphertext, and state
+Future<(String content, String? ciphertext, String state)> processIncomingAssambledMessage(
+  String senderMac,
+  String targetMac,
+  String payload,
+) async {
+  if (targetMac == broadcastMac) {
+    return (payload, null, 'ok');
   }
 
-  final encryptedPayload = parts.sublist(6).join(';');
-  AppLogger.log("ENC", "Recieved encrypted message: $encryptedPayload");
-  final decryptedText = await decryptIncomingPayload(senderMac, encryptedPayload);
-  final prefix = parts.sublist(0, 6).join(';');
+  try {
+    final decryptedText = await decryptIncomingPayload(senderMac, payload);
+    return (decryptedText, null, 'ok');
+  } catch (e) {
+    return ('', payload, 'undecryptable');
+  }
+}
 
-  return "$prefix;$decryptedText";
+// retries decryption for failed messages when a new key arrives
+Future<void> retryUndecryptableMessages(String peerMac) async {
+  final messages = await getUndecryptableMessages(peerMac);
+  bool updatedAny = false;
+  
+  for (var msg in messages) {
+    if(msg.ciphertext == null || msg.id == null) continue;
+    try {
+      final clearText = await decryptIncomingPayload(peerMac, msg.ciphertext!);
+      await updateMessageContent(msg.id!, clearText, 'ok');
+      updatedAny = true;
+    } catch (e) {
+      // keep as undecryptable
+    }
+
+  }
+  
+  // notify UI to refresh messages when any were successfully decrypted
+  if(updatedAny) {
+    _messageUpdateStreamController.add(null);
+  }
 }
 
 // returns true if a message got an ack_ok response, false otherwise

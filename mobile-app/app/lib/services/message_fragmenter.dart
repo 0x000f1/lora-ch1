@@ -60,11 +60,13 @@ String? handleIncomingFragments(String rawData) {
     return null;
   }
 
+  if (totalFragments > maxFragmentsPerMessage) return null;
+
   // send single fragment message instantly
   if (totalFragments <= 1) {
     return "$senderMac;$senderUsername;$colorHex;$targetMac;$timeStamp;$rssi;$payload";
   }
-  
+
   // use sendermac + timestamp as a key
   final String bufferKey = "${senderMac}_$timeStamp";
 
@@ -78,7 +80,10 @@ String? handleIncomingFragments(String rawData) {
   }
 
   slots[currentFragment - 1] = payload;
-  AppLogger.log("FRAG", "fragment $currentFragment/$totalFragments from $senderMac stored, fragbuffer = {$_fragBuffers}");
+  AppLogger.log(
+    "FRAG",
+    "fragment $currentFragment/$totalFragments from $senderMac stored, fragbuffer = {$_fragBuffers}",
+  );
 
   // wait until every fragment has arrived
   if (slots.contains(null)) {

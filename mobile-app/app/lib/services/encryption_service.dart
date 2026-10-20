@@ -6,6 +6,8 @@ import 'package:app/services/db_service.dart';
 import 'package:app/core/logger.dart';
 import 'package:cryptography/cryptography.dart';
 
+import 'package:app/services/messaging_service.dart';
+
 SimpleKeyPair? _myKeyPair;
 Future<SimpleKeyPair>? _initFuture;
 
@@ -90,12 +92,15 @@ Future<void> handleKeyExchangePacket(String rawMsg) async {
     await savePeerPublicKey(senderMac, pubKey);
     await _sendKeyExchange("KEY_RESP", senderMac, await _myPublicKeyBase64());
     AppLogger.log("ENC", "Saved key from $senderMac and sent KEY_RESP");
+    await retryUndecryptableMessages(senderMac);
     return;
   }
 
   if (type == "KEY_RESP") {
     await savePeerPublicKey(senderMac, pubKey);
     AppLogger.log("ENC", "Saved key from $senderMac");
+    
+    await retryUndecryptableMessages(senderMac);
   }
 }
 
@@ -121,7 +126,7 @@ Future<String> decryptIncomingPayload(String senderMac, String encryptedPayload)
     final peerPubKeyBase64 = await getPeerPublicKey(senderMac);
     if (peerPubKeyBase64 == null) {
       AppLogger.log("ENC", "No public key for $senderMac to decrypt");
-      return "[Failed to decrypt message. Key is missing.]";
+      throw Exception("Key is missing");
     }
     final sharedSecret = await _deriveSharedSecret(peerPubKeyBase64);
     return await CryptoService.decryptMessage(encryptedPayload, sharedSecret);
@@ -153,5 +158,5 @@ Future<String> _recoverAndDecrypt(String senderMac, String encryptedPayload) asy
     }
   }
   
-  return "[Error: Can't decrypt message.]";
+  throw Exception("Can't decrypt message");
 }

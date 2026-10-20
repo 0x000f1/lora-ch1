@@ -115,7 +115,7 @@ class _BroadcastPageState extends State<BroadcastPage> {
           status: success ? 'delivered' : 'failed',
         );
 
-        await InsertMessage(outgoingMessage);
+        await insertMessage(outgoingMessage);
 
         if (!mounted) return;
 

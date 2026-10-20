@@ -23,6 +23,7 @@ class _PrivatePageState extends State<PrivateChatPage> {
   final TextEditingController _controller = TextEditingController();
   final ScrollController _scrollController = ScrollController();
   StreamSubscription? _dataSub;
+  StreamSubscription? _updateSub;
 
   final List<DbMessage> _messages = [];
 
@@ -53,6 +54,7 @@ class _PrivatePageState extends State<PrivateChatPage> {
   @override
   void dispose() {
     _dataSub?.cancel();
+    _updateSub?.cancel();
     _controller.dispose();
     _scrollController.dispose();
     // only clear if no other chat was opened
@@ -67,11 +69,11 @@ class _PrivatePageState extends State<PrivateChatPage> {
     activeChatMac = widget.device.mac;
     cancelChatNotification(widget.device.mac);
     _initializeChat();
-    
+
     // listen to fully processed messages
     _dataSub = dataStream.listen((DbMessage msg) async {
       if (mounted) {
-        if(!msg.isBroadcast && msg.peerMac == widget.device.mac) {
+        if (!msg.isBroadcast && msg.peerMac == widget.device.mac) {
           setState(() {
             msg.isRead = true;
             _messages.add(msg);
@@ -79,6 +81,16 @@ class _PrivatePageState extends State<PrivateChatPage> {
         }
         await markPrivateMessagesAsRead(widget.device.mac);
         await refreshUnreadCount();
+      }
+    });
+
+    // listen to message recovery updates and reload chat
+    _updateSub = messageUpdateStream.listen((_) {
+      if (mounted) {
+        setState(() {
+          _messages.clear();
+        });
+        _loadMessages();
       }
     });
   }
@@ -99,7 +111,7 @@ class _PrivatePageState extends State<PrivateChatPage> {
                 // build messages in reverse so scrollcontroller can jump to bottom while loading messages
                 final msg = _messages[_messages.length - 1 - index];
                 return ChatBubble(
-                  text: msg.content,
+                  text: msg.state == 'ok' ? msg.content : "[Encrypted message]",
                   senderName: msg.isMe ? "Me" : widget.device.name,
                   isMe: msg.isMe,
                   timeStamp: msg.timestamp,
@@ -130,7 +142,7 @@ class _PrivatePageState extends State<PrivateChatPage> {
                 status: 'sent',
               );
 
-              final messageId = await InsertMessage(outMessage);
+              final messageId = await insertMessage(outMessage);
 
               if (!mounted) return;
 
