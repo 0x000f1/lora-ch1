@@ -2,6 +2,7 @@
 
 import 'package:sqflite/sqflite.dart';
 import 'package:path/path.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
 Database? _db;
 
@@ -202,14 +203,6 @@ Future<Database> openChatDataBase() async {
       ''');
 
       await db.execute('''
-      CREATE TABLE my_keys (
-      id INTEGER PRIMARY KEY,
-      private_key TEXT,
-      public_key TEXT
-      )
-      ''');
-
-      await db.execute('''
       CREATE TABLE peer_keys (
       peer_mac TEXT PRIMARY KEY,
       public_key TEXT
@@ -271,22 +264,22 @@ class DbPeer {
       lastSeen = map['last_seen'] as int?;
 }
 
+const _secureStorage = FlutterSecureStorage();
+
 Future<void> saveMyKeys(String privateKey, String publicKey) async {
-  final db = await getDatabase();
-  await db.insert('my_keys', {
-    'id': 1,
-    'private_key': privateKey,
-    'public_key': publicKey,
-  }, conflictAlgorithm: .replace);
+  await _secureStorage.write(key: 'my_private_key', value: privateKey);
+  await _secureStorage.write(key: 'my_public_key', value: publicKey);
 }
 
 Future<Map<String, String>?> getMyKeys() async {
-  final db = await getDatabase();
-  final rows = await db.query('my_keys', where: 'id = 1', limit: 1);
-  if (rows.isEmpty) return null;
+  final privateKey = await _secureStorage.read(key: 'my_private_key');
+  final publicKey = await _secureStorage.read(key: 'my_public_key');
+  
+  if(privateKey == null || publicKey == null) return null;
+  
   return {
-    'private_key': rows.first['private_key'] as String,
-    'public_key': rows.first['public_key'] as String,
+    'private_key': privateKey,
+    'public_key': publicKey,
   };
 }
 

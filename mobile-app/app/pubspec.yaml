@@ -20,6 +20,7 @@ dependencies:
   cryptography: ^2.9.0
   flutter_local_notifications: ^22.3.2
   shared_preferences: ^2.5.6
+  flutter_secure_storage: ^11.2.0
 
 dev_dependencies:
   flutter_test:

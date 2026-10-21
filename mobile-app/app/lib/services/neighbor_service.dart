@@ -17,8 +17,6 @@ class PeerDevice {
   final int timeStamp;
   final String colorHex;
 
-  final double? latitude;
-  final double? longitude;
 
   const PeerDevice({
     required this.mac,
@@ -26,8 +24,6 @@ class PeerDevice {
     required this.name,
     required this.timeStamp,
     required this.colorHex,
-    this.latitude,
-    this.longitude,
   });
 
   PeerDevice.fromDb(DbPeer peer)
@@ -35,9 +31,7 @@ class PeerDevice {
       name = peer.name,
       colorHex = peer.colorHex ?? '0088FF',
       rssi = peer.rssi ?? '-100',
-      timeStamp = peer.lastSeen ?? 0,
-      latitude = 0,
-      longitude = 0;
+      timeStamp = peer.lastSeen ?? 0;
 }
 
 final ValueNotifier<List<PeerDevice>> neighbors = ValueNotifier([]);

@@ -59,8 +59,9 @@ String? handleIncomingFragments(String rawData) {
       currentFragment > totalFragments) {
     return null;
   }
-
-  if (totalFragments > maxFragmentsPerMessage) return null;
+  
+  // maxfragments + 1 for any cut off multi-byte characters
+  if (totalFragments > maxFragmentsPerMessage + 1) return null;
 
   // send single fragment message instantly
   if (totalFragments <= 1) {
