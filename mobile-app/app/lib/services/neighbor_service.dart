@@ -1,6 +1,7 @@
 // neighbor handling: GET_NEI polling, parsing, saving peers to db and key requests
 
 import 'dart:async';
+import 'package:app/core/color_utils.dart';
 import 'package:app/core/constants.dart';
 import 'package:flutter/foundation.dart';
 
@@ -77,8 +78,15 @@ void _handleNeiPacket(String rawMsg) async {
     if (deviceData.length < 7) return;
     AppLogger.log("MESH", "Parsed device data: $deviceData");
     final mac = deviceData[0];
-    final name = deviceData[1];
-    final colorHex = deviceData[2];
+    
+    // remove delimiters 
+    final rawName = deviceData[1];
+    String name = rawName.replaceAll(RegExp(r'[;|]'), '').trim();
+    name = name.length > 16 ? name.substring(0,16) : (name.isEmpty ? "Unknown" : name);
+    
+    // validate hex before saving
+    final rawColorHex = deviceData[2];
+    final colorHex = hexToColor(rawColorHex) != null ? rawColorHex : '0088FF';
     final rssi = deviceData[3];
     int timeStamp = int.tryParse(deviceData[4]) ?? 0;
     if (timeStamp < minValidUnixStamp) {
