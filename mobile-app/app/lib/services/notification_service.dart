@@ -39,7 +39,7 @@ Future<void> setPrivateNotifications(bool value) async {
 }
 
 Future<void> setBroadcastNotifications(bool value) async {
-  privateNotificationSetting.value = value;
+  broadcastNotificationSetting.value = value;
   final prefs = await SharedPreferences.getInstance();
   await prefs.setBool('pref_broadcast_notif', value);
 }
