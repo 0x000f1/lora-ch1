@@ -333,15 +333,6 @@ class _SettingsPageState extends State<SettingsPage> {
     );
   }
 
-  // Widget _buildLocationSwitch() {
-  //   return _buildToggleSwitch(
-  //     Icons.location_on_rounded,
-  //     Colors.teal.shade300,
-  //     "Share location",
-  //     locationSetting,
-  //     _updateLocationSetting,
-  //   );
-  // }
 
   Widget _buildVibrationSwitch() {
     return _buildToggleSwitch(
@@ -370,21 +361,7 @@ class _SettingsPageState extends State<SettingsPage> {
     }
   }
 
-  Future<void> _updateLocationSetting(bool value) async {
-    final messenger = ScaffoldMessenger.of(context);
-    final previousValue = locationSetting.value;
-
-    locationSetting.value = value;
-
-    final success = await setLocationSharing(value);
-
-    if (!success) {
-      locationSetting.value = previousValue;
-      if (mounted) {
-        messenger.showSnackBar(SnackBar(content: Text("Failed to update location sharing")));
-      }
-    }
-  }
+ 
 
   Widget _buildDeviceActionButton({
     required IconData icon,

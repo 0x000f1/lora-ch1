@@ -6,13 +6,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter_blue_plus/flutter_blue_plus.dart';
 
 import 'package:app/core/logger.dart';
-import 'package:app/services/location_service.dart';
 import 'package:app/services/device_commands.dart';
 import 'package:app/services/message_fragmenter.dart';
 import 'package:app/services/ble_transport.dart';
 import 'package:app/services/messaging_service.dart';
 
-export 'package:app/services/location_service.dart';
 export 'package:app/services/device_commands.dart';
 export 'package:app/services/encryption_service.dart';
 export 'package:app/services/message_fragmenter.dart';
@@ -56,10 +54,8 @@ void initConnectionListener() {
 
     if (connected) {
       startBatteryUpdates();
-      // startLocationUpdates();
     } else {
       clearFragmentBuffers();
-      // stopLocationUpdates();
       stopBatteryUpdates();
       stopNeighborProcessing();
     }
