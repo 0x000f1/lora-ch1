@@ -14,7 +14,7 @@
 #define CODING_RATE 5
 #define SYNC_WORD 0x12
 #define POWER 10
-#define PREAMBLE_LENGTH 12 // 1 symbol: 2.048ms, 12 symbol ~ 25ms)
+#define PREAMBLE_LENGTH 12 // SF9, BW125 -> 1 symbol: 4.096ms, 12 symbol ~ 49.15ms)
 #define GAIN 0
 
 #define LORA_SCK  4
