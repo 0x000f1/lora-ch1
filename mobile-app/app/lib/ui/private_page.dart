@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'package:app/services/ble_transport.dart';
 import 'package:flutter/material.dart';
 
 import 'package:app/ui/private_chat.dart';

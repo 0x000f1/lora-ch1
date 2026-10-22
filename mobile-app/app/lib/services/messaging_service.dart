@@ -58,7 +58,13 @@ Future<DbMessage?> _saveIncomingMessageToDb(String rawMsg) async {
   final senderMac = parts[0];
   final senderUser = parts[1];
   final targetMac = parts[3];
-  final timeStamp = int.tryParse(parts[4]) ?? (DateTime.now().millisecondsSinceEpoch ~/ 1000);
+  
+  // if timestamp is too low (failed to set), use device time
+  int timeStamp = int.tryParse(parts[4]) ?? 0;
+  if (timeStamp < minValidUnixStamp) {
+    timeStamp = DateTime.now().millisecondsSinceEpoch ~/ 1000;
+  }
+  
   final payload = parts.sublist(6).join(';');
   final isBroadcast = targetMac == broadcastMac;
 

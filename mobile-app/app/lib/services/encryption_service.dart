@@ -1,6 +1,7 @@
 // encryption logic, key exchange, and payload decryption
 
 import 'package:app/services/ble_service.dart';
+import 'package:app/services/ble_transport.dart';
 import 'package:app/services/crypto.dart';
 import 'package:app/services/db_service.dart';
 import 'package:app/core/logger.dart';

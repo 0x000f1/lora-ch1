@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'package:app/services/messaging_service.dart';
 import 'package:flutter/material.dart';
 
 import 'package:app/services/unread_service.dart';

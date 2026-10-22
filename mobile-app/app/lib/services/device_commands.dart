@@ -1,5 +1,6 @@
 // device configuration and getters (battery, username, color, haptics, etc)
 
+import 'package:app/services/ble_transport.dart';
 import 'package:flutter/foundation.dart';
 import 'dart:async';
 

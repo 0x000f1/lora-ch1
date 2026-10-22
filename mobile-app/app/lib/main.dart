@@ -1,6 +1,8 @@
 import 'dart:async';
 
 import 'package:app/core/logger.dart';
+import 'package:app/services/ble_transport.dart';
+import 'package:app/services/device_commands.dart';
 import 'package:app/services/notification_service.dart';
 import 'package:app/ui/private_chat.dart';
 import 'package:flutter/material.dart';

@@ -11,12 +11,6 @@ import 'package:app/services/message_fragmenter.dart';
 import 'package:app/services/ble_transport.dart';
 import 'package:app/services/messaging_service.dart';
 
-export 'package:app/services/device_commands.dart';
-export 'package:app/services/encryption_service.dart';
-export 'package:app/services/message_fragmenter.dart';
-export 'package:app/services/ble_transport.dart';
-export 'package:app/services/messaging_service.dart';
-
 // stores discovered data and control characteristics
 List<BluetoothCharacteristic> _foundChars = [];
 List<BluetoothCharacteristic> get chars => _foundChars;
