@@ -72,6 +72,7 @@ Future<bool> connectAndSetupDevice(BluetoothDevice device) async {
   
   try {
     await device.connect();
+    device.requestMtu(517);
     List<BluetoothService> services = await device.discoverServices();
 
     for (var service in services) {

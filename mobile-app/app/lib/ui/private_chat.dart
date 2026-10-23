@@ -111,6 +111,17 @@ class _PrivatePageState extends State<PrivateChatPage> {
               itemBuilder: (context, index) {
                 // build messages in reverse so scrollcontroller can jump to bottom while loading messages
                 final msg = _messages[_messages.length - 1 - index];
+                // display system messages (key exchange warning) seperately
+                if (msg.status == 'system') {
+                  return Padding(
+                    padding: const .symmetric(vertical: 12, horizontal: 7),
+                    child: Text(
+                      msg.content,
+                      style: TextStyle(color: Colors.red.shade300, fontSize: 11),
+                      textAlign: .center
+                    ),
+                  );
+                }
                 return ChatBubble(
                   text: msg.state == 'ok' ? msg.content : "[Encrypted message]",
                   senderName: msg.isMe ? "Me" : widget.device.name,

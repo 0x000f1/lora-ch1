@@ -89,6 +89,23 @@ Future<void> handleKeyExchangePacket(String rawMsg) async {
 
   if (pubKey.isEmpty) return;
 
+  final existingKey = await getPeerPublicKey(senderMac);
+
+  if (existingKey != null && existingKey != pubKey) {
+    AppLogger.log("ENC", "Key changed for $senderMac. Inserting warning");
+
+    final warningMsg = DbMessage(
+      peerMac: senderMac,
+      senderName: "System",
+      content: "Warning. Device may have changed to a different user",
+      isMe: false,
+      timestamp: DateTime.now().millisecondsSinceEpoch ~/ 1000,
+      isBroadcast: false,
+      state: "system",
+    );
+    await insertMessage(warningMsg);
+  }
+
   if (type == 'KEY_REQ') {
     await savePeerPublicKey(senderMac, pubKey);
     await _sendKeyExchange("KEY_RESP", senderMac, await _myPublicKeyBase64());
@@ -100,7 +117,7 @@ Future<void> handleKeyExchangePacket(String rawMsg) async {
   if (type == "KEY_RESP") {
     await savePeerPublicKey(senderMac, pubKey);
     AppLogger.log("ENC", "Saved key from $senderMac");
-    
+
     await retryUndecryptableMessages(senderMac);
   }
 }
@@ -142,6 +159,8 @@ Future<String> decryptIncomingPayload(String senderMac, String encryptedPayload)
 Future<String> _recoverAndDecrypt(String senderMac, String encryptedPayload) async {
   AppLogger.log("ENC", "Attempting to recover key for $senderMac");
 
+  final oldKey = await getPeerPublicKey(senderMac);
+
   await deletePeerPublicKey(senderMac);
   await checkAndRequestKey(senderMac);
 
@@ -149,15 +168,28 @@ Future<String> _recoverAndDecrypt(String senderMac, String encryptedPayload) asy
     await Future.delayed(const Duration(milliseconds: 500));
 
     final newKey = await getPeerPublicKey(senderMac);
-    if (newKey == null) continue;
+    if (newKey == null || newKey == oldKey) continue;
 
     try {
       final newSharedSecret = await _deriveSharedSecret(newKey);
-      return await CryptoService.decryptMessage(encryptedPayload, newSharedSecret);
+      final decryptedText = await CryptoService.decryptMessage(encryptedPayload, newSharedSecret);
+
+      final warningMsg = DbMessage(
+        peerMac: senderMac,
+        senderName: 'System',
+        content: "[Warning] Device may have changed to a different user.",
+        isMe: false,
+        timestamp: DateTime.now().millisecondsSinceEpoch ~/ 1000,
+        isBroadcast: false,
+        status: 'system'
+      );
+      await insertMessage(warningMsg);
+      
+      return decryptedText;
     } catch (_) {
       break;
     }
   }
-  
+
   throw Exception("Can't decrypt message");
 }
