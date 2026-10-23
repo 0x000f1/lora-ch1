@@ -70,7 +70,7 @@ Future<void> setupBleCommunication(
 
 // write to data/control characteristic
 Future<bool> _writeToCharacteristics(BluetoothCharacteristic? char, String msg, String charName) async {
-  if(char == null || isDeviceConnected.value) return false;
+  if(char == null || !isDeviceConnected.value) return false;
   
   try {
     await char.write(utf8.encode(msg));
