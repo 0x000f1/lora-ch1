@@ -161,6 +161,7 @@ class controlCharStatusCallbacks : public NimBLECharacteristicCallbacks {
                                             lonInt, lonFrac); // %.6f
                     response += responseBuffer;
                 }
+                response += "END";
                 nimBleChar->setValue(response);
             }
             nimBleChar->notify();
