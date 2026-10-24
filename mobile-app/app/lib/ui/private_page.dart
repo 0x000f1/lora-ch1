@@ -24,7 +24,11 @@ class PrivatePage extends StatelessWidget {
         builder: (context, devices, _) {
           return RefreshIndicator(
             onRefresh: () async {
-              await sendOnControlChar("GET_NEI");
+              try {
+                await sendOnControlChar("GET_NEI").timeout(const Duration(seconds: 5));
+              } catch (e) {
+                AppLogger.log("MESH", "GET_NEI request failed");
+              }
               // delayed to show loading animation and recieve neighbors data
               await Future.delayed(const Duration(seconds: 1));
             },

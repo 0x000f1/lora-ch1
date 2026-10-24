@@ -42,7 +42,7 @@ class ChatBubble extends StatelessWidget {
       // message sent, and either peer failed to recieve it, or BLE failed to send it
       // on broadcast messages, this only fails if BLE failed to send it
       case 'failed':
-        icon = Icons.error_outline_rounded;
+        icon = Icons.question_mark_rounded;
         color = Colors.red;
         break;
       // messege sent, and peer recieved it

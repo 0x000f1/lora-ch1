@@ -9,14 +9,9 @@ import 'package:app/services/db_service.dart';
 import 'package:app/services/ble_service.dart';
 
 class BroadcastPage extends StatefulWidget {
-  final ScrollController scrollController;
   final bool isActive;
 
-  const BroadcastPage({
-    super.key,
-    required this.scrollController,
-    required this.isActive,
-  });
+  const BroadcastPage({super.key, required this.isActive});
 
   @override
   State<BroadcastPage> createState() => _BroadcastPageState();
@@ -24,6 +19,8 @@ class BroadcastPage extends StatefulWidget {
 
 class _BroadcastPageState extends State<BroadcastPage> {
   final TextEditingController _controller = TextEditingController();
+
+  final ScrollController _scrollController = ScrollController();
 
   // data listener
   StreamSubscription? _dataSub;
@@ -40,6 +37,14 @@ class _BroadcastPageState extends State<BroadcastPage> {
     }
   }
 
+  void _scrollToBottom() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (_scrollController.hasClients) {
+        _scrollController.jumpTo(0.0);
+      }
+    });
+  }
+
   @override
   void initState() {
     super.initState();
@@ -51,7 +56,7 @@ class _BroadcastPageState extends State<BroadcastPage> {
           setState(() {
             _messages.add(msg);
           });
-          
+
           if (widget.isActive) {
             await markBroadcastMessagesAsRead();
             await refreshUnreadCount();
@@ -64,6 +69,8 @@ class _BroadcastPageState extends State<BroadcastPage> {
   @override
   void dispose() {
     _dataSub?.cancel();
+    _controller.dispose();
+    _scrollController.dispose();
     super.dispose();
   }
 
@@ -73,11 +80,12 @@ class _BroadcastPageState extends State<BroadcastPage> {
       children: [
         Expanded(
           child: ListView.builder(
-            controller: widget.scrollController,
+            controller: _scrollController,
+            reverse: true,
             padding: const EdgeInsets.all(16),
             itemCount: _messages.length,
             itemBuilder: (context, index) {
-              final msg = _messages[index];
+              final msg = _messages[_messages.length - 1 - index];
               return ChatBubble(
                 text: msg.content,
                 senderName: msg.senderName,
@@ -123,6 +131,7 @@ class _BroadcastPageState extends State<BroadcastPage> {
         setState(() {
           _messages.add(outgoingMessage);
         });
+        _scrollToBottom();
       },
     );
   }

@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:app/core/color_utils.dart';
 import 'package:app/services/notification_service.dart';
+import 'package:app/core/logger.dart';
 
 import 'package:app/services/ble_service.dart';
 
@@ -40,6 +41,14 @@ class _SettingsPageState extends State<SettingsPage> {
 
   // keeps track of whether the device is restarting or resetting
   bool get _isBusy => _isResettingDevice || _isRestartingDevice;
+  
+  // close the route this widget lives on
+  void _closeThisRoute() {
+    // find the route that contains this widget
+    final route = ModalRoute.of(context);
+    // remove this route from navigator stack
+    if(route != null) Navigator.of(context).removeRoute(route);
+  }
 
   Widget _buildUserProfile() {
     final colors = Theme.of(context).colorScheme;
@@ -335,7 +344,6 @@ class _SettingsPageState extends State<SettingsPage> {
     );
   }
 
-
   Widget _buildVibrationSwitch() {
     return _buildToggleSwitch(
       Icons.vibration_rounded,
@@ -362,8 +370,6 @@ class _SettingsPageState extends State<SettingsPage> {
       }
     }
   }
-
- 
 
   Widget _buildDeviceActionButton({
     required IconData icon,
@@ -424,23 +430,29 @@ class _SettingsPageState extends State<SettingsPage> {
 
     final messenger = ScaffoldMessenger.of(context);
 
-    try {
-      setState(() {
-        _isRestartingDevice = true;
-      });
+    setState(() {
+      _isRestartingDevice = true;
+    });
 
+    try {
       final success = await restartDevice();
 
       if (!success) {
         messenger.showSnackBar(const SnackBar(content: Text("Failed to restart device.")));
-
-        if (mounted) {
-          setState(() {
-            _isRestartingDevice = false;
-          });
-        }
+      } else {
+        // on success: page closes itself
+        // if unsuccessful: wait max 10 seconds, then unlock UI
+        await Future.delayed(Duration(seconds: 10));
       }
-    } catch (e) {}
+    } catch (e) {
+      AppLogger.log("SETT", "Restart error $e");
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isRestartingDevice = false;
+        });
+      }
+    }
   }
 
   // send factory reset request
@@ -453,11 +465,18 @@ class _SettingsPageState extends State<SettingsPage> {
       _isResettingDevice = true;
     });
 
-    final success = await factoryResetDevice();
+    try {
+      final success = await factoryResetDevice();
 
-    if (!success) {
-      messenger.showSnackBar(const SnackBar(content: Text("Failed to reset device.")));
-
+      if (!success) {
+        messenger.showSnackBar(const SnackBar(content: Text("Failed to restart device.")));
+      } else {
+        // wait for disconnect, unlock after 10s (same as restartDevice)
+        await Future.delayed(Duration(seconds: 10));
+      }
+    } catch (e) {
+      AppLogger.log("SETT", "Factory reset error error $e");
+    } finally {
       if (mounted) {
         setState(() {
           _isResettingDevice = false;
@@ -577,7 +596,7 @@ class _SettingsPageState extends State<SettingsPage> {
   // go back if the device disconnected
   void _handleConnectionChanged() {
     if (!isDeviceConnected.value && mounted) {
-      Navigator.of(context).pop();
+      _closeThisRoute();
     }
   }
 

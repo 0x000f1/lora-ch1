@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:ui';
 
 import 'package:app/core/logger.dart';
 import 'package:app/services/ble_transport.dart';
@@ -26,6 +27,17 @@ Future<void> main() async {
 
   // needed because plugins are used before runApp
   WidgetsFlutterBinding.ensureInitialized();
+
+  // catch errors outside flutter framework
+  FlutterError.onError = (details) {
+    FlutterError.presentError(details);
+    AppLogger.log("ERROR", "Flutter error: ${details.exceptionAsString()}");
+  };
+
+  PlatformDispatcher.instance.onError = (error, stack) {
+    AppLogger.log("ERROR", "Uncaught async error: $error\n$stack");
+    return true;
+  };
 
   await initNotifications();
   await requestNotificationPermission();
@@ -106,12 +118,12 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
       AppLogger.log("NOTIF", "Canceled. Peer $peerMac not found");
       return;
     }
-    
+
     // change background UI to private tab
-    if(tabController.index != 0) {
+    if (tabController.index != 0) {
       tabController.animateTo(0);
     }
-    
+
     AppLogger.log("NOTIF", "Navigation started to Private Chat for peer $peerMac");
     navigatorKey.currentState?.push(
       MaterialPageRoute(
@@ -226,7 +238,7 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
           children: [
             //const Center(child: Text("Private Chats")),
             PrivatePage(scrollController: controller),
-            BroadcastPage(scrollController: controller, isActive: currentPage == 1),
+            BroadcastPage(isActive: currentPage == 1),
           ],
         ),
         child: TabBar(

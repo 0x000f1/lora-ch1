@@ -32,6 +32,14 @@ class _BtScanSheetState extends State<_BtScanSheet> {
     _startDiscovery();
   }
 
+  // close the route this widget lives on
+  void _closeThisRoute() {
+    // find the route that contains this widget
+    final route = ModalRoute.of(context);
+    // remove this route from navigator stack
+    if (route != null) Navigator.of(context).removeRoute(route);
+  }
+
   void _startDiscovery() async {
     startBluetoothDeviceScan((combinedDevices) {
       if (mounted) {
@@ -47,15 +55,15 @@ class _BtScanSheetState extends State<_BtScanSheet> {
 
     bool success = await connectAndSetupDevice(device);
 
-    if (mounted) {
-      if (success) {
-        Navigator.pop(context);
-      } else {
-        setState(() => _connectIndex = null);
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(const SnackBar(content: Text("Connection or channel setup failed")));
-      }
+    if (!mounted) return;
+
+    if (success) {
+      _closeThisRoute();
+    } else {
+      setState(() => _connectIndex = null);
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text("Connection or channel setup failed")));
     }
   }
 

@@ -96,12 +96,13 @@ Future<void> handleKeyExchangePacket(String rawMsg) async {
 
     final warningMsg = DbMessage(
       peerMac: senderMac,
-      senderName: "System",
-      content: "Warning. Device may have changed to a different user",
-      isMe: false,
+      senderName: 'System',
+      content: "[Warning] Device may have changed to a different user.",
+      isMe: true,
       timestamp: DateTime.now().millisecondsSinceEpoch ~/ 1000,
       isBroadcast: false,
-      state: "system",
+      isRead: true,
+      status: 'system',
     );
     await insertMessage(warningMsg);
   }
@@ -178,13 +179,14 @@ Future<String> _recoverAndDecrypt(String senderMac, String encryptedPayload) asy
         peerMac: senderMac,
         senderName: 'System',
         content: "[Warning] Device may have changed to a different user.",
-        isMe: false,
+        isMe: true,
         timestamp: DateTime.now().millisecondsSinceEpoch ~/ 1000,
         isBroadcast: false,
-        status: 'system'
+        isRead: true,
+        status: 'system',
       );
       await insertMessage(warningMsg);
-      
+
       return decryptedText;
     } catch (_) {
       break;

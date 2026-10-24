@@ -28,7 +28,7 @@ Future<int> getTotalUnreadPrivateCount() async {
   final rows = await db.query(
     'messages',
     columns: ['id'],
-    where: 'is_broadcast = 0 AND is_me = 0 AND is_read = 0',
+    where: 'is_broadcast = 0 AND is_me = 0 AND is_read = 0 AND peer_mac IN (SELECT mac FROM peers)',
   );
   return rows.length;
 }
