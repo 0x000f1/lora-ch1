@@ -139,7 +139,7 @@ Future<void> startBluetoothDeviceScan(Function(List<BluetoothDevice>) onDevicesU
 
   try {
     // fine location needed on android for scanning
-    await FlutterBluePlus.startScan(timeout: Duration(seconds: 30), androidUsesFineLocation: true);
+    await FlutterBluePlus.startScan(timeout: Duration(seconds: 30));
 
     _scanSub = FlutterBluePlus.scanResults.listen((results) {
       final scanned = results

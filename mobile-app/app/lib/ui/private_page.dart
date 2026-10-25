@@ -56,6 +56,30 @@ class PrivatePage extends StatelessWidget {
                                     await refreshUnreadCount();
                                   }
                                 : null,
+                            onLongPress: () {
+                              showDialog(
+                                context: context,
+                                builder: (dialogContext) => AlertDialog(
+                                  title: const Text("Hide User"),
+                                  content: Text("Are you sure you want to hide ${device.name}?"),
+                                  actions: [
+                                    TextButton(
+                                      onPressed: () => Navigator.pop(dialogContext),
+                                      child: const Text("Cancel"),
+                                    ),
+                                    TextButton(
+                                      onPressed: () async {
+                                        Navigator.pop(dialogContext);
+                                        await setPeerHidden(device.mac, true);
+                                        await loadSavedPeers();
+                                        await refreshUnreadCount();
+                                      },
+                                      child: const Text("Hide", style: TextStyle(color: Colors.redAccent)),
+                                    ),
+                                  ],
+                                ),
+                              );
+                            },
                             leading: CircleAvatar(
                               backgroundColor: hexToColor(device.colorHex),
                               child: const Icon(Icons.person, color: Colors.white),
@@ -127,7 +151,6 @@ Widget getSignalIconFromRssi(String rssiStr, int timeStamp) {
   }
 
   double rssi = double.tryParse(rssiStr) ?? -100;
-  AppLogger.log("[MESH]", "RSSI Value: $rssiStr");
   IconData iconData;
   Color iconColor;
 

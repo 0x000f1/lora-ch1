@@ -176,7 +176,27 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
     final colors = Theme.of(context).colorScheme;
     return Scaffold(
       appBar: AppBar(
-        title: const Text("BT Mesh Chat"),
+        title: GestureDetector(
+          onTap: () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (context) {
+                  final devices = FlutterBluePlus.connectedDevices;
+                  final deviceName = devices.isNotEmpty ? devices.first.platformName : "Unknown";
+
+                  return SettingsPage(deviceName: deviceName);
+                },
+              ),
+            );
+          },
+          child: ValueListenableBuilder(
+            valueListenable: usernameSetting,
+            builder: (context, value, child) {
+              return Text(usernameSetting.value);
+            }
+          ),
+        ),
         actions: [
           ValueListenableBuilder<bool>(
             valueListenable: isDeviceConnected,

@@ -35,6 +35,8 @@ Future<void> initializeDeviceSettings() async {
   
   String? deviceId = await getDeviceId();
   if (deviceId != null) {
+    // refresh ui immidiately to not show own device
+    loadSavedPeers();
     myDeviceId.value = deviceId;
   }
 }

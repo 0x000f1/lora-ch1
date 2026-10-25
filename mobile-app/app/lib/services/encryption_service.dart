@@ -64,10 +64,21 @@ Future<SimpleKeyPair> _loadOrGenerateKeys() async {
   return _myKeyPair!;
 }
 
+// keep track of last request to not send a request to a device with no user (and no key)
+final Map<String, int> _lastKeyRequestTime = {};
+
 Future<void> checkAndRequestKey(String neighborMac) async {
   final existingKey = await getPeerPublicKey(neighborMac);
 
   if (existingKey != null) return;
+
+  final now = DateTime.now().millisecondsSinceEpoch ~/ 1000;
+  final lastRequest = _lastKeyRequestTime[neighborMac] ?? 0;
+
+  // if last request was less then 3 minutes ago, dont send a new one
+  if (now - lastRequest < 180) return;
+
+  _lastKeyRequestTime[neighborMac] = now;
 
   await _sendKeyExchange("KEY_REQ", neighborMac, await _myPublicKeyBase64());
 }
@@ -105,21 +116,19 @@ Future<void> handleKeyExchangePacket(String rawMsg) async {
       status: 'system',
     );
     await insertMessage(warningMsg);
+    notifyMessagesUpdated();
   }
 
   if (type == 'KEY_REQ') {
     await savePeerPublicKey(senderMac, pubKey);
     await _sendKeyExchange("KEY_RESP", senderMac, await _myPublicKeyBase64());
     AppLogger.log("ENC", "Saved key from $senderMac and sent KEY_RESP");
-    await retryUndecryptableMessages(senderMac);
     return;
   }
 
   if (type == "KEY_RESP") {
     await savePeerPublicKey(senderMac, pubKey);
     AppLogger.log("ENC", "Saved key from $senderMac");
-
-    await retryUndecryptableMessages(senderMac);
   }
 }
 
@@ -140,7 +149,7 @@ Future<String?> encryptOutgoingPayload(String targetMac, String payload) async {
   }
 }
 
-Future<String> decryptIncomingPayload(String senderMac, String encryptedPayload) async {
+Future<String?> decryptIncomingPayload(String senderMac, String encryptedPayload) async {
   try {
     final peerPubKeyBase64 = await getPeerPublicKey(senderMac);
     if (peerPubKeyBase64 == null) {
@@ -151,47 +160,10 @@ Future<String> decryptIncomingPayload(String senderMac, String encryptedPayload)
     return await CryptoService.decryptMessage(encryptedPayload, sharedSecret);
   } catch (e) {
     AppLogger.log("ENC", "Decrypting error from $senderMac: $e");
-    return await _recoverAndDecrypt(senderMac, encryptedPayload);
-  }
-}
-
-// request a new key when decryption fails,
-// in case the database stored a previously generated key from a different phone
-Future<String> _recoverAndDecrypt(String senderMac, String encryptedPayload) async {
-  AppLogger.log("ENC", "Attempting to recover key for $senderMac");
-
-  final oldKey = await getPeerPublicKey(senderMac);
-
-  await deletePeerPublicKey(senderMac);
-  await checkAndRequestKey(senderMac);
-
-  for (int i = 0; i < 10; i++) {
-    await Future.delayed(const Duration(milliseconds: 500));
-
-    final newKey = await getPeerPublicKey(senderMac);
-    if (newKey == null || newKey == oldKey) continue;
-
     try {
-      final newSharedSecret = await _deriveSharedSecret(newKey);
-      final decryptedText = await CryptoService.decryptMessage(encryptedPayload, newSharedSecret);
-
-      final warningMsg = DbMessage(
-        peerMac: senderMac,
-        senderName: 'System',
-        content: "[Warning] Device may have changed to a different user.",
-        isMe: true,
-        timestamp: DateTime.now().millisecondsSinceEpoch ~/ 1000,
-        isBroadcast: false,
-        isRead: true,
-        status: 'system',
-      );
-      await insertMessage(warningMsg);
-
-      return decryptedText;
-    } catch (_) {
-      break;
-    }
+      await _sendKeyExchange("KEY_REQ", senderMac, await _myPublicKeyBase64());
+    } catch (_) {}
+    
+    return null;
   }
-
-  throw Exception("Can't decrypt message");
 }

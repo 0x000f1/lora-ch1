@@ -32,6 +32,7 @@ class _PrivatePageState extends State<PrivateChatPage> {
     final stored = await getPrivateMessages(widget.device.mac);
     if (mounted) {
       setState(() {
+        _messages.clear();
         _messages.addAll(stored);
       });
       _scrollToBottom();
@@ -85,12 +86,9 @@ class _PrivatePageState extends State<PrivateChatPage> {
       }
     });
 
-    // listen to message recovery updates and reload chat
+    // listen to system messages
     _updateSub = messageUpdateStream.listen((_) {
       if (mounted) {
-        setState(() {
-          _messages.clear();
-        });
         _loadMessages();
       }
     });
@@ -118,12 +116,12 @@ class _PrivatePageState extends State<PrivateChatPage> {
                     child: Text(
                       msg.content,
                       style: TextStyle(color: Colors.red.shade300, fontSize: 11),
-                      textAlign: .center
+                      textAlign: .center,
                     ),
                   );
                 }
                 return ChatBubble(
-                  text: msg.state == 'ok' ? msg.content : "[Encrypted message]",
+                  text: msg.content,
                   senderName: msg.isMe ? "Me" : widget.device.name,
                   isMe: msg.isMe,
                   timeStamp: msg.timestamp,

@@ -28,7 +28,7 @@ Future<int> getTotalUnreadPrivateCount() async {
   final rows = await db.query(
     'messages',
     columns: ['id'],
-    where: 'is_broadcast = 0 AND is_me = 0 AND is_read = 0 AND peer_mac IN (SELECT mac FROM peers)',
+    where: 'is_broadcast = 0 AND is_me = 0 AND is_read = 0 AND peer_mac IN (SELECT mac FROM peers WHERE is_hidden = 0)',
   );
   return rows.length;
 }
@@ -121,8 +121,6 @@ class DbMessage {
   final bool isBroadcast;
   String? status;
   bool isRead;
-  String? ciphertext;
-  String state;
 
   DbMessage({
     this.id,
@@ -134,8 +132,6 @@ class DbMessage {
     required this.isBroadcast,
     this.status,
     this.isRead = false,
-    this.ciphertext,
-    this.state = 'ok',
   });
 
   Map<String, dynamic> toMap() {
@@ -149,8 +145,6 @@ class DbMessage {
       'is_broadcast': isBroadcast ? 1 : 0,
       'status': status,
       'is_read': isRead ? 1 : 0,
-      'ciphertext': ciphertext,
-      'state': state,
     };
   }
 
@@ -163,9 +157,7 @@ class DbMessage {
       timestamp = (map['timestamp'] as int?) ?? 0,
       isBroadcast = ((map['is_broadcast'] as int?) ?? 0) == 1,
       status = map['status'] as String?,
-      isRead = ((map['is_read'] as int?) ?? 0) == 1,
-      ciphertext = map['ciphertext'] as String?,
-      state = (map['state'] as String?) ?? 'ok';
+      isRead = ((map['is_read'] as int?) ?? 0) == 1;
 }
 
 Future<Database> openChatDataBase() async {
@@ -175,6 +167,9 @@ Future<Database> openChatDataBase() async {
   return openDatabase(
     path,
     version: 1,
+    onConfigure: (db) async {
+      await db.execute('PRAGMA foreign_keys = ON');
+    },
     onCreate: (db, version) async {
       await db.execute('''
       CREATE TABLE peers (
@@ -182,7 +177,9 @@ Future<Database> openChatDataBase() async {
         name TEXT,
         color_hex TEXT,
         rssi TEXT,
-        last_seen INTEGER
+        last_seen INTEGER,
+        public_key TEXT,
+        is_hidden INTEGER DEFAULT 0
       )
       ''');
 
@@ -197,44 +194,36 @@ Future<Database> openChatDataBase() async {
         is_broadcast INTEGER,
         status TEXT,
         is_read INTEGER DEFAULT 0,
-        ciphertext TEXT,
-        state TEXT
+        FOREIGN KEY(peer_mac) REFERENCES peers(mac)
       )
       ''');
 
-      await db.execute('''
-      CREATE TABLE peer_keys (
-      peer_mac TEXT PRIMARY KEY,
-      public_key TEXT
-      )
-      ''');
+      await db.execute('CREATE INDEX idx_msg_peer_mac ON messages(peer_mac)');
+      await db.execute('CREATE INDEX idx_msg_is_broadcast ON messages(is_broadcast)');
+      await db.execute('CREATE INDEX idx_msg_is_read ON messages(is_read)');
+      await db.execute('CREATE INDEX idx_msg_timestamp ON messages(timestamp DESC)');
     },
-  );
-}
-
-Future<List<DbMessage>> getUndecryptableMessages(String peerMac) async {
-  final db = await getDatabase();
-  final rows = await db.query(
-    'messages',
-    where: 'peer_mac = ? AND state = "undecryptable"',
-    whereArgs: [peerMac],
-  );
-  return rows.map((row) => DbMessage.fromMap(row)).toList();
-}
-
-Future<void> updateMessageContent(int id, String newContent, String newState) async {
-  final db = await getDatabase();
-  await db.update(
-    'messages',
-    {'content': newContent, 'state': newState, 'ciphertext': null},
-    where: 'id = ?',
-    whereArgs: [id],
   );
 }
 
 Future<void> savePeer(DbPeer peer) async {
   final db = await getDatabase();
-  await db.insert('peers', peer.toMap(), conflictAlgorithm: .replace);
+  final exists = await db.query('peers', where: 'mac = ?', whereArgs: [peer.mac]);
+  if (exists.isEmpty) {
+    await db.insert('peers', peer.toMap());
+  } else {
+    await db.update(
+      'peers',
+      {
+        'name': peer.name,
+        'color_hex': peer.colorHex,
+        'rssi': peer.rssi,
+        'last_seen': peer.lastSeen,
+      },
+      where: 'mac = ?',
+      whereArgs: [peer.mac],
+    );
+  }
 }
 
 Future<List<DbPeer>> getSavedPeers() async {
@@ -249,8 +238,18 @@ class DbPeer {
   final String? colorHex;
   final String? rssi;
   final int? lastSeen;
+  final String? publicKey;
+  final bool isHidden;
 
-  DbPeer({required this.mac, required this.name, this.colorHex, this.rssi, this.lastSeen});
+  DbPeer({
+    required this.mac,
+    required this.name,
+    this.colorHex,
+    this.rssi,
+    this.lastSeen,
+    this.publicKey,
+    this.isHidden = false
+  });
 
   Map<String, dynamic> toMap() {
     return {'mac': mac, 'name': name, 'color_hex': colorHex, 'rssi': rssi, 'last_seen': lastSeen};
@@ -261,7 +260,9 @@ class DbPeer {
       name = (map['name'] as String?) ?? '',
       colorHex = map['color_hex'] as String?,
       rssi = map['rssi'] as String?,
-      lastSeen = map['last_seen'] as int?;
+      lastSeen = map['last_seen'] as int?,
+      publicKey = map['public_key'] as String?,
+      isHidden = ((map['is_hidden'] as int?) ?? 0) == 1;
 }
 
 const _secureStorage = FlutterSecureStorage();
@@ -274,31 +275,53 @@ Future<void> saveMyKeys(String privateKey, String publicKey) async {
 Future<Map<String, String>?> getMyKeys() async {
   final privateKey = await _secureStorage.read(key: 'my_private_key');
   final publicKey = await _secureStorage.read(key: 'my_public_key');
-  
-  if(privateKey == null || publicKey == null) return null;
-  
-  return {
-    'private_key': privateKey,
-    'public_key': publicKey,
-  };
+
+  if (privateKey == null || publicKey == null) return null;
+
+  return {'private_key': privateKey, 'public_key': publicKey};
 }
 
 Future<void> savePeerPublicKey(String peerMac, String publicKey) async {
   final db = await getDatabase();
-  await db.insert('peer_keys', {
-    'peer_mac': peerMac,
-    'public_key': publicKey,
-  }, conflictAlgorithm: .replace);
+  await ensurePeer(peerMac, 'Unknown');
+  await db.update('peers', {'public_key': publicKey}, where: 'mac = ?', whereArgs: [peerMac]);
+}
+
+// ensure peer with [mac] key exists in database before inserting a key.
+// name and other details will update later after automatic GET_NEI request
+Future<void> ensurePeer(String mac, String name) async {
+  final db = await getDatabase();
+  await db.insert('peers', {'mac': mac, 'name': name}, conflictAlgorithm: ConflictAlgorithm.ignore);
 }
 
 Future<String?> getPeerPublicKey(String peerMac) async {
   final db = await getDatabase();
-  final rows = await db.query('peer_keys', where: 'peer_mac = ?', whereArgs: [peerMac], limit: 1);
+  final rows = await db.query(
+    'peers',
+    columns: ['public_key'],
+    where: 'mac = ?',
+    whereArgs: [peerMac],
+    limit: 1,
+  );
   if (rows.isEmpty) return null;
   return rows.first['public_key'] as String?;
 }
 
-Future<void> deletePeerPublicKey(String peerMac) async {
+
+Future<void> setPeerHidden(String mac, bool blocked) async {
   final db = await getDatabase();
-  await db.delete('peer_keys', where: 'peer_mac = ?', whereArgs: [peerMac]);
+  await db.update('peers', {'is_hidden': blocked ? 1 : 0}, where: 'mac = ?', whereArgs: [mac]);
+}
+
+Future<bool> isPeerHidden(String mac) async {
+  final db = await getDatabase();
+  final rows = await db.query('peers', columns: ['is_hidden'], where: 'mac = ?', whereArgs: [mac], limit: 1);
+  if (rows.isEmpty) return false;
+  return (rows.first['is_hidden'] as int?) == 1;
+}
+
+Future<List<DbPeer>> getHiddenPeers() async {
+  final db = await getDatabase();
+  final rows = await db.query('peers', where: 'is_hidden = 1', orderBy: 'last_seen DESC');
+  return rows.map((row) => DbPeer.fromMap(row)).toList();
 }

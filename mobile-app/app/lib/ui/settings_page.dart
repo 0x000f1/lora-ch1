@@ -1,5 +1,8 @@
 import 'package:app/services/ble_transport.dart';
+import 'package:app/services/db_service.dart';
 import 'package:app/services/device_commands.dart';
+import 'package:app/services/neighbor_service.dart';
+import 'package:app/services/unread_service.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:app/core/color_utils.dart';
@@ -41,13 +44,13 @@ class _SettingsPageState extends State<SettingsPage> {
 
   // keeps track of whether the device is restarting or resetting
   bool get _isBusy => _isResettingDevice || _isRestartingDevice;
-  
+
   // close the route this widget lives on
   void _closeThisRoute() {
     // find the route that contains this widget
     final route = ModalRoute.of(context);
     // remove this route from navigator stack
-    if(route != null) Navigator.of(context).removeRoute(route);
+    if (route != null) Navigator.of(context).removeRoute(route);
   }
 
   Widget _buildUserProfile() {
@@ -120,6 +123,68 @@ class _SettingsPageState extends State<SettingsPage> {
               subtitle: Text(widget.deviceName),
             ),
           ),
+        );
+      },
+    );
+  }
+
+  Future<void> _showHiddenUsersDialog() async {
+    List<DbPeer> hiddenPeers = await getHiddenPeers();
+    if (!mounted) return;
+
+    showDialog(
+      context: context,
+      builder: (dialogContext) {
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            return AlertDialog(
+              title: const Text("Hidden Users"),
+              content: SizedBox(
+                width: 500,
+                child: hiddenPeers.isEmpty
+                    ? const Text("No hidden users.")
+                    : ListView.builder(
+                        shrinkWrap: true,
+                        itemCount: hiddenPeers.length,
+                        itemBuilder: (context, index) {
+                          final peer = hiddenPeers[index];
+                          return ListTile(
+                            leading: CircleAvatar(
+                              backgroundColor: hexToColor(peer.colorHex ?? '0088FF'),
+                              child: const Icon(Icons.person, color: Colors.white, size: 20),
+                            ),
+                            title: Text(peer.name),
+                            trailing: TextButton(
+                              onPressed: () async {
+                                // unhide user
+                                await setPeerHidden(peer.mac, false);
+                                // refresh unread messages count and load user with unhidden state
+                                await loadSavedPeers();
+                                await refreshUnreadCount();
+
+                                // redraw ui with unhidden user removed
+                                final updatedPeers = await getHiddenPeers();
+                                setDialogState(() {
+                                  hiddenPeers = updatedPeers;
+                                });
+                              },
+                              child: const Text(
+                                "Unhide",
+                                style: TextStyle(color: Colors.lightBlue),
+                              ),
+                            ),
+                          );
+                        },
+                      ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(dialogContext),
+                  child: const Text("Close"),
+                ),
+              ],
+            );
+          },
         );
       },
     );
@@ -517,6 +582,14 @@ class _SettingsPageState extends State<SettingsPage> {
                 "Broadcast notifications",
                 broadcastNotificationSetting,
                 (value) => setBroadcastNotifications(value),
+              ),
+              SizedBox(height: 6),
+              _buildDeviceActionButton(
+                icon: Icons.visibility_off_rounded,
+                iconColor: Colors.redAccent,
+                title: "Hidden users",
+                subtitle: "Manage hidden users",
+                onTap: _showHiddenUsersDialog
               ),
             ],
           ),

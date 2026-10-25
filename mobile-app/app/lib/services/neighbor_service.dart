@@ -18,7 +18,7 @@ class PeerDevice {
   final String name;
   final int timeStamp;
   final String colorHex;
-
+  final bool isHidden;
 
   const PeerDevice({
     required this.mac,
@@ -26,6 +26,7 @@ class PeerDevice {
     required this.name,
     required this.timeStamp,
     required this.colorHex,
+    required this.isHidden,
   });
 
   PeerDevice.fromDb(DbPeer peer)
@@ -33,7 +34,8 @@ class PeerDevice {
       name = peer.name,
       colorHex = peer.colorHex ?? '0088FF',
       rssi = peer.rssi ?? '-100',
-      timeStamp = peer.lastSeen ?? 0;
+      timeStamp = peer.lastSeen ?? 0,
+      isHidden = peer.isHidden;
 }
 
 final ValueNotifier<List<PeerDevice>> neighbors = ValueNotifier([]);
@@ -74,12 +76,12 @@ void _handleNeiPacket(String rawMsg) async {
     if (deviceData.length < 7) return;
     AppLogger.log("MESH", "Parsed device data: $deviceData");
     final mac = deviceData[0];
-    
-    // remove delimiters 
+
+    // remove delimiters
     final rawName = deviceData[1];
     String name = rawName.replaceAll(RegExp(r'[;|]'), '').trim();
-    name = name.length > 16 ? name.substring(0,16) : (name.isEmpty ? "Unknown" : name);
-    
+    name = name.length > 16 ? name.substring(0, 16) : (name.isEmpty ? "Unknown" : name);
+
     // validate hex before saving
     final rawColorHex = deviceData[2];
     final colorHex = hexToColor(rawColorHex) != null ? rawColorHex : '0088FF';
@@ -88,8 +90,17 @@ void _handleNeiPacket(String rawMsg) async {
     if (timeStamp < minValidUnixStamp) {
       timeStamp = 0;
     }
+
+    bool hiddenStatus = await isPeerHidden(mac);
     await savePeer(
-      DbPeer(mac: mac, name: name, colorHex: colorHex, rssi: rssi, lastSeen: timeStamp),
+      DbPeer(
+        mac: mac,
+        name: name,
+        colorHex: colorHex,
+        rssi: rssi,
+        lastSeen: timeStamp,
+        isHidden: hiddenStatus,
+      ),
     );
 
     await checkAndRequestKey(mac);
@@ -101,6 +112,7 @@ void _handleNeiPacket(String rawMsg) async {
       name: name,
       timeStamp: timeStamp,
       colorHex: colorHex,
+      isHidden: hiddenStatus
     );
 
     final Map<String, int?> lastMessageTime = {};
@@ -110,7 +122,7 @@ void _handleNeiPacket(String rawMsg) async {
 
     // remove current device from the list, if it was previously connected to the phone
     final sortedDevices = deviceMap.values
-        .where((device) => device.mac != myDeviceId.value)
+        .where((device) => device.mac != myDeviceId.value && !device.isHidden)
         .toList();
 
     sortedDevices.sort((a, b) {
@@ -128,7 +140,7 @@ Future<void> loadSavedPeers() async {
 
   neighbors.value = savedPeers
       // remove my device if it was previously connected
-      .where((peer) => peer.mac != myDeviceId.value)
+      .where((peer) => peer.mac != myDeviceId.value && !peer.isHidden)
       .map(
         (peer) => PeerDevice(
           mac: peer.mac,
@@ -136,6 +148,7 @@ Future<void> loadSavedPeers() async {
           colorHex: peer.colorHex ?? '0088FF',
           rssi: peer.rssi ?? '-100',
           timeStamp: peer.lastSeen ?? 0,
+          isHidden: peer.isHidden
         ),
       )
       .toList();
@@ -144,7 +157,7 @@ Future<void> loadSavedPeers() async {
 void stopNeighborProcessing() {
   _refreshTimer?.cancel();
   _refreshTimer = null;
-  
+
   _neighborSub?.cancel();
   _neighborSub = null;
 }
