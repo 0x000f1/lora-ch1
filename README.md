@@ -171,7 +171,7 @@ The firmware is built with **PlatformIO** targeting the **`esp32-c3-devkitm-1`**
 
 ```bash
 # Clone the repository
-git clone [https://github.com/0x000f1/lora-ch1.git](https://github.com/0x000f1/lora-ch1.git)
+git clone https://github.com/0x000f1/lora-ch1.git
 cd lora-ch1
 
 # Build firmware
