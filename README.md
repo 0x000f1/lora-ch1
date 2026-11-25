@@ -1,140 +1,188 @@
+<div align="center">
+
 # lora-ch1
 
-This project is based on the ESP32-C3 microcontroller that behaves like a bridge between mobile devices and the modules. The connection is established via Bluetooth Low Energy with the phone, then sends the package over the LoRa (RFM98W/SX1278) module at 433 MHz. This combination is able to perform a full internet-independent communication between two or more devices, at a long range.
+**Off-Grid 433 MHz LoRa–BLE Peer-to-Peer Communicator Based on ESP32-C3 & FreeRTOS**
 
-## Hardware Specification & Pinout
+[![MCU](https://img.shields.io/badge/MCU-ESP32--C3-E7352C.svg)](https://www.espressif.com/)
+[![Radio](https://img.shields.io/badge/LoRa-RFM98W%20%7C%20433%20MHz-blue.svg)](#hardware-architecture--specifications)
+[![RTOS](https://img.shields.io/badge/Firmware-FreeRTOS%20%7C%20C%2B%2B-00599C.svg)](#firmware-architecture--key-features)
+[![Build](https://img.shields.io/badge/IDE-PlatformIO-F5822A.svg)](https://platformio.org/)
+[![License](https://img.shields.io/badge/License-MIT-yellow.svg)](#license)
 
-The current hardware is based on the ESP32-C3 microcontroller, interfaced with an RFM98W/SX1278 LoRa module, a DRV2605L haptic driver, and a BQ24075 based charging circuit.
+<br>
 
-![PCB Layout](https://raw.githubusercontent.com/0x000f1/lora-ch1/refs/heads/main/docs/lora_ch1.png)
+<img src="docs/pcb/docs/lora_ch1.png" alt="lora-ch1 Top PCB Raytraced Render" width="520">
 
-### ESP32-C3 GPIO Mapping
+*Raytraced 3D render of the **lora-ch1** custom PCB featuring ESP32-C3, 433 MHz RFM98W LoRa transceiver, DRV2605L haptics, and BQ24075 charger*
 
-| Component | Pin Name | ESP32-C3 GPIO | Description |
-| :--- | :--- | :--- | :--- |
-| **LoRa (SPI)** | MISO | GPIO 5 | Master In Slave Out |
-| | MOSI | GPIO 6 | Master Out Slave In |
-| | NSS | GPIO 7 | Chip Select (CS) |
-| | SCK | GPIO 4 | SPI Clock |
-| | DIO1 | GPIO 3 | IRQ / Interrupt 1 |
-| | DIO0 | GPIO 10 | IRQ / Interrupt 0 |
-| | RST | GPIO 2 | LoRa Reset |
-| **I2C Bus** | SDA | GPIO 8 | I2C Data (DRV2605L) |
-| | SCL | GPIO 9 | I2C Clock (DRV2605L) |
-| **Haptic Driver** | DRV_EN | GPIO 21 | Enable pin for DRV2605L |
-| **Power / Battery** | CHRG | GPIO 20 | Charging status (BQ24075, LOW = charging) |
-| | BAT_SENS | GPIO 1 | Battery Voltage ADC (ADC_11db attenuation) |
-| **User Input** | BUTTON | GPIO 0 | Hardware Button (with debouncing) |
+</div>
 
-### Development Environment & Flashing
-* **IDE:** **PlatformIO**
-* **Board:** **`esp32-c3-devkitm-1`**
+---
 
-## Functions
+## Overview
 
-* **Reliable Bidirectional Communication:** Transmit packages seamlessly between two or more devices. Supports public Broadcasts and private P2P messages with an Automatic Repeat Request (ARQ) mechanism. P2P messages are automatically acknowledged (ACK) and retried up to 3 times if lost in the air. The system utilizes a dynamic ACK timeout mechanism, calculating the exact wait time based on the payload's Time on Air (ToA) and the mandatory 10% Duty Cycle off-time, ensuring reliable retries without regulatory violations.
-* **Fast TX & Continuous RX Architecture:** Optimized for ultra-low latency and high reliability in the prototype phase. By utilizing an optimized preamble (12 symbols), the Time on Air (ToA) is reduced to ~100-132ms (payload dependent), virtually eliminating packet collisions while ensuring zero message drops through continuous background listening. *Thread-safe FreeRTOS implementation prevents conflicts between BLE and LoRa tasks*.
-* **End-to-End Encryption Support (Key Exchange):** Natively supports routing public keys for E2EE via `KEY_REQ` and `KEY_RESP` commands over the standard data characteristic. The key exchange utilizes the existing ARQ (Hardware ACK) mechanism ensuring reliable and verified key delivery between peers.
-* **Offline Message Buffer:** Safely stores up to 32 incoming direct (P2P) messages in the RAM if the phone is disconnected. Upon BLE reconnection, all buffered messages are instantly pushed to the app. Public Broadcasts are ignored for offline storage to preserve memory.
-* **Smart Neighbour Discovery:** Automatic heartbeat messages are sent out to advertise the active device among other users, storing the RSSI, last active timestamp, and the user's custom RGB UI color. The system automatically cleans up "dead" or out-of-range nodes after a timeout period based on the active power profile.
-* **Location Sharing & Privacy:** Broadcasts the user's GPS coordinates (Latitude and Longitude) to the mesh network via Heartbeat messages. If the user disables location sharing (Privacy Mode), the system dynamically truncates the binary payload by 8 bytes to conserve precious LoRa airtime and battery life.
-* **Haptic & UI Feedback:** Integrated DRV2605L haptic motor driver and hardware button with debouncing. Provides distinct physical feedback for button presses, incoming LoRa messages, and an automatic low battery warning (triggered below 15% while discharging).
-* **BLE Security (Just Works):** Implements physical button-press validation to activate BLE advertising (Pairing Mode) for 60 seconds, preventing unauthorized external connections.
-* **Dynamic NVS Management:** The device name, UUIDs, unique LoRa ID, haptic profile, and user preferences (Username, UI Color, Location) are generated on the first startup and safely stored in the Non-Volatile Storage (NVS).
-* **Duty Cycle Monitoring:** Tracks and logs the Time on Air (ToA) and calculates the current duty cycle percentage to assist with regulatory compliance (e.g., the 10% limit on 433MHz in Europe).
-* **Automated Power Management:** Supports 3 different power profiles (`BATTERY_SAVER`, `BALANCED`, `PERFORMANCE`) that dynamically scale the CPU frequency (80MHz or 160MHz) and adjust heartbeat intervals (10 min, 5 min, and 1 min respectively). The device defaults to `BATTERY_SAVER` on boot. Pressing the hardware button temporarily wakes the system into `BALANCED` mode for BLE communication.
-* **Real Battery Monitoring:** Built-in hardware ADC integration calculates real battery percentage, and monitors the active charging status via the BQ24075 charging IC's open-drain output (GPIO 20).
+**lora-ch1** is a compact, battery-powered hardware bridge and embedded firmware stack that enables **long-range, internet-independent messaging** between mobile devices.
 
-## BLE API Documentation
+Each node pairs with a smartphone over **Bluetooth Low Energy (BLE)** and transparently relays fragmented text messages, End-to-End Encryption (E2EE) public keys, neighbor heartbeats, and optional GPS coordinates over **433 MHz LoRa (RFM98W / SX1278)**—with zero cellular or Wi-Fi infrastructure required.
 
-The mobile app connects to the ESP32 and manages the LoRa module (and some settings).
+```text
+[ Mobile App ] <--- BLE GATT (512 B MTU) ---> [ ESP32-C3 (FreeRTOS) ] <--- SPI ---> [ RFM98W 433 MHz ] ))) LoRa ((( [ Peer Nodes ]
+```
 
-### 1. Discovering the device (Scanning & Connection)
+Key use cases include:
+* Off-grid hiking, festivals, and remote areas without cellular coverage
+* Resilient peer-to-peer (P2P) and broadcast emergency communication
+* Decentralized local node discovery with RSSI tracking and privacy-aware GPS sharing
+* Hardware-assisted E2EE key exchange using reliable LoRa ARQ delivery
 
-* **IMPORTANT (MTU Size):** The Android application **MUST** request an MTU size of 512 bytes (`requestMtu(512)`) immediately after the connection is established. Without this, Android will truncate incoming messages to 20 bytes! iOS handles this automatically.
-* **Device Name:** The ESP32 starts advertising in this format `lora-ch1-XXXX` where the `XXXX` is the device's MAC address's last 2 bytes (e.g., `lora-ch1-A1B2`).
-* **Dynamic UUIDs:** **IMPORTANT!** On the first start, the device generates (Version 4) UUIDs for the services and characteristics. The mobile device should use **Service Discovery** instead of hardcoded UUIDs!
-* **Pairing Mode:** The device is hidden by default. Press the physical button on the device to enable Bluetooth visibility for 60 seconds.
+<details>
+<summary><b>View Top & Isometric 3D PCB Renders</b></summary>
+<br>
 
-### 2. Services and characteristics
+| Top View (`F.Cu`) | Isometric 3D View |
+| :---: | :---: |
+| <img src="docs/lora_ch1.png" alt="lora-ch1 Top PCB Render" width="380"> | <img src="docs/lora_ch1_iso.png" alt="lora-ch1 Isometric 3D Render" width="380"> |
 
-The system advertises a single main Service, under which two characteristics (Data and Control) are located. Both characteristics support `READ`, `WRITE`, and `NOTIFY` operations.
+</details>
 
-#### A. Data Characteristic
-Actual message sending and receiving takes place on this channel. The payload must follow a semicolon-separated format to support message fragmentation and direct addressing.
+---
 
-* **Sending (App -> LoRa):**
-  * **Format 1 (Standard Message):** `TARGET_MAC;CURRENT_FRAGMENT;TOTAL_FRAGMENTS;PAYLOAD`
-    * Write a String to this characteristic using the format above.
-    * *Target MAC:* 8-character HEX string. Use `FFFFFFFF` to Broadcast to everyone, or a specific device's LoRa ID for a private P2P message.
-    * *Example (Broadcast):* `FFFFFFFF;1;1;Hello everyone!`
-    * *Example (P2P Fragmented):* `ABCD1234;1;3;This is a long me`
-    * *Limitation:* The `PAYLOAD` length per BLE write should be kept around 240 bytes due to LoRa airtime limitations.
-  * **Format 2 (Key Exchange):** `KEY_REQ;TARGET_MAC;PUBLIC_KEY` or `KEY_RESP;TARGET_MAC;PUBLIC_KEY`
-    * Initiates or responds to an End-to-End Encryption key exchange.
-    * The ESP32 automatically parses the `TARGET_MAC`, forwards the key via LoRa, and awaits a hardware ACK from the target device.
-    * *Example:* `KEY_REQ;A1B2C3D4;PU8r8H3BvjiyDNbqtp12Y1LHFvhF+nJI81oWjmFqS1w=`
+## Hardware Architecture & Specifications
 
-* **Receiving (LoRa -> App):**
-  * The app must subscribe to `NOTIFY` events on this characteristic.
-  * **Format 1 (Standard Data):** `SENDER_MAC;SENDER_USERNAME;COLOR_HEX;TARGET_MAC;CURRENT_FRAGMENT;TOTAL_FRAGMENTS;TIMESTAMP;RSSI;PAYLOAD`
-    * The app can use the `TARGET_MAC` to determine if the received message was a public broadcast (`FFFFFFFF`) or a private P2P message.
-    * `SENDER_USERNAME`: The sender's username string automatically resolved from the internal neighbor cache. Returns `Unknown` if the sender is not in the cache.
-    * `COLOR_HEX`: The sender's custom UI color (e.g., `FF0000`) resolved from the cache. Defaults to `0088FF` if unknown.
-    * `TIMESTAMP`: The UNIX Epoch time in seconds. If the device clock is not synced via `SET_TIM`, this value returns `0`. For fragmented messages (total fragments > 1), all fragments of the same message will share the exact same timestamp (derived from the first received fragment), allowing the mobile app to seamlessly group them.
-    * `RSSI`: The signal strength of the received LoRa package (e.g., `-78.00`).
-  * **Format 2 (Delivery Success):** `ACK_OK;TARGET_MAC`
-    * Sent to the app when a previously sent P2P message (or Key Exchange) is successfully acknowledged by the receiver's hardware.
-  * **Format 3 (Delivery Failed):** `ERR_TIMEOUT;TARGET_MAC`
-    * Sent to the app when a P2P message fails to reach the target after maximum retries or channel collisions.
-  * **Format 4 (Key Exchange):** `KEY_REQ;SENDER_MAC;PUBLIC_KEY` or `KEY_RESP;SENDER_MAC;PUBLIC_KEY`
-    * Sent to the app when another device initiates or responds to a key exchange. The app can use the `SENDER_MAC` to identify the peer and complete the encryption setup.
+| Subsystem | Components & Specifications |
+| :--- | :--- |
+| **MCU & BLE** | **ESP32-C3** — 32-bit RISC-V microcontroller running thread-safe **FreeRTOS** firmware (`esp32-c3-devkitm-1` target), BLE 5 GATT server |
+| **LoRa Transceiver** | **RFM98W / SX1278** (433 MHz ISM band) connected via SPI + dual hardware interrupts (`DIO0`, `DIO1`) and reset (`RST`) |
+| **Haptic Feedback** | **DRV2605L** I2C haptic motor driver with dedicated hardware enable (`DRV_EN`) for tactile message, button, alert, and low-battery cues |
+| **Power & Charging** | **BQ24075** Li-Ion/Li-Po battery charger with open-drain charging status output (`CHRG`, active-low) and ADC battery voltage sensing (`BAT_SENS`, `ADC_11db`) |
+| **User Interface** | Hardware push button (`BUTTON`) with software debouncing for wake-up and 60-second BLE pairing authorization |
 
-#### B. Control Characteristic
-This channel is used to query the network status and manage system preferences.
+---
 
-* **Commands (App -> ESP32) & Responses (via NOTIFY):**
-  * `SET_TIM;UnixSeconds`
-    * *Action:* Syncs the ESP32's internal RTC to the real-world UNIX epoch time (e.g., `SET_TIM;1715423000`). Must be sent immediately after connecting.
-    * *Response:* `TIM_OK`
-  * `SET_LOC;Latitude;Longitude`
-    * *Action:* Updates the device's internal location cache with the phone's GPS coordinates to be broadcasted via LoRa (e.g., `SET_LOC;47.5316;21.6273`).
-    * *Response:* `LOC_OK` or `LOC_ERR`
-  * `GET_LOC`
-    * *Response:* `LOC;Latitude;Longitude` (e.g., `LOC;47.531600;21.627300`).
-  * `NO_LOC`
-    * *Action:* Disables location sharing for privacy. Resets the coordinates to `0.0` and dynamically truncates the LoRa heartbeat payload to save bandwidth.
-    * *Response:* `NO_LOC_OK`
-  * `GET_NEI`
-    * *Response:* `NEI|MAC;NEI_USERNAME;COLOR_HEX;RSSI;TIMESTAMP;LATITUDE;LONGITUDE|...` (e.g., `NEI|A1B2C3D4;lora-ch1-XXXX;FF0000;-45.50;32125;47.531600;21.627300|...`) or `NEI|NO_NEI` if the list is empty.
-  * `GET_BAT`
-    * *Response:* `BAT;Percentage;IsCharging` (e.g., `BAT;87;1` where 1 means charging, 0 means discharging).
-  * `SET_USR;Username`
-    * *Action:* Saves the string to NVS. Cannot contain `;` or `|` characters, and trims whitespaces. Defaults to `Guest` if empty or invalid.
-    * *Response:* `USR_OK`
-  * `GET_USR`
-    * *Response:* `USR;Username` (Defaults to `Guest` if not set).
-  * `SET_COL;HexColor`
-    * *Action:* Saves the UI color HEX string to NVS (e.g., `FF0000`). Reverts to `0088FF` if the format is invalid.
-    * *Response:* `COL_OK`
-  * `GET_COL`
-    * *Response:* `COL;HexColor` (Defaults to `0088FF` if not set).
-  * `SET_PWR;ProfileName`
-    * *Action:* Sets the active power profile (`BATTERY_SAVER`, `BALANCED`, `PERFORMANCE`).
-    * *Response:* `PWR_OK` or `PWR_ERR` (if the profile name is invalid).
-  * `GET_VIB`
-    * *Response:* `VIB;{0/1}` Where 0 means haptics is off, 1 means haptics is on.
-  * `SET_VIB;STATUS`
-    * *Action:* `1` turns on (by default) the haptic feedback actuator, `0` turns off.
-    * *Response:* `VIB_OK` means the command ran.
-  * `GET_ID`
-    * *Response:* `ID;LOCAL_ID` (e.g., `ID;3FFE78C0`) returns the LoRa local address.
-  * `RST`
-    * *Action:* Restarts the ESP, needs to reconnect after!
-    * *Response:* `RST_OK`
-  * `FACTORY_RESET`
-    * *Action:* Erases the whole NVS partition, clears color, username, UUIDs, and all settings. The ESP restarts automatically. The LoRa MAC remains unchanged as it is generated from the hardware MAC address.
-    * *Response:* `FACTORY_RESET_OK`
-  * `FIND`
-    * *Action:* For 5 second, spams the 750 ms Alert 100% haptic vibration.
-    * *Response:* `FIND_OK`
+## ESP32-C3 GPIO Mapping
+
+| Subsystem | Signal | ESP32-C3 GPIO | Description |
+| :--- | :--- | :---: | :--- |
+| **LoRa (SPI)** | `SCK` | `GPIO 4` | SPI Clock |
+| | `MISO` | `GPIO 5` | Master In Slave Out |
+| | `MOSI` | `GPIO 6` | Master Out Slave In |
+| | `NSS` | `GPIO 7` | Chip Select (`CS`) |
+| | `RST` | `GPIO 2` | LoRa Hardware Reset |
+| | `DIO0` | `GPIO 10` | LoRa IRQ / Interrupt 0 |
+| | `DIO1` | `GPIO 3` | LoRa IRQ / Interrupt 1 |
+| **I2C Bus** | `SDA` | `GPIO 8` | I2C Data (`DRV2605L`) |
+| | `SCL` | `GPIO 9` | I2C Clock (`DRV2605L`) |
+| **Haptic Driver** | `DRV_EN` | `GPIO 21` | `DRV2605L` Enable pin |
+| **Power / Battery** | `CHRG` | `GPIO 20` | `BQ24075` charging status (`LOW` = charging) |
+| | `BAT_SENS` | `GPIO 1` | Battery voltage ADC (`ADC_11db` attenuation) |
+| **User Input** | `BUTTON` | `GPIO 0` | Hardware button (debounced) |
+
+---
+
+## Firmware Architecture & Key Features
+
+* **Thread-Safe FreeRTOS Architecture:** Decouples BLE GATT handling and LoRa radio operations across concurrent tasks, preventing bus contention and dropped packets.
+* **Fast TX & Continuous RX:** Uses an optimized 12-symbol preamble to reduce Time on Air (ToA) to **~100–132 ms** (payload-dependent), minimizing collisions while keeping continuous background RX active.
+* **Reliable P2P Delivery (ARQ) & Broadcasts:** Supports both public broadcasts (`FFFFFFFF`) and addressed P2P messages. P2P packets use hardware ACK with up to **3 automatic retries** and a **dynamic ACK timeout** computed from payload ToA and the mandatory 10% duty-cycle off-time.
+* **EU 433 MHz Duty-Cycle Monitoring:** Tracks cumulative Time on Air (ToA) and real-time duty-cycle percentage to stay compliant with the European **10% duty-cycle limit** on 433 MHz.
+* **End-to-End Encryption (E2EE) Key Routing:** Natively transports public key handshakes (`KEY_REQ` / `KEY_RESP`) over the LoRa ARQ layer for verified peer key delivery.
+* **Offline P2P Message Buffer:** Buffers up to **32 incoming P2P messages** in RAM while the phone is disconnected and flushes them immediately upon BLE reconnection (public broadcasts are excluded to preserve RAM).
+* **Smart Neighbor Discovery & Privacy Mode:** Periodic heartbeats advertise node identity, RSSI, last-seen timestamp, custom RGB UI color, and GPS coordinates, automatically pruning stale/out-of-range nodes. Disabling location (`NO_LOC`) dynamically truncates the binary heartbeat payload by **8 bytes** to save airtime and battery.
+* **Physical-Presence BLE Security:** BLE advertising is hidden by default (`Just Works`). Pressing the hardware button opens a **60-second Pairing Mode** window to block unauthorized connections.
+* **Dynamic NVS Persistence:** Generates unique Version 4 BLE UUIDs, device name (`lora-ch1-XXXX`), and hardware-derived LoRa ID on first boot, storing all user settings persistently in Non-Volatile Storage (NVS).
+* **Battery Telemetry & Haptics:** Reads real battery percentage via ADC and charging state via `BQ24075`, triggering distinct `DRV2605L` haptic patterns for button presses, incoming messages, locate alerts (`FIND`), and low-battery warnings (<15% while discharging).
+
+### Power Management Profiles
+
+| Profile | CPU Frequency | Heartbeat Interval | Behavior |
+| :--- | :---: | :---: | :--- |
+| **`BATTERY_SAVER`** *(default on boot)* | 80 MHz | 10 min | Lowest power baseline; pressing `BUTTON` temporarily wakes the node to `BALANCED` for BLE interaction. |
+| **`BALANCED`** | 80 / 160 MHz | 5 min | Standard active profile for regular messaging and neighbor updates. |
+| **`PERFORMANCE`** | 160 MHz | 1 min | Fastest neighbor discovery and responsiveness at higher battery consumption. |
+
+---
+
+## BLE GATT API Reference
+
+The device exposes **one main BLE Service** containing **two Characteristics** (**Data** and **Control**). Both characteristics support `READ`, `WRITE`, and `NOTIFY`, and all text payloads use **semicolon (`;`) delimiters**.
+
+### Connection Requirements
+
+* **Android MTU (Critical):** Android clients **must** call `requestMtu(512)` immediately after connecting; otherwise, Android truncates incoming notifications to 20 bytes. *(iOS negotiates MTU automatically.)*
+* **Advertising Name:** `lora-ch1-XXXX`, where `XXXX` is the last 2 bytes of the device MAC address (e.g., `lora-ch1-A1B2`).
+* **Dynamic UUIDs:** Service and characteristic UUIDs are randomly generated (UUID v4) on first boot and persisted in NVS. Clients **must use BLE Service Discovery** instead of hardcoded UUIDs.
+* **Pairing Window:** Advertising is disabled by default. Press the physical button to enable visibility for **60 seconds**.
+
+### A. Data Characteristic (`App <-> LoRa`)
+
+#### Sending (`App -> ESP32`, via `WRITE`)
+| Format | Payload Structure | Notes & Example |
+| :--- | :--- | :--- |
+| **Standard Message** | `TARGET_MAC;CURRENT_FRAGMENT;TOTAL_FRAGMENTS;PAYLOAD` | `TARGET_MAC` is an 8-char HEX LoRa ID (`FFFFFFFF` for Broadcast). Keep `PAYLOAD` ≤ ~240 bytes per write.<br>*Broadcast:* `FFFFFFFF;1;1;Hello everyone!`<br>*Fragmented P2P:* `ABCD1234;1;3;This is a long me` |
+| **Key Exchange** | `KEY_REQ;TARGET_MAC;PUBLIC_KEY`<br>`KEY_RESP;TARGET_MAC;PUBLIC_KEY` | Forwards E2EE public keys via LoRa ARQ with hardware ACK.<br>*Example:* `KEY_REQ;A1B2C3D4;PU8r8H3BvjiyDNbqtp12Y1LHFvhF+nJI81oWjmFqS1w=` |
+
+#### Receiving (`ESP32 -> App`, via `NOTIFY`)
+| Event | Notification Structure | Notes |
+| :--- | :--- | :--- |
+| **Incoming Message** | `SENDER_MAC;SENDER_USERNAME;COLOR_HEX;TARGET_MAC;CURRENT_FRAGMENT;TOTAL_FRAGMENTS;TIMESTAMP;RSSI;PAYLOAD` | `TARGET_MAC` distinguishes Broadcast (`FFFFFFFF`) from P2P. `SENDER_USERNAME` (`Unknown`) and `COLOR_HEX` (`0088FF`) resolve from the neighbor cache. All fragments of a multi-part message share the first fragment's UNIX `TIMESTAMP` (`0` if unsynced). `RSSI` in dBm (e.g., `-78.00`). |
+| **Delivery ACK** | `ACK_OK;TARGET_MAC` | Receiver hardware acknowledged the P2P message or Key Exchange. |
+| **Delivery Timeout** | `ERR_TIMEOUT;TARGET_MAC` | P2P delivery failed after maximum retries or channel collisions. |
+| **Key Exchange** | `KEY_REQ;SENDER_MAC;PUBLIC_KEY`<br>`KEY_RESP;SENDER_MAC;PUBLIC_KEY` | Incoming E2EE key exchange request or response from a peer. |
+
+### B. Control Characteristic (`App <-> ESP32`)
+
+Commands are sent via `WRITE` and answered asynchronously via `NOTIFY`:
+
+| Command (`App -> ESP32`) | Response (`NOTIFY`) | Description |
+| :--- | :--- | :--- |
+| `SET_TIM;UnixSeconds` | `TIM_OK` | Syncs internal RTC to UNIX epoch time (e.g., `SET_TIM;1715423000`). Send immediately upon connect. |
+| `SET_LOC;Latitude;Longitude` | `LOC_OK` / `LOC_ERR` | Updates cached GPS coordinates for LoRa heartbeats (e.g., `SET_LOC;47.5316;21.6273`). |
+| `GET_LOC` | `LOC;Latitude;Longitude` | Returns stored coordinates (e.g., `LOC;47.531600;21.627300`). |
+| `NO_LOC` | `NO_LOC_OK` | Enables Privacy Mode: resets coordinates to `0.0` and truncates heartbeat payload by 8 bytes. |
+| `GET_NEI` | `NEI\|MAC;USR;COL;RSSI;TS;LAT;LON\|...` or `NEI\|NO_NEI` | Returns active neighbor list (`\|`-delimited entries, `;`-delimited fields). |
+| `GET_BAT` | `BAT;Percentage;IsCharging` | Returns battery level and charging flag (`1` = charging, `0` = discharging; e.g., `BAT;87;1`). |
+| `SET_USR;Username` | `USR_OK` | Saves username to NVS (disallows `;` and `\|`, trims whitespace; defaults to `Guest`). |
+| `GET_USR` | `USR;Username` | Returns stored username (default: `Guest`). |
+| `SET_COL;HexColor` | `COL_OK` | Saves 6-char RGB HEX UI color to NVS (e.g., `FF0000`; invalid values fall back to `0088FF`). |
+| `GET_COL` | `COL;HexColor` | Returns stored UI color HEX string (default: `0088FF`). |
+| `SET_PWR;ProfileName` | `PWR_OK` / `PWR_ERR` | Switches power profile (`BATTERY_SAVER`, `BALANCED`, `PERFORMANCE`). |
+| `GET_VIB` | `VIB;{0/1}` | Queries haptic feedback state (`0` = off, `1` = on). |
+| `SET_VIB;STATUS` | `VIB_OK` | Enables (`1`, default) or disables (`0`) haptic feedback. |
+| `GET_ID` | `ID;LOCAL_ID` | Returns the node's 8-char HEX LoRa address (e.g., `ID;3FFE78C0`). |
+| `FIND` | `FIND_OK` | Triggers 5 seconds of continuous 750 ms 100% alert haptic pulses to locate the device. |
+| `RST` | `RST_OK` | Reboots the ESP32-C3 (BLE reconnection required). |
+| `FACTORY_RESET` | `FACTORY_RESET_OK` | Wipes NVS (username, color, UUIDs, settings) and reboots. Hardware-derived LoRa MAC is preserved. |
+
+---
+
+## Important Notes & Integration Checklist
+
+1. **Always sync time on connect:** Send `SET_TIM;<unix_epoch>` right after BLE connection so incoming and fragmented messages receive valid timestamps instead of `0`.
+2. **Respect the 240-byte payload ceiling:** Fragment longer messages in the client app using `CURRENT_FRAGMENT;TOTAL_FRAGMENTS` to stay within LoRa packet and airtime limits.
+3. **Sync MTU before subscribing/writing on Android:** Request `MTU = 512` before expecting full `GET_NEI` or standard data notifications.
+4. **433 MHz antenna precaution:** Never power on or transmit with the `RFM98W` without a properly matched 433 MHz antenna connected to avoid damaging the RF power amplifier.
+
+---
+
+## Build & Flashing
+
+The firmware is built with **PlatformIO** targeting the **`esp32-c3-devkitm-1`** board definition:
+
+```bash
+# Clone the repository
+git clone [https://github.com/0x000f1/lora-ch1.git](https://github.com/0x000f1/lora-ch1.git)
+cd lora-ch1
+
+# Build firmware
+pio run
+
+# Flash to ESP32-C3 and open serial monitor
+pio run -t upload -t monitor
+```
+
+---
+
+## License
+
+Licensed under the **MIT License**.
