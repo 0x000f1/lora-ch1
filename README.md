@@ -42,7 +42,7 @@ Key use cases include:
 
 | Top View (`F.Cu`) | Isometric 3D View |
 | :---: | :---: |
-| <img src="docs/lora_ch1.png" alt="lora-ch1 Top PCB Render" width="380"> | <img src="docs/lora_ch1_iso.png" alt="lora-ch1 Isometric 3D Render" width="380"> |
+| <img src="docs/pcb/docs/lora_ch1.png" alt="lora-ch1 Top PCB Render" width="380"> | <img src="docs/pcb/docs/lora_ch1_iso.png" alt="lora-ch1 Isometric 3D Render" width="380"> |
 
 </details>
 
